@@ -4,6 +4,7 @@
  * (media-url-pipeline); bare MUSIC_DIR filenames are video-only.
  */
 
+import type { TFunction } from 'i18next';
 import type { QueueVideoResponse, StartVideoStreamRequest } from '@ts6/common';
 import {
   DEFAULT_VIDEO_START_OPTIONS,
@@ -65,12 +66,28 @@ export function buildLinkStartRequest(
 /** Toast after a stream/queue request, for one video or a playlist. */
 export function queuedVideoToast(
   res: Pick<QueueVideoResponse, 'queued' | 'started' | 'playlistTitle' | 'truncated'>,
+  t?: TFunction<'bots'>,
 ): string {
   if (res.queued === 1 && !res.playlistTitle) {
-    return res.started ? 'Video stream started' : 'Added to Up next';
+    if (res.started) return t ? t('linkRequest.streamStarted') : 'Video stream started';
+    return t ? t('linkRequest.addedToUpNext') : 'Added to Up next';
   }
-  const count = `Queued ${res.queued} ${res.queued === 1 ? 'video' : 'videos'}`;
-  const from = res.playlistTitle ? ` from ${res.playlistTitle}` : '';
-  const cut = res.truncated ? ` (first ${res.queued})` : '';
-  return `${count}${from}${cut}`;
+  if (res.playlistTitle) {
+    if (res.truncated) {
+      return t
+        ? t('linkRequest.queuedFromPlaylistTruncated', { count: res.queued, title: res.playlistTitle })
+        : `Queued ${res.queued} ${res.queued === 1 ? 'video' : 'videos'} from ${res.playlistTitle} (first ${res.queued})`;
+    }
+    return t
+      ? t('linkRequest.queuedFromPlaylist', { count: res.queued, title: res.playlistTitle })
+      : `Queued ${res.queued} ${res.queued === 1 ? 'video' : 'videos'} from ${res.playlistTitle}`;
+  }
+  if (res.truncated) {
+    return t
+      ? t('linkRequest.queuedTruncated', { count: res.queued })
+      : `Queued ${res.queued} ${res.queued === 1 ? 'video' : 'videos'} (first ${res.queued})`;
+  }
+  return t
+    ? t('linkRequest.queued', { count: res.queued })
+    : `Queued ${res.queued} ${res.queued === 1 ? 'video' : 'videos'}`;
 }

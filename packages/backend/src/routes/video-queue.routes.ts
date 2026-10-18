@@ -34,14 +34,18 @@ function queueContext(req: Request): QueueContext {
   const botId = parseInt(req.params.id as string);
   const bot = manager.getBot(botId);
   const queue = bot ? manager.getVideoQueue(botId) : undefined;
-  if (!bot || !queue) throw new AppError(404, 'Music bot not found');
+  if (!bot || !queue) {
+    throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
+  }
   return { manager, bot, queue };
 }
 
 function queueIndex(value: unknown): number {
   const index = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value;
   if (typeof index !== 'number' || !Number.isSafeInteger(index) || index < 0) {
-    throw new AppError(400, 'Invalid queue index');
+    throw new AppError(400, 'Invalid queue index', undefined, {
+      messageKey: 'errors.invalid_queue_index',
+    });
   }
   return index;
 }
@@ -53,7 +57,9 @@ function startOptions(body: unknown): VideoStreamStartOptions {
 }
 
 function noPosition(): AppError {
-  return new AppError(404, 'No queued video at that position');
+  return new AppError(404, 'No queued video at that position', undefined, {
+    messageKey: 'errors.no_queued_video',
+  });
 }
 
 export function createVideoQueueRoutes(deps: { expandYouTube?: typeof expandYouTubeToWatchUrls } = {}): Router {
@@ -90,7 +96,9 @@ export function createVideoQueueRoutes(deps: { expandYouTube?: typeof expandYouT
         // One more than the cap, so a longer playlist can be reported as cut.
         const expanded = await expandYouTube(source, cap + 1);
         if (expanded.urls.length === 0) {
-          throw new AppError(422, 'Could not resolve any videos from that playlist URL');
+          throw new AppError(422, 'Could not resolve any videos from that playlist URL', undefined, {
+            messageKey: 'errors.playlist_video_unresolved',
+          });
         }
         truncated = expanded.urls.length > cap;
         playlistTitle = expanded.title;

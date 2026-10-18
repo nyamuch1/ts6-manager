@@ -23,7 +23,9 @@ function permissionScope(req: Request): { configId: number; sid: number } {
   const configId = Number(req.params.configId);
   const sid = Number(req.params.sid);
   if (!Number.isSafeInteger(configId) || configId <= 0 || !Number.isSafeInteger(sid) || sid <= 0) {
-    throw new AppError(400, 'A valid server connection and virtual server are required');
+    throw new AppError(400, 'A valid server connection and virtual server are required', undefined, {
+      messageKey: 'errors.chat_command_scope_required',
+    });
   }
   return { configId, sid };
 }
@@ -40,7 +42,11 @@ chatCommandRoutes.put('/permissions/:sid', async (req: Request, res: Response, n
   try {
     const { configId, sid } = permissionScope(req);
     const policy = parseMediaCommandPermissions(req.body);
-    if (!policy) throw new AppError(400, 'Supply playback, queue and video access: everyone or server_groups with positive serverGroupIds');
+    if (!policy) {
+      throw new AppError(400, 'Supply playback, queue and video access: everyone or server_groups with positive serverGroupIds', undefined, {
+        messageKey: 'errors.media_permissions_invalid',
+      });
+    }
     res.json(await saveMediaCommandPermissions(req.app.locals.prisma, configId, sid, policy));
   } catch (err) { next(err); }
 });
@@ -58,16 +64,28 @@ function validateCommandPayload(body: {
 } {
   const name = normalizeChatCommandName(typeof body.name === 'string' ? body.name : '');
   if (!name) {
-    throw new AppError(400, 'name is required (letters, numbers, hyphens, underscores; no "!")');
+    throw new AppError(400, 'name is required (letters, numbers, hyphens, underscores; no "!")', undefined, {
+      messageKey: 'errors.chat_command_name_invalid',
+    });
   }
   if (isReservedChatCommandName(name)) {
-    throw new AppError(400, `"!${name}" is a built-in command and cannot be overridden`);
+    throw new AppError(400, `"!${name}" is a built-in command and cannot be overridden`, undefined, {
+      messageKey: 'errors.chat_command_reserved',
+      messageParams: { name },
+    });
   }
 
   const response = typeof body.response === 'string' ? body.response.trim() : '';
-  if (!response) throw new AppError(400, 'response is required');
+  if (!response) {
+    throw new AppError(400, 'response is required', undefined, {
+      messageKey: 'errors.chat_command_response_required',
+    });
+  }
   if (response.length > MAX_RESPONSE_LEN) {
-    throw new AppError(400, `response must be at most ${MAX_RESPONSE_LEN} characters`);
+    throw new AppError(400, `response must be at most ${MAX_RESPONSE_LEN} characters`, undefined, {
+      messageKey: 'errors.chat_command_response_too_long',
+      messageParams: { max: MAX_RESPONSE_LEN },
+    });
   }
 
   let description: string | null = null;
@@ -148,7 +166,12 @@ chatCommandRoutes.post('/', async (req: Request, res: Response, next) => {
     const existing = await prisma.chatCommand.findUnique({
       where: { serverConfigId_name: { serverConfigId: configId, name: data.name } },
     });
-    if (existing) throw new AppError(409, `Command "!${data.name}" already exists`);
+    if (existing) {
+      throw new AppError(409, `Command "!${data.name}" already exists`, undefined, {
+        messageKey: 'errors.chat_command_exists',
+        messageParams: { name: data.name },
+      });
+    }
 
     const command = await prisma.chatCommand.create({
       data: {
@@ -174,7 +197,11 @@ chatCommandRoutes.put('/:id', async (req: Request, res: Response, next) => {
     const existing = await prisma.chatCommand.findFirst({
       where: { id, serverConfigId: configId },
     });
-    if (!existing) throw new AppError(404, 'Chat command not found');
+    if (!existing) {
+      throw new AppError(404, 'Chat command not found', undefined, {
+        messageKey: 'errors.chat_command_not_found',
+      });
+    }
 
     const data = validateCommandPayload({
       name: req.body.name ?? existing.name,
@@ -188,7 +215,12 @@ chatCommandRoutes.put('/:id', async (req: Request, res: Response, next) => {
       const clash = await prisma.chatCommand.findUnique({
         where: { serverConfigId_name: { serverConfigId: configId, name: data.name } },
       });
-      if (clash) throw new AppError(409, `Command "!${data.name}" already exists`);
+      if (clash) {
+        throw new AppError(409, `Command "!${data.name}" already exists`, undefined, {
+          messageKey: 'errors.chat_command_exists',
+          messageParams: { name: data.name },
+        });
+      }
     }
 
     const command = await prisma.chatCommand.update({
@@ -215,7 +247,11 @@ chatCommandRoutes.delete('/:id', async (req: Request, res: Response, next) => {
     const existing = await prisma.chatCommand.findFirst({
       where: { id, serverConfigId: configId },
     });
-    if (!existing) throw new AppError(404, 'Chat command not found');
+    if (!existing) {
+      throw new AppError(404, 'Chat command not found', undefined, {
+        messageKey: 'errors.chat_command_not_found',
+      });
+    }
     await prisma.chatCommand.delete({ where: { id } });
     res.json({ success: true });
   } catch (err) {

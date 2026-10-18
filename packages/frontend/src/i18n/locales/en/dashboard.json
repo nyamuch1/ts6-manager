@@ -1,0 +1,78 @@
+{
+  "page": {
+    "nudgeTitle": "Connect your TeamSpeak server to get started",
+    "nudgeDescription": "Add a connection under Settings to manage channels, clients, bots, and more.",
+    "goToConnections": "Go to Connections",
+    "dismissNudge": "Dismiss connection setup suggestion",
+    "selectFromHeader": "Select a server connection from the header to view the dashboard.",
+    "overviewDescription": "Live TeamSpeak server overview",
+    "widgets": "Widgets"
+  },
+  "errors": {
+    "queryStarting": "TeamSpeak Query is still coming up after startup. Wait a moment and retry.",
+    "connectFailed": "Could not connect to the TeamSpeak server. Check your connection settings.",
+    "retryConnection": "Retry connection",
+    "connectionFailed": "Connection failed",
+    "liveStarting": "TeamSpeak Query is still starting. Live data may be incomplete until it comes online.",
+    "liveRefreshFailed": "Live data refresh failed. The last successful snapshot is still displayed."
+  },
+  "status": {
+    "onlineBadge": "ONLINE"
+  },
+  "refresh": {
+    "liveMonitoring": "Live monitoring active",
+    "refreshingLive": "Refreshing live data…",
+    "liveInterrupted": "Live updates interrupted"
+  },
+  "source": {
+    "webqueryOnly": "WebQuery only",
+    "combined": "WebQuery + native metrics",
+    "unreachable": "WebQuery · metrics unreachable",
+    "timeout": "WebQuery · metrics timed out",
+    "invalid": "WebQuery · metrics invalid",
+    "unscoped": "WebQuery · metrics unscoped",
+    "unavailable": "WebQuery · metrics unavailable",
+    "hintWebquery": "Dashboard uses authenticated WebQuery.",
+    "hintDisabled": "Dashboard uses authenticated WebQuery only. Native metrics scrape is off for this connection.",
+    "hintCurrent": "WebQuery identity plus scoped TeamSpeak native Prometheus metrics.",
+    "hintUnreachable": "Metrics scrape could not connect. Ensure TSSERVER_METRICS_ENABLED=1 and TSSERVER_METRICS_IP is reachable from the manager (not localhost-only when the manager is remote), and that metricsHost/port match.",
+    "hintTimeout": "Metrics scrape did not finish before the dashboard returned. A later refresh may pick up a cached scrape if the listener is reachable.",
+    "hintInvalid": "Metrics response was rejected (HTTP status, content-type, or empty/invalid samples).",
+    "hintUnscoped": "Metrics samples could not be proven to match this virtual server identity; WebQuery values were kept.",
+    "hintUnavailable": "Native metrics are enabled but unavailable; dashboard kept WebQuery values."
+  },
+  "health": {
+    "elevated": "Elevated",
+    "high": "High"
+  },
+  "serverStatus": {
+    "title": "Server Status",
+    "description": "Availability, utilisation, and connection health",
+    "onlineUsers": "Online users",
+    "utilised": "{{percent}}% utilised",
+    "utilisationLabel": "User slot utilisation",
+    "slotsAvailable_one": "{{formatted}} slot available",
+    "slotsAvailable_other": "{{formatted}} slots available"
+  },
+  "metric": {
+    "channels": "Channels",
+    "uptime": "Uptime",
+    "ping": "Ping",
+    "packetLoss": "Packet loss"
+  },
+  "traffic": {
+    "title": "Traffic",
+    "description": "Incoming and outgoing bandwidth over the latest local samples",
+    "collecting": "Collecting bandwidth samples…",
+    "incoming": "Incoming",
+    "outgoing": "Outgoing"
+  },
+  "runtime": {
+    "title": "Runtime & Capacity",
+    "description": "Runtime identity and available capacity",
+    "serverVersion": "Server version",
+    "platform": "Platform",
+    "totalSlots": "Total slots",
+    "availableSlots": "Available slots"
+  }
+}

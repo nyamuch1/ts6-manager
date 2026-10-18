@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { useAuthStore } from '../stores/auth.store';
 import { useMediaSwitchStore } from '../stores/media-switch.store';
+import { currentLocale } from '../i18n';
 import { conflictIsReplaceable, isMediaSessionConflict, withReplaceSessionIds } from '../lib/media-switch';
 
 const api = axios.create({
@@ -77,6 +78,9 @@ function accessTokenNeedsRefresh(token: string, skewSeconds = 30): boolean {
 }
 
 api.interceptors.request.use(async (config) => {
+  // Let the backend localize error text for the language shown in the UI.
+  config.headers.set('Accept-Language', currentLocale());
+
   let token = useAuthStore.getState().accessToken;
 
   // Persisted access tokens can expire while the app is closed. Refresh before

@@ -118,6 +118,16 @@ pnpm db:generate
 
 Newer pnpm majors change dependency build-script approval and `pnpm.overrides` handling; do not treat a failure caused only by running an unsupported pnpm major as an application regression.
 
+### Internationalization (i18n)
+
+The web interface, public widget output, HTTP API errors, and bot chat replies are localized. English is the source and fallback; Simplified Chinese ships alongside it.
+
+- Frontend strings: `packages/frontend/src/i18n/locales/{en,zh-CN}/<namespace>.json`; use `useTranslation('<namespace>')` and `t(...)`. Never concatenate translated fragments; use `{{name}}` interpolation.
+- Backend strings: `packages/backend/src/i18n/locales`; use `translate(locale, key, vars)` and `requestLocale(req)` / `Accept-Language`.
+- Keep `en` and `zh-CN` key and placeholder parity. `scripts/ci/check-i18n.py` (repo hygiene) covers frontend JSON; `packages/backend/src/i18n/i18n.test.ts` covers the backend dictionaries.
+- Do not translate user/TeamSpeak-supplied data, protocol or brand names, enum values, API paths, or code snippets. Store stable codes/reasons in the database and translate at render time.
+- New user-visible strings need both locales in the same change. English API text that existed before stays byte-identical for the default locale.
+
 ### Dependabot npm group PRs
 
 If CI fails with `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`, close the PR without merge. Dependabot’s regenerated lockfile often drops `pnpm.overrides` while `package.json` still has them (same class as #89/#95/#103/#323). Do **not** relax `pnpm install --frozen-lockfile`. Recreate wanted bumps on a human branch with `pnpm install` (pnpm 9) so overrides remain in the lockfile. Repo hygiene runs `scripts/ci/check-pnpm-overrides.py` so stripped overrides fail before install. npm updates are split across smaller Dependabot groups (no catch-all `*`); that limits mega-PRs but does **not** by itself fix overrides stripping.

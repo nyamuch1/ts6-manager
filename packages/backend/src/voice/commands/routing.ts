@@ -8,6 +8,7 @@ import { chooseCommandBot, parseBotTarget, type ChannelBot } from './targeting.j
 import { channelCommandKey, claimChannelCommand } from './dedupe.js';
 import { checkMediaCommand, handleVoteSkip } from './media-access.js';
 import { handleListenerRemote, revokeDepartedRemote } from './listener-remote.js';
+import { translateChat } from '../bot-locale.js';
 const CMD_PREFIX = '!';
 const MUSIC_COMMANDS = new Set<string>(BUILTIN_CHAT_COMMANDS);
 const loggableMessage = (message: string) => /^\s*!remote(?:\s|$)/i.test(message) ? '!remote [redacted]' : message;
@@ -485,7 +486,11 @@ export async function onTextMessage(
       }
     } catch (err: any) {
       console.error(`[MusicCmd] Error handling !${command}: ${err.message}`);
-      context.reply(bot, userClid, `Error: ${err.message}`);
+      context.reply(
+        bot,
+        userClid,
+        translateChat(context.locale, 'bot.error', { error: err.message }),
+      );
     }
     return;
   }

@@ -15,6 +15,7 @@ import type {
   VideoSourceModeRequest,
 } from '@ts6/common';
 import { AppError } from '../../middleware/error-handler.js';
+import { translate, type SupportedLocale } from '../../i18n/index.js';
 import { safeSourceLabel } from '../media-session.js';
 import { PlayQueue } from '../playlist/queue.js';
 import type { VideoStreamStartOptions } from '../voice-bot.js';
@@ -46,6 +47,8 @@ export interface VideoQueueDeps {
   store: VideoQueueStore;
   onChange?(state: VideoQueueState): void;
   newId?(): string;
+  /** Bot chat locale for automatic notices; omitted keeps English. */
+  resolveLocale?(): Promise<SupportedLocale>;
 }
 
 export class VideoQueueFullError extends AppError {
@@ -72,7 +75,9 @@ export function toVideoQueueSessionOptions(options: VideoStreamStartOptions | un
 }
 
 function noPosition(): AppError {
-  return new AppError(404, 'No queued video at that position');
+  return new AppError(404, 'No queued video at that position', undefined, {
+    messageKey: 'errors.video_queue_no_position',
+  });
 }
 
 /** `advanced`: a queued video is playing. `stopped`: the stream went away. `gave_up`: stopped after repeated failures. `exhausted`: nothing playable is left. */
@@ -167,7 +172,13 @@ export class VideoQueueController {
   playQueue(options?: VideoStreamStartOptions): Promise<void> {
     return this.run(async () => {
       this.assertNotStreaming();
-      if (this.lane.length === 0) throw new AppError(409, 'The video queue is empty', 'Queue a video first.', { reason: 'video_queue_empty' });
+      if (this.lane.length === 0) {
+        throw new AppError(409, 'The video queue is empty', 'Queue a video first.', {
+          reason: 'video_queue_empty',
+          messageKey: 'errors.video_queue_empty',
+          detailsKey: 'errors.video_queue_empty_details',
+        });
+      }
       await this.startFirst(options);
     });
   }
@@ -175,7 +186,11 @@ export class VideoQueueController {
   skip(): Promise<void> {
     return this.run(async () => {
       if (!this.deps.bot.videoStreaming) {
-        throw new AppError(409, 'No active stream', 'Start a video first.', { reason: 'stream_not_running' });
+        throw new AppError(409, 'No active stream', 'Start a video first.', {
+          reason: 'stream_not_running',
+          messageKey: 'errors.stream_not_running',
+          detailsKey: 'errors.stream_not_running_details',
+        });
       }
       if (this.lane.upcomingCount === 0) {
         await this.deps.bot.stopVideoStream('manual', 'Skipped the last queued video');
@@ -308,6 +323,8 @@ export class VideoQueueController {
     if (this.deps.bot.videoStreaming) {
       throw new AppError(409, 'A video is already streaming', 'Use Skip to move to the next queued video.', {
         reason: 'stream_already_running',
+        messageKey: 'errors.stream_already_running',
+        detailsKey: 'errors.video_queue_skip_hint',
       });
     }
   }
@@ -332,7 +349,23 @@ export class VideoQueueController {
 
   private noteFailure(item: VideoQueueItem): void {
     this.failures++;
-    this.deps.bot.sendChannelMessage(`Skipped "${item.title}": could not play it.`);
+    void this.sendSkippedNotice(item);
+  }
+
+  private async sendSkippedNotice(item: VideoQueueItem): Promise<void> {
+    let locale: SupportedLocale | undefined;
+    try {
+      locale = await this.deps.resolveLocale?.();
+    } catch {
+      // Fall back to English when the instance settings cannot be read.
+    }
+    try {
+      this.deps.bot.sendChannelMessage(
+        translate(locale, 'bot.video.skipped', { title: item.title }),
+      );
+    } catch (err: any) {
+      console.warn(`[VideoQueue] Could not send skip notice: ${err?.message || err}`);
+    }
   }
 
   /** Stop after too many failures in a row; what is left stays queued. */

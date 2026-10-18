@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config.js';
 import type { JwtPayload } from '@ts6/common';
+import { translate } from '../i18n/index.js';
+import { requestLocale } from '../i18n/middleware.js';
 
 declare global {
   namespace Express {
@@ -13,8 +15,9 @@ declare global {
 
 export function authMiddleware(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
+  const locale = requestLocale(req);
   if (!authHeader?.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'No token provided' });
+    res.status(401).json({ error: translate(locale, 'errors.no_token') });
     return;
   }
 
@@ -29,16 +32,16 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
       select: { enabled: true, role: true },
     }).then((user: { enabled: boolean; role: string } | null) => {
       if (!user || !user.enabled) {
-        res.status(401).json({ error: 'User account disabled or deleted' });
+        res.status(401).json({ error: translate(locale, 'errors.account_disabled') });
         return;
       }
       // Use fresh role from DB instead of potentially stale JWT payload
       req.user = { ...payload, role: user.role as JwtPayload['role'] };
       next();
     }).catch(() => {
-      res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ error: translate(locale, 'errors.internal') });
     });
   } catch {
-    res.status(401).json({ error: 'Invalid or expired token' });
+    res.status(401).json({ error: translate(locale, 'errors.invalid_token') });
   }
 }

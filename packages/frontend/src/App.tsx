@@ -6,6 +6,7 @@ import { PageLoader } from '@/components/shared/LoadingSpinner';
 import { useAuthStore } from '@/stores/auth.store';
 import { PwaStatus } from '@/components/shared/PwaStatus';
 import { MediaSwitchDialog } from '@/components/media/MediaSwitchDialog';
+import { LanguageSync } from '@/i18n/LanguageSync';
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const isAdmin = useAuthStore((s) => s.isAdmin());
@@ -71,6 +72,7 @@ const ListenerRemote = lazy(() => import('@/pages/ListenerRemote'));
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <LanguageSync />
       <PwaStatus />
       <MediaSwitchDialog />
       <BrowserRouter>

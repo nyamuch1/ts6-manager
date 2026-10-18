@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, ChevronRight, Loader2, RefreshCw, X } from 'lucide-react';
+import { Trans, useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import type { VideoEncodeProfile, VideoEncoderCapability, VideoEncoderRequest, VideoStreamPresetKey, VideoStreamSettings } from '@ts6/common';
 import { Button } from '@/components/ui/button';
@@ -36,23 +37,23 @@ import { cn } from '@/lib/utils';
 const TIMEOUT_PRESETS = ['0', '60', '300', '600', '1800'];
 const NAMED_PROFILES = Object.keys(ENCODE_PROFILE_PRESETS) as NamedEncodeProfile[];
 
-const FIELD_LABELS: Record<keyof VideoStreamSettings, string> = {
-  noViewerTimeoutSec: 'no-viewer stop',
-  announceAutoStops: 'auto-stop announcements',
-  autoMaxPreset: 'Auto limit',
-  defaultEncoder: 'encoder',
-  preferHardware: 'hardware preference',
-  maxBitrateKbps: 'bitrate limit',
-  encodeProfile: 'encode profile',
-  cpuUsed: 'encode speed',
-};
-
 interface VideoStreamDefaultsCardProps {
   /** The selected bot's server; enables per-server overrides. */
   server?: { id: number; name: string } | null;
 }
 
 export function VideoStreamDefaultsCard({ server }: VideoStreamDefaultsCardProps) {
+  const { t } = useTranslation('media');
+  const fieldLabels: Record<keyof VideoStreamSettings, string> = {
+    noViewerTimeoutSec: t('videoDefaults.noViewerStop'),
+    announceAutoStops: t('videoDefaults.autoStopAnnouncements'),
+    autoMaxPreset: t('videoDefaults.autoLimit'),
+    defaultEncoder: t('videoDefaults.encoder'),
+    preferHardware: t('videoDefaults.hardwarePreference'),
+    maxBitrateKbps: t('videoDefaults.bitrateLimit'),
+    encodeProfile: t('videoDefaults.encodeProfile'),
+    cpuUsed: t('videoDefaults.encodeSpeed'),
+  };
   const [scope, setScope] = useState<'global' | 'server'>('global');
   const serverScope = scope === 'server' && !!server;
   const globalQuery = useVideoStreamingSettings();
@@ -108,9 +109,9 @@ export function VideoStreamDefaultsCard({ server }: VideoStreamDefaultsCardProps
   const save = () => {
     update.mutate(draft, {
       onSuccess: () => toast.success(serverScope
-        ? `Defaults for ${server?.name} saved — they apply to the next stream there`
-        : 'Streaming defaults saved — they apply to the next stream'),
-      onError: (e) => toast.error(apiErrorMessage(e, 'Failed to save streaming defaults')),
+        ? t('videoDefaults.savedServer', { server: server?.name })
+        : t('videoDefaults.savedGlobal')),
+      onError: (e) => toast.error(apiErrorMessage(e, t('videoDefaults.saveFailed'))),
     });
   };
 
@@ -123,34 +124,38 @@ export function VideoStreamDefaultsCard({ server }: VideoStreamDefaultsCardProps
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Streaming defaults</CardTitle>
+        <CardTitle className="text-base">{t('videoDefaults.title')}</CardTitle>
         <p className="text-xs text-muted-foreground">
-          Applied when a stream starts. Each stream can override quality, encoder and the no-viewer stop.
+          {t('videoDefaults.description')}
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
         {server && (
           <div className="flex flex-wrap items-center gap-2">
-            <Label htmlFor="defaults-scope" className="text-sm">Applies to</Label>
+            <Label htmlFor="defaults-scope" className="text-sm">{t('videoDefaults.appliesTo')}</Label>
             <Select value={scope} onValueChange={(v) => setScope(v as 'global' | 'server')}>
               <SelectTrigger id="defaults-scope" className="w-56"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="global">All servers</SelectItem>
-                <SelectItem value="server">{server.name} only</SelectItem>
+                <SelectItem value="global">{t('videoDefaults.allServers')}</SelectItem>
+                <SelectItem value="server">{t('videoDefaults.serverOnly', { server: server.name })}</SelectItem>
               </SelectContent>
             </Select>
             {serverScope && (
               <span className="text-xs text-muted-foreground">
                 {Object.keys(overrides).length > 0
-                  ? `Overrides: ${(Object.keys(overrides) as Array<keyof VideoStreamSettings>).map((k) => FIELD_LABELS[k]).join(', ')}`
-                  : 'Inherits every global default'}
+                  ? t('videoDefaults.overrides', {
+                    fields: (Object.keys(overrides) as Array<keyof VideoStreamSettings>)
+                      .map((k) => fieldLabels[k])
+                      .join(t('shared.listSeparator')),
+                  })
+                  : t('videoDefaults.inheritsGlobal')}
               </span>
             )}
           </div>
         )}
 
         <div className="space-y-2">
-          <Label>Encode profile</Label>
+          <Label>{t('videoDefaults.encodeProfileLabel')}</Label>
           <div className="grid gap-2 sm:grid-cols-3">
             {NAMED_PROFILES.map((id) => {
               const p = ENCODE_PROFILE_PRESETS[id];
@@ -172,12 +177,12 @@ export function VideoStreamDefaultsCard({ server }: VideoStreamDefaultsCardProps
             })}
           </div>
           {profileValue === 'custom' && (
-            <p className="text-xs text-muted-foreground">Custom — Advanced settings differ from the named profiles.</p>
+            <p className="text-xs text-muted-foreground">{t('videoDefaults.customProfile')}</p>
           )}
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="no-viewer-timeout">Stop when nobody watches</Label>
+          <Label htmlFor="no-viewer-timeout">{t('videoDefaults.stopWhenNobodyWatches')}</Label>
           <Select
             value={customTimeout ? 'custom' : String(draft.noViewerTimeoutSec)}
             onValueChange={(v) => {
@@ -194,7 +199,7 @@ export function VideoStreamDefaultsCard({ server }: VideoStreamDefaultsCardProps
               {TIMEOUT_PRESETS.map((v) => (
                 <SelectItem key={v} value={v}>{formatTimeout(Number(v))}</SelectItem>
               ))}
-              <SelectItem value="custom">Custom…</SelectItem>
+              <SelectItem value="custom">{t('videoDefaults.customOption')}</SelectItem>
             </SelectContent>
           </Select>
           {customTimeout && (
@@ -202,7 +207,7 @@ export function VideoStreamDefaultsCard({ server }: VideoStreamDefaultsCardProps
               type="number"
               min={0}
               max={86400}
-              aria-label="Custom no-viewer timeout in seconds"
+              aria-label={t('videoDefaults.customTimeoutAria')}
               value={draft.noViewerTimeoutSec}
               onChange={(e) => set('noViewerTimeoutSec', Math.max(0, Math.floor(Number(e.target.value) || 0)))}
             />
@@ -217,19 +222,20 @@ export function VideoStreamDefaultsCard({ server }: VideoStreamDefaultsCardProps
           />
           <div className="space-y-0.5">
             <Label htmlFor="announce-auto-stops" className="text-sm font-normal">
-              Announce auto-stops in chat
+              {t('videoDefaults.announceAutoStops')}
             </Label>
             <p className="text-xs text-muted-foreground">
-              Posts one line in the bot&apos;s channel when it stops by itself. When the no-viewer stop is longer than 1 minute, it also warns 1 minute before stopping a stream nobody is watching.
+              {t('videoDefaults.announceAutoStopsDescription')}
             </p>
           </div>
         </div>
 
         {draft.defaultEncoder === 'auto' && !advancedOpen && (
           <p className="text-xs text-muted-foreground">
-            Default encoder is {autoEncoderPreferenceLabel(draft.preferHardware)}.
-            {' '}{autoEncoderPreferenceHint(draft.preferHardware)}
-            {' '}Toggle under Advanced.
+            {t('videoDefaults.defaultEncoderNote', {
+              encoder: autoEncoderPreferenceLabel(draft.preferHardware),
+              hint: autoEncoderPreferenceHint(draft.preferHardware),
+            })}
           </p>
         )}
 
@@ -240,13 +246,13 @@ export function VideoStreamDefaultsCard({ server }: VideoStreamDefaultsCardProps
             onClick={() => setAdvancedOpen((o) => !o)}
             aria-expanded={advancedOpen}
           >
-            Advanced quality settings
+            {t('videoDefaults.advancedTitle')}
             <ChevronDown className={cn('h-4 w-4 transition-transform', advancedOpen && 'rotate-180')} />
           </button>
           {advancedOpen && (
             <div className="grid gap-4 border-t px-3 py-3 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="auto-limit">Auto quality limit</Label>
+                <Label htmlFor="auto-limit">{t('videoDefaults.autoQualityLimit')}</Label>
                 <Select
                   value={draft.autoMaxPreset}
                   onValueChange={(v) => setAdvanced('autoMaxPreset', v as VideoStreamPresetKey)}
@@ -259,7 +265,7 @@ export function VideoStreamDefaultsCard({ server }: VideoStreamDefaultsCardProps
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="max-bitrate">Bitrate limit (kbps)</Label>
+                <Label htmlFor="max-bitrate">{t('videoDefaults.bitrateLimitLabel')}</Label>
                 <Input
                   id="max-bitrate"
                   type="number"
@@ -268,11 +274,11 @@ export function VideoStreamDefaultsCard({ server }: VideoStreamDefaultsCardProps
                   value={draft.maxBitrateKbps}
                   onChange={(e) => setAdvanced('maxBitrateKbps', Math.max(0, Math.floor(Number(e.target.value) || 0)))}
                 />
-                <p className="text-xs text-muted-foreground">0 = no limit.</p>
+                <p className="text-xs text-muted-foreground">{t('videoDefaults.noLimit')}</p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="cpu-used">Encode speed (cpu-used)</Label>
+                <Label htmlFor="cpu-used">{t('videoDefaults.encodeSpeedLabel')}</Label>
                 <Input
                   id="cpu-used"
                   type="number"
@@ -282,13 +288,12 @@ export function VideoStreamDefaultsCard({ server }: VideoStreamDefaultsCardProps
                   onChange={(e) => setAdvanced('cpuUsed', Math.min(8, Math.max(0, Math.floor(Number(e.target.value) || 0))))}
                 />
                 <p className="text-xs text-muted-foreground">
-                  0 = use sidecar default (VIDEO_CPU_USED / VIDEO_VP9_CPU_USED).
-                  1–8 override software VP8/VP9 (higher is faster / softer). Hardware ignores this.
+                  {t('videoDefaults.encodeSpeedHelp')}
                 </p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="default-encoder">Default encoder</Label>
+                <Label htmlFor="default-encoder">{t('videoDefaults.defaultEncoderLabel')}</Label>
                 <Select
                   value={draft.defaultEncoder}
                   onValueChange={(v) => set('defaultEncoder', v as VideoEncoderRequest)}
@@ -309,7 +314,7 @@ export function VideoStreamDefaultsCard({ server }: VideoStreamDefaultsCardProps
                     onCheckedChange={(v) => set('preferHardware', v)}
                   />
                   <Label htmlFor="prefer-hardware" className="text-sm font-normal">
-                    Auto prefers hardware (VAAPI, NVENC, AMF or VideoToolbox) when a test encode succeeds
+                    {t('videoDefaults.preferHardware')}
                   </Label>
                 </div>
                 <p className="text-xs text-muted-foreground">{autoEncoderPreferenceHint(draft.preferHardware)}</p>
@@ -320,11 +325,11 @@ export function VideoStreamDefaultsCard({ server }: VideoStreamDefaultsCardProps
 
         <div className="flex gap-2">
           <Button size="sm" onClick={save} disabled={!dirty || update.isPending}>
-            {update.isPending ? 'Saving…' : 'Save defaults'}
+            {t(update.isPending ? 'videoDefaults.saving' : 'videoDefaults.saveDefaults')}
           </Button>
           {dirty && (
             <Button size="sm" variant="ghost" onClick={() => settings && setDraft(settings)}>
-              Reset
+              {t('videoDefaults.reset')}
             </Button>
           )}
           {serverScope && Object.keys(overrides).length > 0 && (
@@ -333,11 +338,11 @@ export function VideoStreamDefaultsCard({ server }: VideoStreamDefaultsCardProps
               variant="ghost"
               disabled={updateServer.isPending}
               onClick={() => updateServer.mutate({}, {
-                onSuccess: () => toast.success(`${server?.name} now uses the global defaults`),
-                onError: (e) => toast.error(apiErrorMessage(e, 'Failed to reset server defaults')),
+                onSuccess: () => toast.success(t('videoDefaults.nowGlobal', { server: server?.name })),
+                onError: (e) => toast.error(apiErrorMessage(e, t('videoDefaults.resetServerFailed'))),
               })}
             >
-              Use global defaults
+              {t('videoDefaults.useGlobal')}
             </Button>
           )}
         </div>
@@ -345,9 +350,15 @@ export function VideoStreamDefaultsCard({ server }: VideoStreamDefaultsCardProps
         <div className="space-y-2 border-t pt-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="text-sm font-medium">Encoder capabilities</p>
+              <p className="text-sm font-medium">{t('videoDefaults.capabilitiesTitle')}</p>
               <p className="text-xs text-muted-foreground">
-                Runs short test encodes on the media sidecar. VAAPI requires <code>/dev/dri</code>; NVENC requires an NVIDIA driver and, in Docker, the NVIDIA container runtime. AMF is available when the sidecar runs natively on Windows with an AMF-enabled FFmpeg build and a compatible AMD GPU/driver. VideoToolbox is available when the sidecar runs natively on macOS; it has not yet been verified on Apple hardware.
+                <Trans
+                  i18nKey="videoDefaults.capabilitiesDescription"
+                  ns="media"
+                  components={{ code: <code /> }}
+                >
+                  Runs short test encodes on the media sidecar. VAAPI requires <code>/dev/dri</code>; NVENC requires an NVIDIA driver and, in Docker, the NVIDIA container runtime. AMF is available when the sidecar runs natively on Windows with an AMF-enabled FFmpeg build and a compatible AMD GPU/driver. VideoToolbox is available when the sidecar runs natively on macOS; it has not yet been verified on Apple hardware.
+                </Trans>
               </p>
             </div>
             <Button
@@ -359,30 +370,38 @@ export function VideoStreamDefaultsCard({ server }: VideoStreamDefaultsCardProps
               {encoders.isFetching
                 ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                 : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
-              {encoders.caps ? 'Re-test' : 'Check encoders'}
+              {t(encoders.caps ? 'videoDefaults.retest' : 'videoDefaults.checkEncoders')}
             </Button>
           </div>
           {encoders.isError && (
             <p className="text-xs text-destructive">
-              {apiErrorMessage(encoders.error, 'Encoder check failed')}
+              {apiErrorMessage(encoders.error, t('videoDefaults.encoderCheckFailed'))}
             </p>
           )}
           {encoders.caps && (
             <div className="space-y-1.5">
               <p className="text-xs text-muted-foreground">
-                VAAPI device {encoders.caps.vaapiDevice}:{' '}
-                {encoders.caps.vaapiDevicePresent ? 'present' : 'not present'}
-                {encoders.caps.hwDecode ? ' · GPU decode on' : ''}
+                {t(
+                  encoders.caps.hwDecode
+                    ? 'videoDefaults.vaapiDeviceDecode'
+                    : 'videoDefaults.vaapiDevice',
+                  {
+                    device: encoders.caps.vaapiDevice,
+                    state: t(encoders.caps.vaapiDevicePresent
+                      ? 'videoDefaults.present'
+                      : 'videoDefaults.notPresent'),
+                  },
+                )}
               </p>
               <ul className="grid gap-1 sm:grid-cols-2">
                 {encoders.caps.encoders.map((e) => (
                   <li key={e.id} className="flex min-w-0 items-start gap-2 rounded bg-muted/50 px-2.5 py-1.5 text-xs">
                     {e.available
-                      ? <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" aria-label="available" />
-                      : <X className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="unavailable" />}
+                      ? <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" aria-label={t('videoDefaults.available')} />
+                      : <X className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label={t('videoDefaults.unavailable')} />}
                     <span className="min-w-0 flex-1">
                       <span className="font-medium">{ENCODER_LABELS[e.id] ?? e.id}</span>
-                      {e.lowPower ? <span className="text-muted-foreground"> · low-power</span> : null}
+                      {e.lowPower ? <span className="text-muted-foreground">{t('videoDefaults.lowPower')}</span> : null}
                       {!e.available && e.error && (
                         <span className="block break-words text-muted-foreground">{e.error}</span>
                       )}
@@ -405,33 +424,34 @@ export function VideoStreamDefaultsCard({ server }: VideoStreamDefaultsCardProps
  * ffmpeg says why instead.
  */
 function EncoderProbeOutput({ encoder }: { encoder: VideoEncoderCapability }) {
+  const { t } = useTranslation('media');
   const attempts = encoder.attempts ?? [];
   return (
     <details className="group mt-1 text-muted-foreground">
       <summary className="inline-flex cursor-pointer select-none list-none items-center gap-1 rounded-sm text-[11px] outline-none hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
         <ChevronRight className="h-3 w-3 shrink-0 transition-transform group-open:rotate-90" aria-hidden />
-        ffmpeg output
+        {t('videoDefaults.ffmpegOutput')}
       </summary>
       <div className="mt-1 space-y-1.5">
         {attempts.length === 0 ? (
           encoder.skipped ? (
-            <p className="text-[11px]">ffmpeg was not run: {encoder.skipped}.</p>
+            <p className="text-[11px]">{t('videoDefaults.ffmpegNotRun', { reason: encoder.skipped })}</p>
           ) : encoder.detail ? (
             <pre className="whitespace-pre-wrap break-words rounded bg-background/60 p-1.5 font-mono text-[11px]">{encoder.detail}</pre>
           ) : (
             // Sidecars older than this UI report no per-attempt output.
-            <p className="text-[11px]">No ffmpeg output was reported. Update the media sidecar to see it.</p>
+            <p className="text-[11px]">{t('videoDefaults.noFfmpegOutput')}</p>
           )
         ) : attempts.map((a, i) => (
           <div key={i} className="space-y-0.5 rounded bg-background/60 p-1.5 font-mono text-[11px]">
             {attempts.length > 1 && (
               <p className="font-sans text-muted-foreground">
-                Attempt {i + 1}{a.lowPower ? ' (low-power)' : ''}
+                {t(a.lowPower ? 'videoDefaults.attemptLowPower' : 'videoDefaults.attempt', { n: i + 1 })}
               </p>
             )}
             <p className="break-words text-foreground/80">$ {a.command}</p>
             <p className={a.ok ? 'text-success' : 'text-destructive'}>→ {a.result}</p>
-            <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words">{a.output || '(no output)'}</pre>
+            <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words">{a.output || t('videoDefaults.noOutput')}</pre>
           </div>
         ))}
       </div>

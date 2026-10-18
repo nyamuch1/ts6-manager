@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { WidgetData, WidgetChannelNode as WidgetChannelNodeType, WidgetTheme } from '@ts6/common';
 import { WIDGET_THEMES } from '@ts6/common';
 import { Github } from 'lucide-react';
@@ -15,7 +16,7 @@ function formatUptime(seconds: number): string {
 }
 
 function SpacerChannel({ node, theme }: { node: WidgetChannelNodeType; theme: WidgetTheme }) {
-  const t = WIDGET_THEMES[theme];
+  const palette = WIDGET_THEMES[theme];
 
   if (node.spacerType === 'line' || node.spacerType === 'dashline' || node.spacerType === 'dotline') {
     const borderStyle = node.spacerType === 'dotline' ? 'dotted' : node.spacerType === 'dashline' ? 'dashed' : 'solid';
@@ -27,7 +28,7 @@ function SpacerChannel({ node, theme }: { node: WidgetChannelNodeType; theme: Wi
       }}>
         <div style={{
           flex: 1,
-          borderBottom: `1px ${borderStyle} ${t.border}`,
+          borderBottom: `1px ${borderStyle} ${palette.border}`,
         }} />
       </div>
     );
@@ -41,7 +42,7 @@ function SpacerChannel({ node, theme }: { node: WidgetChannelNodeType; theme: Wi
     <div style={{
       padding: '2px 4px',
       fontSize: '11px',
-      color: t.textSecondary,
+      color: palette.textSecondary,
       textAlign,
       fontWeight: 600,
       letterSpacing: '0.5px',
@@ -57,7 +58,8 @@ function ChannelNode({ node, depth, showClients, theme }: {
   showClients: boolean;
   theme: WidgetTheme;
 }) {
-  const t = WIDGET_THEMES[theme];
+  const { t } = useTranslation('public');
+  const palette = WIDGET_THEMES[theme];
   const indent = depth * 16;
 
   if (node.isspacer) {
@@ -76,15 +78,15 @@ function ChannelNode({ node, depth, showClients, theme }: {
         gap: '6px',
         fontSize: '12px',
       }}>
-        <span style={{ color: t.accent, fontWeight: 700, fontSize: '11px', flexShrink: 0 }}>#</span>
-        <span style={{ color: t.textPrimary, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ color: palette.accent, fontWeight: 700, fontSize: '11px', flexShrink: 0 }}>#</span>
+        <span style={{ color: palette.textPrimary, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {node.name}
         </span>
         {node.hasPassword && (
-          <span style={{ color: t.textSecondary, fontSize: '10px', flexShrink: 0 }}>🔒</span>
+          <span style={{ color: palette.textSecondary, fontSize: '10px', flexShrink: 0 }}>🔒</span>
         )}
         {node.clients.length > 0 && (
-          <span style={{ color: t.textSecondary, fontSize: '10px', flexShrink: 0 }}>{node.clients.length}</span>
+          <span style={{ color: palette.textSecondary, fontSize: '10px', flexShrink: 0 }}>{node.clients.length}</span>
         )}
       </div>
 
@@ -95,19 +97,19 @@ function ChannelNode({ node, depth, showClients, theme }: {
           paddingTop: '1px',
           paddingBottom: '1px',
           fontSize: '11px',
-          color: t.clientColor,
+          color: palette.clientColor,
           display: 'flex',
           alignItems: 'center',
           gap: '5px',
         }}>
           <span style={{
             width: '6px', height: '6px', borderRadius: '50%',
-            background: t.clientColor, flexShrink: 0,
+            background: palette.clientColor, flexShrink: 0,
           }} />
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {client.nickname}
-            {client.isAway && <span style={{ color: t.textSecondary }}> [away]</span>}
-            {client.isMuted && <span style={{ color: t.textSecondary }}> [muted]</span>}
+            {client.isAway && <span style={{ color: palette.textSecondary }}> {t('widget.away')}</span>}
+            {client.isMuted && <span style={{ color: palette.textSecondary }}> {t('widget.muted')}</span>}
           </span>
         </div>
       ))}
@@ -121,7 +123,8 @@ function ChannelNode({ node, depth, showClients, theme }: {
 }
 
 export function WidgetRenderer({ data }: { data: WidgetData }) {
-  const t = WIDGET_THEMES[data.theme] || WIDGET_THEMES.dark;
+  const { t } = useTranslation('public');
+  const palette = WIDGET_THEMES[data.theme] || WIDGET_THEMES.dark;
 
   const joinUrl = data.serverHost
     ? `ts3server://${data.serverHost}${data.serverPort !== 9987 ? `?port=${data.serverPort}` : ''}`
@@ -129,8 +132,8 @@ export function WidgetRenderer({ data }: { data: WidgetData }) {
 
   return (
     <div style={{
-      background: t.background,
-      color: t.textPrimary,
+      background: palette.background,
+      color: palette.textPrimary,
       fontFamily: "'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
       fontSize: '13px',
       minHeight: '100vh',
@@ -139,7 +142,7 @@ export function WidgetRenderer({ data }: { data: WidgetData }) {
     }}>
       {/* Header */}
       <div style={{
-        borderBottom: `1px solid ${t.border}`,
+        borderBottom: `1px solid ${palette.border}`,
         paddingBottom: '10px',
         marginBottom: '10px',
       }}>
@@ -149,7 +152,7 @@ export function WidgetRenderer({ data }: { data: WidgetData }) {
               href={joinUrl}
               style={{
                 fontWeight: 700,
-                color: t.accent,
+                color: palette.accent,
                 fontSize: '15px',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -158,14 +161,14 @@ export function WidgetRenderer({ data }: { data: WidgetData }) {
                 marginRight: '8px',
                 textDecoration: 'none',
               }}
-              title="Click to join server"
+              title={t('widget.join')}
             >
               {data.serverName}
             </a>
           ) : (
             <span style={{
               fontWeight: 700,
-              color: t.accent,
+              color: palette.accent,
               fontSize: '15px',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -177,7 +180,7 @@ export function WidgetRenderer({ data }: { data: WidgetData }) {
             </span>
           )}
           <span style={{
-            background: t.clientColor,
+            background: palette.clientColor,
             color: '#fff',
             fontSize: '10px',
             padding: '2px 8px',
@@ -186,18 +189,18 @@ export function WidgetRenderer({ data }: { data: WidgetData }) {
             flexShrink: 0,
             letterSpacing: '0.5px',
           }}>
-            ONLINE
+            {t('widget.online')}
           </span>
         </div>
         <div style={{
           marginTop: '6px',
-          color: t.textSecondary,
+          color: palette.textSecondary,
           fontSize: '11px',
           display: 'flex',
           gap: '14px',
         }}>
-          <span>{data.onlineUsers} / {data.maxClients} users</span>
-          <span>{formatUptime(data.uptime)} uptime</span>
+          <span>{t('widget.users', { online: data.onlineUsers, max: data.maxClients })}</span>
+          <span>{t('widget.uptime', { uptime: formatUptime(data.uptime) })}</span>
         </div>
       </div>
 
@@ -218,12 +221,12 @@ export function WidgetRenderer({ data }: { data: WidgetData }) {
 
       {/* Footer */}
       <div style={{
-        borderTop: `1px solid ${t.border}`,
+        borderTop: `1px solid ${palette.border}`,
         paddingTop: '8px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: t.textSecondary,
+        color: palette.textSecondary,
         fontSize: '9px',
         opacity: 0.6,
       }}>
@@ -231,8 +234,8 @@ export function WidgetRenderer({ data }: { data: WidgetData }) {
           href={APP_REPOSITORY_URL}
           target="_blank"
           rel="noopener noreferrer"
-          title="View ts6-manager on GitHub"
-          aria-label="Open ts6-manager on GitHub"
+          title={t('widget.githubTitle')}
+          aria-label={t('widget.githubLabel')}
           style={{
             display: 'inline-flex',
             alignItems: 'center',

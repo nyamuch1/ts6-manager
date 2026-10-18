@@ -1,6 +1,7 @@
 /** Change a live video stream's source without stopping the stream. */
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +11,7 @@ import { useSetStreamSource, useVideoStreamStatus } from '@/hooks/use-music-bots
 import { apiErrorMessage } from '@/lib/api-error';
 
 export function StreamSourceSwitch({ botId }: { botId: number }) {
+  const { t } = useTranslation('media');
   const { data: streamStatus } = useVideoStreamStatus(botId);
   const setSource = useSetStreamSource();
   const [source, setSourceInput] = useState('');
@@ -20,17 +22,17 @@ export function StreamSourceSwitch({ botId }: { botId: number }) {
   const onSwitch = () => {
     if (!trimmed || setSource.isPending) return;
     setSource.mutate({ botId, source: trimmed }, {
-      onSuccess: () => { toast.success('Stream source switched'); setSourceInput(''); },
+      onSuccess: () => { toast.success(t('sourceSwitch.switched')); setSourceInput(''); },
     });
   };
 
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Switch source</CardTitle>
+        <CardTitle className="text-base">{t('sourceSwitch.title')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
-        <Label htmlFor={`stream-source-${botId}`}>New source for this stream</Label>
+        <Label htmlFor={`stream-source-${botId}`}>{t('sourceSwitch.newSource')}</Label>
         <div className="flex gap-2">
           <Input
             id={`stream-source-${botId}`}
@@ -38,17 +40,17 @@ export function StreamSourceSwitch({ botId }: { botId: number }) {
             value={source}
             onChange={(event) => setSourceInput(event.target.value)}
             onKeyDown={(event) => { if (event.key === 'Enter') onSwitch(); }}
-            placeholder="https://youtube.com/watch?v=… or direct video URL"
+            placeholder={t('sourceSwitch.placeholder')}
           />
           <Button variant="outline" className="h-10 shrink-0" disabled={!trimmed || setSource.isPending} onClick={onSwitch}>
-            Switch
+            {t('sourceSwitch.switch')}
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          YouTube / Twitch URLs, direct http(s) video URLs, or a file already in the music folder.
+          {t('sourceSwitch.help')}
         </p>
         {setSource.error && (
-          <p role="alert" className="text-sm text-destructive">{apiErrorMessage(setSource.error, 'Could not switch the source')}</p>
+          <p role="alert" className="text-sm text-destructive">{apiErrorMessage(setSource.error, t('sourceSwitch.failed'))}</p>
         )}
       </CardContent>
     </Card>

@@ -1,0 +1,161 @@
+{
+  "language": {
+    "label": "Language",
+    "system": "System default",
+    "systemHint": "Follows your browser language. Currently {{language}}.",
+    "changed": "Language changed"
+  },
+  "action": {
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "close": "Close",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "add": "Add",
+    "remove": "Remove",
+    "retry": "Retry",
+    "refresh": "Refresh",
+    "search": "Search",
+    "copy": "Copy",
+    "copied": "Copied",
+    "download": "Download",
+    "upload": "Upload",
+    "enable": "Enable",
+    "disable": "Disable",
+    "start": "Start",
+    "stop": "Stop",
+    "play": "Play",
+    "pause": "Pause",
+    "skip": "Skip",
+    "previous": "Previous",
+    "next": "Next",
+    "back": "Back",
+    "open": "Open",
+    "view": "View",
+    "apply": "Apply",
+    "reset": "Reset",
+    "clear": "Clear",
+    "select": "Select",
+    "none": "None",
+    "all": "All",
+    "loading": "Loading…",
+    "noResults": "No results"
+  },
+  "state": {
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "online": "Online",
+    "offline": "Offline",
+    "unknown": "Unknown",
+    "error": "Something went wrong",
+    "empty": "Nothing here yet"
+  },
+  "unit": {
+    "seconds": "seconds",
+    "minutes": "minutes",
+    "hours": "hours",
+    "days": "days",
+    "bytes": "B",
+    "kib": "KiB",
+    "mib": "MiB",
+    "gib": "GiB"
+  },
+  "units": {
+    "channels": "channels",
+    "clients": "clients",
+    "groups": "groups",
+    "songs": "songs",
+    "playlists": "playlists",
+    "stations": "stations",
+    "requests": "requests",
+    "items": "items",
+    "entries": "entries",
+    "files": "files",
+    "logs": "logs",
+    "bans": "bans",
+    "tokens": "tokens",
+    "results": "results"
+  },
+  "pager": {
+    "pages": "Pages",
+    "previous": "Previous page",
+    "next": "Next page",
+    "pageOf": "Page {{page}} of {{pages}}",
+    "perPage": "Per page",
+    "range": "{{start}}–{{end}} of {{total}} {{noun}}",
+    "zero": "0 {{noun}}"
+  },
+  "confirm": {
+    "processing": "Processing…"
+  },
+  "dataTable": {
+    "searchPlaceholder": "Search...",
+    "searchLabel": "Search table",
+    "tableLabel": "Data table",
+    "clearSearch": "Clear search",
+    "empty": "No data available",
+    "filteredEmpty": "No results match your search",
+    "resultCount_one": "{{count}} result",
+    "resultCount_other": "{{count}} results",
+    "pagination": "Table pagination",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "previous": "Previous",
+    "next": "Next"
+  },
+  "time": {
+    "justNow": "Just now",
+    "minutesAgo": "{{count}}m ago",
+    "hoursAgo": "{{count}}h ago",
+    "daysAgo": "{{count}}d ago"
+  },
+  "fileSummary": {
+    "notChecked": "Not checked.",
+    "scanning": "Scanning…",
+    "unavailable": "Unavailable",
+    "partial": "Partial"
+  },
+  "authorization": {
+    "fileWriteNeedsOwnPermission": "Browsing this folder does not confirm permission to create or delete files."
+  },
+  "refresh": {
+    "upToDate": "Up to date",
+    "refreshing": "Refreshing…",
+    "interrupted": "Updates interrupted",
+    "waiting": "Waiting for TeamSpeak Query…",
+    "retry": "Retry refresh",
+    "retrying": "Retrying…"
+  },
+  "theme": {
+    "switchTo": "Switch to {{theme}} theme",
+    "light": "light",
+    "dark": "dark"
+  },
+  "noServer": {
+    "selected": "No server selected",
+    "chooseConnection": "Choose a server connection from the selector in the header.",
+    "noneConfigured": "No server connection configured",
+    "noneAvailable": "No server connection available",
+    "setupHint": "Use the setup wizard in Settings → Connections to add your TeamSpeak server.",
+    "askAdmin": "Ask an administrator to add a TeamSpeak connection or grant you access to one.",
+    "openSetup": "Open connection setup",
+    "virtualUnavailable": "Virtual servers unavailable",
+    "virtualUnavailableHint": "Virtual servers for the selected connection could not be loaded. Open Virtual Servers for details.",
+    "noVirtual": "No virtual server available",
+    "noVirtualHint": "The selected connection has no virtual server to manage. Start one or choose another connection in the header.",
+    "viewVirtual": "View virtual servers"
+  },
+  "pwa": {
+    "status": "App status",
+    "unavailable": "Server unavailable. Displayed data may be outdated. Live administration requires a connection; actions are not queued.",
+    "accessExpired": "Your access session has expired. Sign in again to reconnect. Unsaved changes on this page will be lost.",
+    "signInAgain": "Sign in again",
+    "updateAvailable": "Update available. Save your work in all open TS6 Manager tabs before reloading.",
+    "updateFailed": "Update could not finish. Try Reload again when connected.",
+    "updating": "Updating…",
+    "reloadAllTabs": "Reload all tabs"
+  }
+}

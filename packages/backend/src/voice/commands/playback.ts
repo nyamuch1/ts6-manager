@@ -3,6 +3,7 @@ import type { QueueItem } from '../playlist/queue.js';
 import { formatRadioListMessage } from '../ts6-chat-format.js';
 import type { CommandContext } from './context.js';
 import { invalidatePlaylistExpansion } from '../playlist-expansion.js';
+import { translateChat } from '../bot-locale.js';
 import { beginChatMediaRequest, getChatMediaGeneration, invalidateChatPlaylistExpansion } from './queue.js';
 
 // ─── Command Handlers ───────────────────────────────────────
@@ -24,7 +25,7 @@ export async function handleRadio(
   const dbBot = await context.prisma.musicBot.findUnique({ where: { id: botId }, select: { serverConfigId: true } });
   if (!isSameBot()) return;
   if (!dbBot) {
-    context.reply(bot, userClid, 'Bot config not found.');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.config_not_found'));
     return;
   }
 
@@ -35,7 +36,7 @@ export async function handleRadio(
   if (!isSameBot()) return;
 
   if (stations.length === 0) {
-    context.reply(bot, userClid, 'No radio stations configured.');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.radio.none_configured'));
     return;
   }
 
@@ -46,6 +47,7 @@ export async function handleRadio(
       userClid,
       formatRadioListMessage(
         stations.map((s: any) => ({ id: s.id, name: s.name, genre: s.genre })),
+        context.locale,
       ),
     );
     return;
@@ -54,13 +56,17 @@ export async function handleRadio(
   // Argument — play station by ID
   const stationId = Number(args);
   if (!/^[1-9]\d*$/.test(args) || !Number.isSafeInteger(stationId)) {
-    context.reply(bot, userClid, 'Usage: !radio <id> — Use !radio to list stations.');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.radio.usage'));
     return;
   }
 
   const station = stations.find((s: any) => s.id === stationId);
   if (!station) {
-    context.reply(bot, userClid, `Station #${stationId} not found. Use !radio to list stations.`);
+    context.reply(
+      bot,
+      userClid,
+      translateChat(context.locale, 'bot.radio.station_not_found', { id: stationId }),
+    );
     return;
   }
 
@@ -82,7 +88,11 @@ export async function handleRadio(
   await bot.playStream(queueItem, context.chatMusicSwitch(bot));
   if (!isCurrent() || bot.nowPlaying !== queueItem) return;
   context.saveMusicRequest(bot, queueItem);
-  context.reply(bot, userClid, `Now playing: ${station.name}`);
+  context.reply(
+    bot,
+    userClid,
+    translateChat(context.locale, 'bot.radio.now_playing', { name: station.name }),
+  );
 }
 
 /** Longest free-text query `!play <song name>` sends to search. */
@@ -103,39 +113,43 @@ export async function handlePlay(
   if (!args) {
     if (bot.status === 'paused') {
       bot.resume();
-      context.reply(bot, userClid, 'Resumed.');
+      context.reply(bot, userClid, translateChat(context.locale, 'bot.play.resumed'));
       return;
     }
-    context.reply(bot, userClid, 'Usage: !play <url|song name>');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.play.usage'));
     return;
   }
 
   let url = args;
   if (!/^https?:\/\//i.test(args)) {
     const query = args.trim().slice(0, MAX_SONG_QUERY_LENGTH);
-    context.reply(bot, userClid, `Searching YouTube Music for "${query}"...`);
+    context.reply(
+      bot,
+      userClid,
+      translateChat(context.locale, 'bot.play.searching', { query }),
+    );
     try {
       const song = await context.findSong(query, request!.signal);
       if (request!.isCancelled()) return;
       if (!song) {
-        context.reply(bot, userClid, `No results for "${query}".`);
+        context.reply(bot, userClid, translateChat(context.locale, 'bot.play.no_results', { query }));
         return;
       }
       url = song.url;
     } catch (err: any) {
       if (request!.isCancelled()) return;
-      context.reply(bot, userClid, `Search failed: ${err.message}`);
+      context.reply(bot, userClid, translateChat(context.locale, 'bot.play.search_failed', { error: err.message }));
       return;
     }
   } else {
-    context.reply(bot, userClid, 'Loading...');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.play.loading'));
   }
 
   try {
     await context.enqueueMediaUrl(botId, bot, userClid, url, request);
   } catch (err: any) {
     if (request?.isCancelled()) return;
-    context.reply(bot, userClid, `Failed to play: ${err.message}`);
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.play.failed', { error: err.message }));
   }
 }
 
@@ -147,10 +161,10 @@ export async function handleSeek(
   args: string,
 ): Promise<void> {
   if (!/^[+-]?\d+(?:\.\d+)?$/.test(args) || !Number.isFinite(Number(args))) {
-    context.reply(bot, userClid, 'Usage: !seek <seconds|+seconds|-seconds>'); return;
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.seek.usage')); return;
   }
   if (!bot.canSeek) {
-    context.reply(bot, userClid, 'Current source cannot be seeked. Play a local/downloaded track first.'); return;
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.seek.unsupported')); return;
   }
   const progress = bot.playbackProgress;
   const relative = /^[+-]/.test(args);
@@ -159,10 +173,14 @@ export async function handleSeek(
   try {
     await bot.seek(target);
   } catch {
-    context.reply(bot, userClid, 'Could not seek — playback stopped.');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.seek.stopped'));
     return;
   }
-  context.reply(bot, userClid, `Seeked to ${Math.floor(target)} seconds.`);
+  context.reply(
+    bot,
+    userClid,
+    translateChat(context.locale, 'bot.seek.done', { seconds: Math.floor(target) }),
+  );
 }
 
 /**
@@ -175,19 +193,19 @@ export function handleStop(context: CommandContext, bot: VoiceBot, userClid: num
   invalidatePlaylistExpansion(botId);
   if (!bot.isStreaming) bot.queue.clear();
   bot.stopAudio();
-  context.reply(bot, userClid, 'Playback stopped.');
+  context.reply(bot, userClid, translateChat(context.locale, 'bot.stop.done'));
 }
 
 /** Toggle playing or paused audio and report when there is nothing to pause. */
 export function handlePause(context: CommandContext, bot: VoiceBot, userClid: number): void {
   if (bot.status === 'paused') {
     bot.resume();
-    context.reply(bot, userClid, 'Resumed.');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.pause.resumed'));
   } else if (bot.status === 'playing') {
     bot.pause();
-    context.reply(bot, userClid, 'Paused.');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.pause.paused'));
   } else {
-    context.reply(bot, userClid, 'Nothing is playing.');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.pause.nothing'));
   }
 }
 
@@ -200,11 +218,11 @@ export async function handleSkip(context: CommandContext, bot: VoiceBot, userCli
     } else {
       await bot.play(next, context.chatMusicSwitch(bot));
     }
-    context.reply(bot, userClid, `Skipped to: ${next.title}`);
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.skip.skipped', { title: next.title }));
   } else {
     // A skip is not a Stop: requests still loading are kept.
     bot.stopAudio({ keepPendingRequests: true });
-    context.reply(bot, userClid, 'Queue empty — playback stopped.');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.skip.queue_empty'));
   }
 }
 
@@ -217,9 +235,9 @@ export async function handlePrev(context: CommandContext, bot: VoiceBot, userCli
     } else {
       await bot.play(prev, context.chatMusicSwitch(bot));
     }
-    context.reply(bot, userClid, `Previous: ${prev.title}`);
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.prev.previous', { title: prev.title }));
   } else {
-    context.reply(bot, userClid, 'No previous track.');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.prev.none'));
   }
 }
 
@@ -232,13 +250,13 @@ export async function handleVolume(
 ): Promise<void> {
   if (!args) {
     const vol = bot.currentConfig.volume;
-    context.reply(bot, userClid, `Volume: ${vol}%`);
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.volume.current', { volume: vol }));
     return;
   }
 
   const vol = parseInt(args);
   if (isNaN(vol) || vol < 0 || vol > 100) {
-    context.reply(bot, userClid, 'Usage: !vol <0-100>');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.volume.usage'));
     return;
   }
 
@@ -246,8 +264,16 @@ export async function handleVolume(
     // One level for music, radio, video, and IPTV. applyVolume pushes it
     // into a running sidecar stream; music reads config.volume each frame.
     await bot.applyVolume(vol);
-    context.reply(bot, userClid, `Volume set to ${bot.currentConfig.volume}%.`);
+    context.reply(
+      bot,
+      userClid,
+      translateChat(context.locale, 'bot.volume.set', { volume: bot.currentConfig.volume }),
+    );
   } catch (err: any) {
-    context.reply(bot, userClid, `Could not set volume: ${err?.message ?? err}`);
+    context.reply(
+      bot,
+      userClid,
+      translateChat(context.locale, 'bot.volume.failed', { error: err?.message ?? err }),
+    );
   }
 }

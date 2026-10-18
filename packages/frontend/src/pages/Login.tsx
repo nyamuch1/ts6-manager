@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Navigate, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -9,8 +10,10 @@ import { useLogin } from '@/hooks/use-auth';
 import { useAuthStore } from '@/stores/auth.store';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { BrandMark } from '@/components/shared/BrandMark';
+import { LanguageMenu } from '@/components/shared/LanguageMenu';
 
 export default function Login() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -71,6 +74,9 @@ export default function Login() {
 
   return (
     <div className="auth-viewport min-h-screen min-h-dvh flex items-center justify-center bg-background grid-bg">
+      <div className="fixed right-4 top-4 z-10">
+        <LanguageMenu />
+      </div>
       {/* Ambient glow */}
       <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
 
@@ -79,17 +85,17 @@ export default function Login() {
         <div className="text-center mb-8">
           <BrandMark className="mx-auto mb-4 h-16 w-16 text-primary" />
           <h1 className="text-xl font-semibold text-foreground">TS6 Manager</h1>
-          <p className="text-sm text-muted-foreground mt-1">Server Administration Panel</p>
+          <p className="text-sm text-muted-foreground mt-1">{t('app:auth.login.subtitle')}</p>
         </div>
 
         <Card className="border-border/50 backdrop-blur-sm">
           <CardHeader className="pb-4">
-            <h2 className="text-sm font-medium text-center text-muted-foreground">Sign in to continue</h2>
+            <h2 className="text-sm font-medium text-center text-muted-foreground">{t('app:auth.login.heading')}</h2>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="username" className="text-xs">Username</Label>
+                <Label htmlFor="username" className="text-xs">{t('app:auth.login.username')}</Label>
                 <Input
                   id="username"
                   value={username}
@@ -100,7 +106,7 @@ export default function Login() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-xs">Password</Label>
+                <Label htmlFor="password" className="text-xs">{t('app:auth.login.password')}</Label>
                 <Input
                   id="password"
                   type="password"
@@ -115,8 +121,8 @@ export default function Login() {
                 <div className="flex items-center gap-2 text-destructive text-xs bg-destructive/10 rounded-md px-3 py-2">
                   <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                   <span>{axios.isAxiosError(login.error) && login.error.response?.status === 401
-                    ? 'Invalid credentials. Please try again.'
-                    : 'Unable to sign in. Check your connection and try again.'}</span>
+                    ? t('app:auth.login.invalidCredentials')
+                    : t('app:auth.login.unavailable')}</span>
                 </div>
               )}
 
@@ -124,10 +130,10 @@ export default function Login() {
                 {login.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Signing in...
+                    {t('app:auth.login.signingIn')}
                   </>
                 ) : (
-                  'Sign In'
+                  t('app:auth.login.signIn')
                 )}
               </Button>
             </form>

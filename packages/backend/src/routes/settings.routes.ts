@@ -11,8 +11,11 @@ import rateLimit from 'express-rate-limit';
 import fs from 'fs';
 import path from 'path';
 import { AppError } from '../middleware/error-handler.js';
+import { isSupportedLocale, translate } from '../i18n/index.js';
+import { requestLocale } from '../i18n/middleware.js';
 import { setYtCookieFile, getYtCookieFile } from '../voice/audio/youtube.js';
 import {
+  DEFAULT_BOT_LANGUAGE_KEY,
   MAX_VIDEO_DURATION_KEY,
   MAX_PLAYLIST_IMPORT_KEY,
   YOUTUBE_DIRECT_STREAM_KEY,
@@ -53,7 +56,7 @@ const ytCookiesLimiter = rateLimit({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many cookie settings requests, please try again later' },
+  message: (req: Request) => ({ error: translate(requestLocale(req), 'errors.rate_limited_cookie_settings') }),
 });
 
 const runtimeDiagnosticsLimiter = rateLimit({
@@ -61,13 +64,15 @@ const runtimeDiagnosticsLimiter = rateLimit({
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many runtime diagnostic requests, please try again later' },
+  message: (req: Request) => ({ error: translate(requestLocale(req), 'errors.rate_limited_runtime_diagnostics') }),
 });
 
 // Admin-only guard
 function requireAdmin(req: Request, _res: Response, next: Function) {
   if ((req as any).user?.role !== 'admin') {
-    return next(new AppError(403, 'Admin access required'));
+    return next(new AppError(403, 'Admin access required', undefined, {
+      messageKey: 'errors.admin_required',
+    }));
   }
   next();
 }
@@ -100,7 +105,9 @@ settingsRoutes.post('/yt-cookies', requireAdmin, ytCookiesLimiter, upload.single
         if (!req.file) {
           const text = req.body?.text;
           if (!text || typeof text !== 'string') {
-            throw new AppError(400, 'No cookie file or text provided');
+            throw new AppError(400, 'No cookie file or text provided', undefined, {
+              messageKey: 'errors.no_cookie_material',
+            });
           }
           fs.mkdirSync(COOKIE_DIR, { recursive: true });
           fs.writeFileSync(COOKIE_PATH, text, 'utf-8');
@@ -149,9 +156,9 @@ settingsRoutes.get(
   '/runtime-diagnostics',
   requireAdmin,
   runtimeDiagnosticsLimiter,
-  async (_req: Request, res: Response, next) => {
+  async (req: Request, res: Response, next) => {
     try {
-      const report = await diagnoseRuntimeMedia();
+      const report = await diagnoseRuntimeMedia({ locale: requestLocale(req) });
       res.json(report);
     } catch (err) {
       next(err);
@@ -171,7 +178,7 @@ settingsRoutes.get(
   async (req: Request, res: Response, next) => {
     try {
       const diagnose = req.app.locals.diagnoseMediaAdmin ?? diagnoseMediaAdmin;
-      res.json(redactDiagnosticValue(await diagnose()));
+      res.json(redactDiagnosticValue(await diagnose({ locale: requestLocale(req) })));
     } catch (err) {
       next(err);
     }
@@ -201,10 +208,14 @@ settingsRoutes.put('/limits', requireAdmin, async (req: Request, res: Response, 
     const { maxVideoDuration, maxPlaylistImport, youtubeDirectStream } = req.body;
 
     if (maxVideoDuration == null && maxPlaylistImport == null && youtubeDirectStream == null) {
-      throw new AppError(400, 'Provide maxVideoDuration, maxPlaylistImport and/or youtubeDirectStream');
+      throw new AppError(400, 'Provide maxVideoDuration, maxPlaylistImport and/or youtubeDirectStream', undefined, {
+        messageKey: 'errors.provide_limits',
+      });
     }
     if (youtubeDirectStream != null && typeof youtubeDirectStream !== 'boolean') {
-      throw new AppError(400, 'youtubeDirectStream must be true or false');
+      throw new AppError(400, 'youtubeDirectStream must be true or false', undefined, {
+        messageKey: 'errors.youtube_direct_boolean',
+      });
     }
 
     await recordLocalSuccess(
@@ -217,7 +228,11 @@ settingsRoutes.put('/limits', requireAdmin, async (req: Request, res: Response, 
       async (tx) => {
         if (maxVideoDuration != null) {
           const val = parseVideoDuration(String(maxVideoDuration), -1);
-          if (val < 0) throw new AppError(400, 'maxVideoDuration must be a non-negative integer (seconds)');
+          if (val < 0) {
+            throw new AppError(400, 'maxVideoDuration must be a non-negative integer (seconds)', undefined, {
+              messageKey: 'errors.max_video_duration_invalid',
+            });
+          }
           await tx.appSetting.upsert({
             where: { key: MAX_VIDEO_DURATION_KEY },
             create: { key: MAX_VIDEO_DURATION_KEY, value: String(val) },
@@ -227,7 +242,11 @@ settingsRoutes.put('/limits', requireAdmin, async (req: Request, res: Response, 
 
         if (maxPlaylistImport != null) {
           const val = parseImportCap(String(maxPlaylistImport), -1);
-          if (val <= 0) throw new AppError(400, 'maxPlaylistImport must be a positive integer (max 500)');
+          if (val <= 0) {
+            throw new AppError(400, 'maxPlaylistImport must be a positive integer (max 500)', undefined, {
+              messageKey: 'errors.max_playlist_import_invalid',
+            });
+          }
           await tx.appSetting.upsert({
             where: { key: MAX_PLAYLIST_IMPORT_KEY },
             create: { key: MAX_PLAYLIST_IMPORT_KEY, value: String(val) },
@@ -247,6 +266,33 @@ settingsRoutes.put('/limits', requireAdmin, async (req: Request, res: Response, 
     );
 
     res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
+/** Instance default for bot chat replies; explicit per-bot languages win. */
+settingsRoutes.get('/bot-chat-language', requireAdmin, async (req: Request, res: Response, next) => {
+  try {
+    const prisma = req.app.locals.prisma;
+    const row = await prisma.appSetting.findUnique({ where: { key: DEFAULT_BOT_LANGUAGE_KEY } });
+    res.json({ language: isSupportedLocale(row?.value) ? row.value : 'en' });
+  } catch (err) { next(err); }
+});
+
+settingsRoutes.put('/bot-chat-language', requireAdmin, async (req: Request, res: Response, next) => {
+  try {
+    const language = req.body?.language;
+    if (!isSupportedLocale(language)) {
+      throw new AppError(400, 'language must be en or zh-CN', undefined, {
+        messageKey: 'errors.bot_language_invalid',
+      });
+    }
+    const prisma = req.app.locals.prisma;
+    await prisma.appSetting.upsert({
+      where: { key: DEFAULT_BOT_LANGUAGE_KEY },
+      create: { key: DEFAULT_BOT_LANGUAGE_KEY, value: language },
+      update: { value: language },
+    });
+    res.json({ language });
   } catch (err) { next(err); }
 });
 
@@ -363,7 +409,9 @@ settingsRoutes.put('/public-url', requireAdmin, async (req: Request, res: Respon
 
 function parseServerId(raw: unknown): number {
   const id = Number(raw);
-  if (!Number.isInteger(id) || id <= 0) throw new AppError(400, 'Invalid server id');
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new AppError(400, 'Invalid server id', undefined, { messageKey: 'errors.invalid_server_id' });
+  }
   return id;
 }
 
@@ -382,7 +430,9 @@ settingsRoutes.put('/video-streaming/servers/:serverConfigId', requireAdmin, asy
     const prisma = req.app.locals.prisma;
     const id = parseServerId(req.params.serverConfigId);
     const server = await prisma.tsServerConfig.findUnique({ where: { id }, select: { id: true } });
-    if (!server) throw new AppError(404, 'Server not found');
+    if (!server) {
+      throw new AppError(404, 'Server not found', undefined, { messageKey: 'errors.server_not_found' });
+    }
 
     const body = (req.body ?? {}) as Record<string, unknown>;
     for (const [field, value] of Object.entries(body)) {
@@ -438,6 +488,12 @@ settingsRoutes.get(
           url
             ? 'Media sidecar did not answer — check SIDECAR_URL/SIDECAR_SECRET and that the sidecar image is up to date'
             : 'Media sidecar is not running — it starts with a video stream, or set SIDECAR_URL',
+          undefined,
+          {
+            messageKey: url ? 'errors.sidecar_no_answer' : 'errors.sidecar_not_running',
+            reason: 'sidecar_unavailable',
+            retryable: true,
+          },
         );
       }
     } catch (err) { next(err); }

@@ -5,6 +5,7 @@
  */
 
 import { Link } from 'react-router-dom';
+import { Trans } from 'react-i18next';
 import { RuntimeMediaDiagnostics } from '@/components/media/RuntimeMediaDiagnostics';
 import { VideoStreamDefaultsCard } from '@/components/video/VideoStreamDefaultsCard';
 import { useServers } from '@/hooks/use-servers';
@@ -22,8 +23,16 @@ export function StreamingDefaultsTab() {
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Start a stream from a bot&apos;s console in the <Link to="/bot-hub" className="text-primary underline-offset-4 hover:underline">Bot Hub</Link>.
-          Changes there apply to that one stream; these defaults stay as they are.
+          <Trans
+            i18nKey="streamingTab.intro"
+            ns="media"
+            components={{
+              hub: <Link to="/bot-hub" className="text-primary underline-offset-4 hover:underline" />,
+            }}
+          >
+            Start a stream from a bot&apos;s console in the <Link to="/bot-hub" className="text-primary underline-offset-4 hover:underline">Bot Hub</Link>.
+            Changes there apply to that one stream; these defaults stay as they are.
+          </Trans>
         </p>
         <VideoStreamDefaultsCard server={server} />
       </div>

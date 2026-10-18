@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { invalidateAfterPwaRecovery } from '@/lib/demand-driven-query-policy';
@@ -6,6 +7,7 @@ import { claimEdgeReauthAttempt, clearEdgeReauthAttempt, reauthenticateAtEdge } 
 
 /** Available on login/setup as well as protected routes. No persisted live data. */
 export function PwaStatus() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [unavailable, setUnavailable] = useState(!navigator.onLine);
   const [signedOut, setSignedOut] = useState(false);
@@ -170,21 +172,21 @@ export function PwaStatus() {
 
   if (!unavailable && !waiting) return null;
   return (
-    <aside ref={statusRef} className="pwa-status space-y-2 rounded-lg border border-border bg-popover p-3 text-sm shadow-lg" aria-label="App status">
-      {unavailable && !signedOut && <p role="status">Server unavailable. Displayed data may be outdated. Live administration requires a connection; actions are not queued.</p>}
+    <aside ref={statusRef} className="pwa-status space-y-2 rounded-lg border border-border bg-popover p-3 text-sm shadow-lg" aria-label={t('common:pwa.status')}>
+      {unavailable && !signedOut && <p role="status">{t('common:pwa.unavailable')}</p>}
       {signedOut && <div className="space-y-2">
-        <p role="status">Your access session has expired. Sign in again to reconnect. Unsaved changes on this page will be lost.</p>
-        <Button size="sm" onClick={reauthenticateAtEdge}>Sign in again</Button>
+        <p role="status">{t('common:pwa.accessExpired')}</p>
+        <Button size="sm" onClick={reauthenticateAtEdge}>{t('common:pwa.signInAgain')}</Button>
       </div>}
       {waiting && <div className="space-y-2">
-        <p role="status">Update available. Save your work in all open TS6 Manager tabs before reloading.</p>
-        {updateError && <p role="alert">Update could not finish. Try Reload again when connected.</p>}
+        <p role="status">{t('common:pwa.updateAvailable')}</p>
+        {updateError && <p role="alert">{t('common:pwa.updateFailed')}</p>}
         <Button size="sm" disabled={updating || unavailable} onClick={() => {
           setUpdateError(false);
           if (!waiting.waiting) { window.location.reload(); return; }
           setUpdating(true);
           waiting.waiting.postMessage({ type: 'SKIP_WAITING' });
-        }}>{updating ? 'Updating…' : 'Reload all tabs'}</Button>
+        }}>{updating ? t('common:pwa.updating') : t('common:pwa.reloadAllTabs')}</Button>
       </div>}
     </aside>
   );

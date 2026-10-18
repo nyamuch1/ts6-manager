@@ -83,7 +83,11 @@ export async function sshExecute(
   }
 
   const engine: BotEngine = req.app.locals.botEngine;
-  if (!engine) throw new AppError(503, 'Bot engine not available');
+  if (!engine) {
+    throw new AppError(503, 'Bot engine not available', undefined, {
+      messageKey: 'errors.bot_engine_not_available',
+    });
+  }
 
   const bridge = engine.getEventBridge();
   const sid = getSid(req);
@@ -132,6 +136,11 @@ export function mapFileSshTransportError(
       purpose === 'browse'
         ? 'SSH credentials not configured for this server. File browsing requires SSH access because WebQuery HTTP does not support ft* commands.'
         : 'SSH credentials not configured for this server. File changes require SSH access because WebQuery HTTP does not support ft* commands.',
+      undefined,
+      {
+        messageKey: purpose === 'browse' ? 'errors.ssh_credentials_browse' : 'errors.ssh_credentials_changes',
+        reason: 'ssh_required',
+      },
     );
   }
   // Fatal auth / host-key after EventBridge removed the client — not reconnectable.
@@ -143,6 +152,10 @@ export function mapFileSshTransportError(
         ? 'SSH host key verification failed. Update or clear the pinned host key in server settings, then retry.'
         : 'SSH authentication failed. Check the SSH username and password in server settings.',
       msg,
+      {
+        messageKey: isHostKey ? 'errors.ssh_host_key_failed' : 'errors.ssh_auth_failed',
+        reason: 'ssh_failed',
+      },
     );
   }
   if (msg.includes('SSH not connected')) {
@@ -199,7 +212,9 @@ fileRoutes.get('/summary', async (req: Request, res: Response, next) => {
     const rawCids = String(req.query.cids || '');
     const requested = [...new Set(rawCids.split(',').filter(Boolean).map(Number))];
     if (requested.length < 1 || requested.some((cid) => !Number.isInteger(cid) || cid <= 0)) {
-      throw new AppError(400, 'Provide at least one valid channel ID');
+      throw new AppError(400, 'Provide at least one valid channel ID', undefined, {
+        messageKey: 'errors.provide_valid_channel_id',
+      });
     }
     // Accept oversized lists: bound the scan set and label the remainder Not scanned.
     // (Previously rejected >256 with 400 — the Files UI could not explain that.)

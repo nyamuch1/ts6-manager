@@ -4,7 +4,9 @@ import { AppError } from '../middleware/error-handler.js';
 function object(raw: unknown, fields: string[]): Record<string, unknown> {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
       Object.keys(raw).length !== fields.length || fields.some((key) => !Object.hasOwn(raw, key))) {
-    throw new AppError(400, 'Invalid automation settings fields');
+    throw new AppError(400, 'Invalid automation settings fields', undefined, {
+      messageKey: 'errors.automation_fields',
+    });
   }
   return raw as Record<string, unknown>;
 }
@@ -13,28 +15,44 @@ function object(raw: unknown, fields: string[]): Record<string, unknown> {
 export function parseAutomationSettings(raw: unknown): BotAutomationSettings {
   const data = object(raw, Object.keys(DEFAULT_BOT_AUTOMATION_SETTINGS));
   for (const key of ['enabled', 'requireListeners', 'stayInChannel']) {
-    if (typeof data[key] !== 'boolean') throw new AppError(400, `${key} must be a boolean`);
+    if (typeof data[key] !== 'boolean') {
+      throw new AppError(400, `${key} must be a boolean`, undefined, {
+        messageKey: 'errors.automation_boolean',
+        messageParams: { key },
+      });
+    }
   }
   for (const [key, min, max] of [
     ['quietPeriodSeconds', 0, 86400], ['retryBaseSeconds', 1, 3600], ['retryMaxSeconds', 1, 86400],
   ] as const) {
     if (typeof data[key] !== 'number' || !Number.isSafeInteger(data[key]) || data[key] < min || data[key] > max) {
-      throw new AppError(400, `${key} must be a whole number from ${min} to ${max}`);
+      throw new AppError(400, `${key} must be a whole number from ${min} to ${max}`, undefined, {
+        messageKey: 'errors.automation_range',
+        messageParams: { key, min, max },
+      });
     }
   }
   if ((data.retryMaxSeconds as number) < (data.retryBaseSeconds as number)) {
-    throw new AppError(400, 'retryMaxSeconds must be at least retryBaseSeconds');
+    throw new AppError(400, 'retryMaxSeconds must be at least retryBaseSeconds', undefined, {
+      messageKey: 'errors.automation_retry_order',
+    });
   }
   let source: BotAutomationSettings['source'] = null;
   if (data.source !== null) {
     const candidate = object(data.source, ['kind', 'id']);
     if ((candidate.kind !== 'playlist' && candidate.kind !== 'radio') ||
         typeof candidate.id !== 'number' || !Number.isSafeInteger(candidate.id) || candidate.id <= 0) {
-      throw new AppError(400, 'source must reference a saved playlist or radio station');
+      throw new AppError(400, 'source must reference a saved playlist or radio station', undefined, {
+        messageKey: 'errors.automation_source_invalid',
+      });
     }
     source = { kind: candidate.kind, id: candidate.id };
   }
-  if (data.enabled && !source) throw new AppError(400, 'Choose a saved source before enabling Auto-DJ');
+  if (data.enabled && !source) {
+    throw new AppError(400, 'Choose a saved source before enabling Auto-DJ', undefined, {
+      messageKey: 'errors.automation_source_required',
+    });
+  }
   return { ...data, source } as BotAutomationSettings;
 }
 

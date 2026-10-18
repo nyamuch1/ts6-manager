@@ -53,7 +53,9 @@ playlistRoutes.get('/', async (req: Request, res: Response, next) => {
     const prisma = req.app.locals.prisma;
     const raw = req.query.serverConfigId;
     if (raw !== undefined && !(typeof raw === 'string' && /^[1-9]\d*$/.test(raw))) {
-      throw new AppError(400, 'serverConfigId must be a positive whole number');
+      throw new AppError(400, 'serverConfigId must be a positive whole number', undefined, {
+        messageKey: 'errors.server_config_id_positive_whole',
+      });
     }
     const serverConfigId = raw === undefined ? undefined : Number(raw);
     const playlists = await prisma.playlist.findMany({
@@ -88,7 +90,9 @@ playlistRoutes.get('/:id', async (req: Request, res: Response, next) => {
         },
       },
     });
-    if (!playlist) throw new AppError(404, 'Playlist not found');
+    if (!playlist) {
+      throw new AppError(404, 'Playlist not found', undefined, { messageKey: 'errors.playlist_not_found' });
+    }
 
     res.json({
       id: playlist.id,
@@ -121,15 +125,22 @@ playlistRoutes.post('/', async (req: Request, res: Response, next) => {
   try {
     const prisma = req.app.locals.prisma;
     const { name, musicBotId, mode, serverConfigId } = req.body;
-    if (!name) throw new AppError(400, 'name is required');
+    if (!name) {
+      throw new AppError(400, 'name is required', undefined, { messageKey: 'errors.name_required' });
+    }
     const playlistMode = normalizePlaylistMode(mode, 'local');
     // Playlists belong to the server they were created on; without one they stay
     // shared like legacy playlists.
     if (serverConfigId != null && !(Number.isInteger(serverConfigId) && serverConfigId > 0)) {
-      throw new AppError(400, 'serverConfigId must be a positive whole number');
+      throw new AppError(400, 'serverConfigId must be a positive whole number', undefined, {
+        messageKey: 'errors.server_config_id_positive_whole',
+      });
     }
     if (serverConfigId != null && !(await prisma.tsServerConfig.findUnique({ where: { id: serverConfigId }, select: { id: true } }))) {
-      throw new AppError(400, `Server ${serverConfigId} does not exist`);
+      throw new AppError(400, `Server ${serverConfigId} does not exist`, undefined, {
+        messageKey: 'errors.server_does_not_exist',
+        messageParams: { id: serverConfigId },
+      });
     }
 
     const playlist = await prisma.playlist.create({
@@ -246,19 +257,33 @@ playlistRoutes.post('/:id/songs', async (req: Request, res: Response, next) => {
     const { songId, songIds } = req.body;
     const rawIds: unknown[] = Array.isArray(songIds) ? songIds : songId ? [songId] : [];
     const ids = [...new Set(rawIds.map((id) => parseInt(String(id))))];
-    if (ids.length === 0) throw new AppError(400, 'songId is required');
-    if (ids.some((id) => Number.isNaN(id))) throw new AppError(400, 'songIds must be numbers');
-    if (ids.length > MAX_SONGS_PER_ADD) throw new AppError(400, `At most ${MAX_SONGS_PER_ADD} songs per request`);
+    if (ids.length === 0) {
+      throw new AppError(400, 'songId is required', undefined, { messageKey: 'errors.song_id_required' });
+    }
+    if (ids.some((id) => Number.isNaN(id))) {
+      throw new AppError(400, 'songIds must be numbers', undefined, { messageKey: 'errors.song_ids_numbers' });
+    }
+    if (ids.length > MAX_SONGS_PER_ADD) {
+      throw new AppError(400, `At most ${MAX_SONGS_PER_ADD} songs per request`, undefined, {
+        messageKey: 'errors.max_songs_per_request',
+        messageParams: { max: MAX_SONGS_PER_ADD },
+      });
+    }
 
     const playlist = await prisma.playlist.findUnique({ where: { id: playlistId } });
-    if (!playlist) throw new AppError(404, 'Playlist not found');
+    if (!playlist) {
+      throw new AppError(404, 'Playlist not found', undefined, { messageKey: 'errors.playlist_not_found' });
+    }
 
     const songs: { id: number; source: string }[] = await prisma.song.findMany({
       where: { id: { in: ids } },
       select: { id: true, source: true },
     });
     if (songs.length !== ids.length) {
-      throw new AppError(404, ids.length === 1 ? 'Song not found' : 'One or more songs not found');
+      throw new AppError(404, ids.length === 1 ? 'Song not found' : 'One or more songs not found', undefined,
+        ids.length === 1
+          ? { messageKey: 'errors.song_not_found' }
+          : { messageKey: 'errors.songs_not_found' });
     }
 
     const mode = effectivePlaylistMode(playlist);
@@ -268,6 +293,10 @@ playlistRoutes.post('/:id/songs', async (req: Request, res: Response, next) => {
         mode === 'local'
           ? 'This local playlist only accepts local library songs'
           : 'This stream playlist only accepts YouTube / URL songs',
+        undefined,
+        {
+          messageKey: mode === 'local' ? 'errors.local_playlist_local_only' : 'errors.stream_playlist_stream_only',
+        },
       );
     }
 
@@ -285,14 +314,20 @@ playlistRoutes.post('/:id/songs/from-playlist', async (req: Request, res: Respon
     const playlistId = parseInt(req.params.id as string);
     const sourcePlaylistId = parseInt(String(req.body.sourcePlaylistId));
     if (!sourcePlaylistId || Number.isNaN(sourcePlaylistId)) {
-      throw new AppError(400, 'sourcePlaylistId is required');
+      throw new AppError(400, 'sourcePlaylistId is required', undefined, {
+        messageKey: 'errors.source_playlist_id_required',
+      });
     }
     if (sourcePlaylistId === playlistId) {
-      throw new AppError(400, 'Cannot import a playlist into itself');
+      throw new AppError(400, 'Cannot import a playlist into itself', undefined, {
+        messageKey: 'errors.playlist_import_self',
+      });
     }
 
     const playlist = await prisma.playlist.findUnique({ where: { id: playlistId } });
-    if (!playlist) throw new AppError(404, 'Playlist not found');
+    if (!playlist) {
+      throw new AppError(404, 'Playlist not found', undefined, { messageKey: 'errors.playlist_not_found' });
+    }
 
     const source = await prisma.playlist.findUnique({
       where: { id: sourcePlaylistId },
@@ -303,7 +338,11 @@ playlistRoutes.post('/:id/songs/from-playlist', async (req: Request, res: Respon
         },
       },
     });
-    if (!source) throw new AppError(404, 'Source playlist not found');
+    if (!source) {
+      throw new AppError(404, 'Source playlist not found', undefined, {
+        messageKey: 'errors.source_playlist_not_found',
+      });
+    }
 
     const mode = effectivePlaylistMode(playlist);
     const songIds = source.songs
@@ -345,7 +384,11 @@ playlistRoutes.put('/:id/songs/reorder', async (req: Request, res: Response, nex
     const prisma = req.app.locals.prisma;
     const playlistId = parseInt(req.params.id as string);
     const { songIds } = req.body;
-    if (!Array.isArray(songIds)) throw new AppError(400, 'songIds array is required');
+    if (!Array.isArray(songIds)) {
+      throw new AppError(400, 'songIds array is required', undefined, {
+        messageKey: 'errors.song_ids_array_required',
+      });
+    }
 
     await prisma.$transaction(
       songIds.map((songId: number, index: number) =>

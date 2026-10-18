@@ -1,0 +1,138 @@
+{
+  "docLinks": {
+    "portsNetworking": "端口与网络",
+    "httpQuery": "启用 HTTP WebQuery",
+    "quickstart": "Docker 快速开始",
+    "dockerNetworking": "Docker 网络与端口",
+    "dockerCompose": "Docker Compose 示例",
+    "officialDocker": "官方 TS6 Docker 镜像",
+    "portsFirewall": "端口与防火墙",
+    "securityBestPractices": "安全最佳实践",
+    "querySecurity": "查询安全",
+    "queryAuthentication": "查询身份验证",
+    "sshQuerySetup": "SSH ServerQuery 设置",
+    "queryOverview": "服务器查询概览",
+    "sshQueryEnable": "启用 SSH ServerQuery（TS6 文档）",
+    "setServeradminPassword": "设置 serveradmin 密码",
+    "httpQueryTs6": "启用 HTTP WebQuery（TS6 文档）",
+    "portsDockerSetup": "端口与 Docker 设置",
+    "firewallSecurity": "防火墙与安全",
+    "httpsWebquery": "HTTPS WebQuery 设置（TS6 文档）",
+    "ts6ServerDocs": "TeamSpeak 6 服务器文档"
+  },
+  "scenarios": {
+    "same-host": {
+      "label": "TS 在同一台机器上（裸机）",
+      "description": "TeamSpeak 与 ts6-manager 运行在同一主机上。",
+      "hostHint": "使用 127.0.0.1，或在管理器无法访问 localhost 时使用你的局域网 IP。"
+    },
+    "ts-docker-host-manager": {
+      "label": "TS 在 Docker 中，管理器在主机上",
+      "description": "TeamSpeak 运行在容器中；ts6-manager 运行在主机上或该容器网络之外的其他位置。",
+      "hostHint": "使用容器名称、已发布的宿主端口映射目标，或在 Docker 内使用 host.docker.internal。"
+    },
+    "both-docker": {
+      "label": "两者都在 Docker 中（独立栈）",
+      "description": "TeamSpeak 和 ts6-manager 各自在 Docker 中运行，使用独立的 compose 栈。",
+      "hostHint": "将 ts6-manager 后端接入 TeamSpeak 的外部 Docker 网络，并使用 TS 服务/容器名称作为主机。",
+      "notes": "在 docker-compose 中，将 TS 网络添加到后端服务（参见 README 的 Coolify 部分）。"
+    },
+    "remote-ts": {
+      "label": "TS 在远程服务器上",
+      "description": "TeamSpeak 运行在可通过网络访问的另一台机器上。",
+      "hostHint": "使用主机名或公网 IP。确保防火墙允许管理器访问 WebQuery（默认 10080）和 SSH（默认 10022）。"
+    },
+    "manager-docker-remote-ts": {
+      "label": "管理器在 Docker 中，TS 为远程",
+      "description": "ts6-manager 在 Docker 中运行；TeamSpeak 位于远程主机或 VPS 上。",
+      "hostHint": "使用远程 TS 的主机名或 IP。管理器侧无需特殊 Docker 网络配置。"
+    }
+  },
+  "fieldHelp": {
+    "name": {
+      "referenceLabel": "名称",
+      "help": "显示在页眉服务器选择器中的友好标签。"
+    },
+    "host": {
+      "referenceLabel": "主机",
+      "help": "TeamSpeak 服务器可从 ts6-manager 后端访问的主机名或 IP 地址。"
+    },
+    "webqueryPort": {
+      "referenceLabel": "Webquery 端口",
+      "help": "TS 服务器上的 WebQuery HTTP 端口（默认 10080）。这是管理器使用的主要 API。"
+    },
+    "apiKey": {
+      "referenceLabel": "API 密钥",
+      "help": "必需的已认证 WebQuery 密钥。在 beta13+ Docker 上，使用 TSSERVER_QUERY_ADMIN_API_KEY 预配；保持其稳定。也可以使用 apikeyadd 并设置 lifetime=0。以加密形式存储。"
+    },
+    "useHttps": {
+      "referenceLabel": "使用 HTTPS",
+      "help": "如果 WebQuery 通过 HTTPS 而非普通 HTTP 提供，请启用。"
+    },
+    "sshPort": {
+      "referenceLabel": "SSH 端口",
+      "help": "SSH ServerQuery 端口（默认 10022）。用于文件浏览器、机器人事件和音乐机器人聊天命令。"
+    },
+    "sshUsername": {
+      "referenceLabel": "SSH 用户名",
+      "help": "ServerQuery SSH 用户名（通常为 serveradmin）。"
+    },
+    "sshPassword": {
+      "referenceLabel": "SSH 密码",
+      "help": "ServerQuery SSH 密码。以加密形式存储；编辑时留空以保留现有密码。"
+    },
+    "metricsEnabled": {
+      "referenceLabel": "启用指标采集",
+      "help": "可选启用对 TeamSpeak 原生 Prometheus 指标监听器的采集，以获得更丰富的仪表盘容量/流量数据。请保持指标端口私有——它不进行身份验证。TeamSpeak 默认仅绑定 localhost（`TSSERVER_METRICS_IP`）；请设置一个可访问地址（例如在私有 Docker 网络上使用 `0.0.0.0`），以便管理器后端可以采集。"
+    },
+    "metricsPort": {
+      "referenceLabel": "指标端口",
+      "help": "TeamSpeak 指标 HTTP 端口（默认 9187）。独立于 WebQuery；不使用 HTTPS 或 API 密钥。"
+    },
+    "metricsHost": {
+      "referenceLabel": "指标主机",
+      "help": "当指标监听器绑定的地址与 WebQuery 不同时，可选的主机覆盖。留空则使用 WebQuery 主机。当指标监听的 hostname/IP 与 Query 不同时使用此项。"
+    }
+  },
+  "featureMatrix": {
+    "dashboard": "仪表盘、频道、客户端、权限",
+    "virtualServers": "虚拟服务器、实例设置",
+    "botFlowActions": "机器人流程 WebQuery 操作",
+    "fileBrowser": "文件浏览器",
+    "botEventTriggers": "机器人流程事件触发器（加入、消息等）",
+    "musicCommands": "频道聊天中的音乐机器人 !commands"
+  },
+  "prepSteps": {
+    "webquery-port": {
+      "title": "启用 WebQuery HTTP",
+      "body": "在 TeamSpeak 服务器配置中，确保启用 WebQuery HTTP（而非 telnet/raw query）。默认端口为 10080。"
+    },
+    "guest-query": {
+      "title": "Beta13：显式禁用用于管理的访客 Query",
+      "body": "Beta13 默认启用访客 Query。TS6 Manager 使用已认证的 WebQuery 和可选的已认证 SSH，因此不需要访客访问。仅当你确实希望公开 Guest Server Query 权限时，才保持访客访问启用。"
+    },
+    "bootstrap-api-key": {
+      "title": "Beta13+ Docker：预配稳定的管理员密钥",
+      "body": "在 TeamSpeak 容器上设置此项，以便确定地获得 serveradmin 管理访问权限。保持其稳定：更改它会替换内置的 serveradmin 管理密钥。之前保存在 TS6 Manager 中的加密密钥将无法再通过身份验证；请更新连接的 API 密钥。切勿分享此值或将其写入日志。"
+    },
+    "api-key": {
+      "title": "替代方案：手动创建密钥（也适用于较旧的服务器）",
+      "body": "通过 SSH ServerQuery 连接，选择你的虚拟服务器（使用 1），然后创建一个 lifetime=0 的永不过期密钥。示例："
+    },
+    "ssh": {
+      "title": "启用 SSH ServerQuery（可选）",
+      "body": "如需文件浏览器、机器人事件触发器和音乐机器人聊天命令，请在端口 10022（默认）上启用 SSH 访问，并记下 serveradmin 凭据。"
+    },
+    "firewall": {
+      "title": "开放防火墙端口",
+      "body": "允许 ts6-manager 后端访问 WebQuery（10080），以及（如使用）SSH（10022）。"
+    }
+  },
+  "checklist": {
+    "webquery-enabled": "TS 服务器已启用 WebQuery",
+    "api-key-created": "已创建 API 密钥",
+    "connection-added": "已在管理器中添加连接",
+    "webquery-tested": "WebQuery 测试通过",
+    "ssh-configured": "已配置 SSH 凭据（可选）"
+  }
+}

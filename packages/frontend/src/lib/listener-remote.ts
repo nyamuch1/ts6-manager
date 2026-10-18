@@ -1,6 +1,17 @@
 /** Listener remote client for the T04 contract. Session stays in memory only. */
 
+import i18n from '../i18n';
+
 export const REMOTE_POLL_MS = 5_000;
+
+/**
+ * Unit tests import this module without initializing i18n, so keep the English
+ * source copy as the fallback.
+ */
+function tr(key: string, fallback: string): string {
+  if (!i18n.isInitialized) return fallback;
+  return i18n.t(key, { ns: 'public', defaultValue: fallback });
+}
 
 const SESSION = /^[A-Za-z0-9_-]{43}$/;
 
@@ -24,7 +35,7 @@ export type RemoteState = {
 export type RemoteSong = { id: number; title: string; artist: string | null; duration: number | null };
 export type RemoteLibrary = { songs: RemoteSong[]; page: number; pageSize: number };
 
-const unavailable = () => new RemoteHttpError(503, 'unavailable', 'Listener remote is unavailable.');
+const unavailable = () => new RemoteHttpError(503, 'unavailable', tr('remote.errors.unavailable', 'Listener remote is unavailable.'));
 
 let current: RemoteSession | null = null;
 const exchanges = new Map<string, Promise<RemoteSession>>();
@@ -48,7 +59,7 @@ export function settleRemoteExchange(
   if (after && (error || (current.kind === 'ready' && before === after))) {
     return current.kind === 'ready' ? current : { kind: 'ready', nonce: 0 };
   }
-  if (!after) return { kind: 'ended', message: error ?? 'Remote access is invalid or expired' };
+  if (!after) return { kind: 'ended', message: error ?? tr('remote.errors.invalidAccess', 'Remote access is invalid or expired') };
   return { kind: 'ready', nonce: current.kind === 'ready' ? current.nonce + 1 : 1 };
 }
 
@@ -70,7 +81,9 @@ export function resetRemoteClientForTests(): void {
 }
 
 export function remoteErrorMessage(error: unknown): string {
-  return error instanceof RemoteHttpError ? error.message : 'Listener remote is unavailable.';
+  return error instanceof RemoteHttpError
+    ? error.message
+    : tr('remote.errors.unavailable', 'Listener remote is unavailable.');
 }
 
 /** At most one state poll per five seconds, and only while the page is visible. */
@@ -85,9 +98,9 @@ export function formatTrackLength(seconds: number | null | undefined): string | 
 }
 
 function statusWord(status: string): string {
-  if (status === 'playing') return 'Playing';
-  if (status === 'paused') return 'Paused';
-  return 'Connected';
+  if (status === 'playing') return tr('remote.status.playing', 'Playing');
+  if (status === 'paused') return tr('remote.status.paused', 'Paused');
+  return tr('remote.status.connected', 'Connected');
 }
 
 /** T04 state has duration, not an elapsed position. */
@@ -95,19 +108,19 @@ export function playbackSummary(track: RemoteTrack | null, status: string): { la
   const length = formatTrackLength(track?.duration);
   const playing = status === 'playing';
   const state = statusWord(status);
-  if (!track) return { label: 'Nothing is playing', playing: false, length: null, state };
+  if (!track) return { label: tr('remote.errors.nothingPlaying', 'Nothing is playing'), playing: false, length: null, state };
   const label = length ? `${state} · ${length}` : state;
   return { label, playing, length, state };
 }
 
 export function remoteMediaUrlError(value: string): string | null {
   const url = value.trim();
-  if (!url) return 'Paste a media URL.';
-  if (url.length > 2048) return 'That URL is too long.';
+  if (!url) return tr('remote.errors.pasteUrl', 'Paste a media URL.');
+  if (url.length > 2048) return tr('remote.errors.urlTooLong', 'That URL is too long.');
   let parsed: URL;
-  try { parsed = new URL(url); } catch { return 'Paste an http or https URL.'; }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return 'Paste an http or https URL.';
-  if (parsed.username || parsed.password) return 'This media URL is not allowed.';
+  try { parsed = new URL(url); } catch { return tr('remote.errors.httpUrl', 'Paste an http or https URL.'); }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return tr('remote.errors.httpUrl', 'Paste an http or https URL.');
+  if (parsed.username || parsed.password) return tr('remote.errors.urlNotAllowed', 'This media URL is not allowed.');
   return null;
 }
 
@@ -128,7 +141,7 @@ async function readBody(res: Response, auth: boolean): Promise<unknown> {
     const code = typeof record.code === 'string' ? record.code : 'unavailable';
     const message = typeof record.error === 'string' && record.error.length > 0 && record.error.length <= 200
       ? record.error
-      : 'Listener remote is unavailable.';
+      : tr('remote.errors.unavailable', 'Listener remote is unavailable.');
     throw new RemoteHttpError(res.status, code, message);
   }
   return body;
@@ -136,7 +149,7 @@ async function readBody(res: Response, auth: boolean): Promise<unknown> {
 
 async function remoteFetch(path: string, init: RequestInit, auth: boolean): Promise<unknown> {
   const session = auth ? remoteSession() : null;
-  if (auth && !session) throw new RemoteHttpError(401, 'invalid_access', 'Remote access is invalid or expired');
+  if (auth && !session) throw new RemoteHttpError(401, 'invalid_access', tr('remote.errors.invalidAccess', 'Remote access is invalid or expired'));
   const headers = new Headers(init.headers);
   headers.set('Accept', 'application/json');
   if (init.body != null) headers.set('Content-Type', 'application/json');
@@ -225,7 +238,7 @@ function parseSong(value: unknown): RemoteSong {
 }
 
 export function exchangeRemoteToken(token: string): Promise<RemoteSession> {
-  if (!SESSION.test(token)) return Promise.reject(new RemoteHttpError(400, 'invalid_request', 'Invalid listener request.'));
+  if (!SESSION.test(token)) return Promise.reject(new RemoteHttpError(400, 'invalid_request', tr('remote.errors.invalidRequest', 'Invalid listener request.')));
   const existing = exchanges.get(token);
   if (existing) return existing;
   const generation = ++exchangeGeneration;
@@ -263,7 +276,7 @@ export function enqueueRemoteMutation<T>(task: () => Promise<T>): Promise<T> {
 
 export function queueRemoteSong(songId: number): Promise<void> {
   if (!Number.isSafeInteger(songId) || songId <= 0) {
-    return Promise.reject(new RemoteHttpError(400, 'invalid_request', 'Invalid listener request.'));
+    return Promise.reject(new RemoteHttpError(400, 'invalid_request', tr('remote.errors.invalidRequest', 'Invalid listener request.')));
   }
   return remoteFetch('/queue', { method: 'POST', body: JSON.stringify({ songId }) }, true).then(() => undefined);
 }

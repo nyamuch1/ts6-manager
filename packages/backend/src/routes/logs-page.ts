@@ -1,5 +1,7 @@
 /** Typed TeamSpeak logview page envelope (#91 Slice 3). */
 
+import type { MessageKey } from '../i18n/index.js';
+
 export const LOGVIEW_MIN_LINES = 1;
 export const LOGVIEW_MAX_LINES = 100;
 
@@ -45,6 +47,8 @@ export interface ParseLogQueryResult {
 export interface ParseLogQueryError {
   ok: false;
   message: string;
+  messageKey: MessageKey;
+  messageParams?: Record<string, string | number>;
 }
 
 function parseFlag(raw: unknown, fallback: 0 | 1): 0 | 1 | null {
@@ -78,19 +82,28 @@ function parseBeginPos(raw: unknown): string | undefined | null {
 export function parseLogQuery(query: Record<string, unknown>): ParseLogQueryResult | ParseLogQueryError {
   const lines = parseLines(query.lines);
   if (lines === null) {
-    return { ok: false, message: `lines must be an integer between ${LOGVIEW_MIN_LINES} and ${LOGVIEW_MAX_LINES}` };
+    return {
+      ok: false,
+      message: `lines must be an integer between ${LOGVIEW_MIN_LINES} and ${LOGVIEW_MAX_LINES}`,
+      messageKey: 'errors.log_lines_range',
+      messageParams: { min: LOGVIEW_MIN_LINES, max: LOGVIEW_MAX_LINES },
+    };
   }
   const reverse = parseFlag(query.reverse, 1);
   if (reverse === null) {
-    return { ok: false, message: 'reverse must be 0 or 1' };
+    return { ok: false, message: 'reverse must be 0 or 1', messageKey: 'errors.log_reverse_flag' };
   }
   const instance = parseFlag(query.instance, 0);
   if (instance === null) {
-    return { ok: false, message: 'instance must be 0 or 1' };
+    return { ok: false, message: 'instance must be 0 or 1', messageKey: 'errors.log_instance_flag' };
   }
   const beginPos = parseBeginPos(query.begin_pos);
   if (beginPos === null) {
-    return { ok: false, message: 'begin_pos must be a non-negative integer byte cursor' };
+    return {
+      ok: false,
+      message: 'begin_pos must be a non-negative integer byte cursor',
+      messageKey: 'errors.log_begin_pos',
+    };
   }
   return { ok: true, lines, reverse, instance, beginPos };
 }

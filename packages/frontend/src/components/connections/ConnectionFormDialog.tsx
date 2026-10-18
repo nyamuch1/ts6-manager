@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { FIELD_HELP, type ConnectionFormState } from '@/content/connection-setup';
+import { getFieldHelp, type ConnectionFormState } from '@/content/connection-setup';
 
 interface ConnectionFormDialogProps {
   open: boolean;
@@ -29,12 +30,13 @@ function FieldLabel({
   htmlFor: string;
   tooltipAlign?: 'start' | 'center' | 'end';
 }) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center gap-1 min-w-0">
       <Label htmlFor={htmlFor} className="text-xs truncate">{label}</Label>
       <Tooltip>
         <TooltipTrigger asChild>
-          <button type="button" aria-label={`About ${label}`} className="shrink-0 rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <button type="button" aria-label={t('settings:connectionForm.aboutField', { label })} className="shrink-0 rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <HelpCircle className="h-3 w-3" aria-hidden="true" />
           </button>
         </TooltipTrigger>
@@ -55,8 +57,10 @@ export function ConnectionFormDialog({
   onChange,
   onSave,
 }: ConnectionFormDialogProps) {
+  const { t } = useTranslation();
   const canSave = !!form.name && !!form.host && (!!form.apiKey || !!editId);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const fieldHelp = getFieldHelp(t);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -70,30 +74,30 @@ export function ConnectionFormDialog({
       >
         <TooltipProvider delayDuration={200}>
           <DialogHeader>
-            <DialogTitle>{editId ? 'Edit Connection' : 'Add Connection'}</DialogTitle>
+            <DialogTitle>{editId ? t('settings:connectionForm.editTitle') : t('settings:connectionForm.addTitle')}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="space-y-3">
-              <p className="text-xs font-medium text-foreground">WebQuery (required)</p>
+              <p className="text-xs font-medium text-foreground">{t('settings:connectionForm.webquerySection')}</p>
               <p className="text-[11px] text-muted-foreground -mt-2">
-                Primary API for dashboard, channels, clients, permissions, and most bot actions.
+                {t('settings:connectionForm.webquerySectionDescription')}
               </p>
 
               <div>
-                <FieldLabel label="Name" htmlFor="connection-name" help={FIELD_HELP.name} />
+                <FieldLabel label={t('settings:connectionForm.name')} htmlFor="connection-name" help={fieldHelp.name.help} />
                 <Input
                   id="connection-name"
                   ref={nameInputRef}
                   value={form.name}
                   onChange={(e) => onChange({ ...form, name: e.target.value })}
-                  placeholder="My TS Server"
+                  placeholder={t('settings:connectionForm.namePlaceholder')}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <FieldLabel label="Host" htmlFor="connection-host" help={FIELD_HELP.host} />
+                  <FieldLabel label={t('settings:connectionForm.host')} htmlFor="connection-host" help={fieldHelp.host.help} />
                   <Input
                     id="connection-host"
                     value={form.host}
@@ -102,7 +106,7 @@ export function ConnectionFormDialog({
                   />
                 </div>
                 <div>
-                  <FieldLabel label="WebQuery Port" htmlFor="connection-webquery-port" help={FIELD_HELP.webqueryPort} tooltipAlign="end" />
+                  <FieldLabel label={t('settings:connectionForm.webqueryPort')} htmlFor="connection-webquery-port" help={fieldHelp.webqueryPort.help} tooltipAlign="end" />
                   <Input
                     type="number"
                     id="connection-webquery-port"
@@ -113,12 +117,12 @@ export function ConnectionFormDialog({
               </div>
 
               <div>
-                <FieldLabel label="API Key" htmlFor="connection-api-key" help={FIELD_HELP.apiKey} />
+                <FieldLabel label={t('settings:connectionForm.apiKey')} htmlFor="connection-api-key" help={fieldHelp.apiKey.help} />
                 <Input
                   id="connection-api-key"
                   value={form.apiKey}
                   onChange={(e) => onChange({ ...form, apiKey: e.target.value })}
-                  placeholder={editId ? '(unchanged — enter new key to update)' : 'WebQuery API Key'}
+                  placeholder={editId ? t('settings:connectionForm.apiKeyEditPlaceholder') : t('settings:connectionForm.apiKeyPlaceholder')}
                   type="password"
                 />
               </div>
@@ -129,19 +133,19 @@ export function ConnectionFormDialog({
                   checked={form.useHttps}
                   onCheckedChange={(v) => onChange({ ...form, useHttps: v })}
                 />
-                <FieldLabel label="Use HTTPS" htmlFor="connection-use-https" help={FIELD_HELP.useHttps} />
+                <FieldLabel label={t('settings:connectionForm.useHttps')} htmlFor="connection-use-https" help={fieldHelp.useHttps.help} />
               </div>
             </div>
 
             <div className="space-y-3 border-t border-border pt-3">
-              <p className="text-xs font-medium text-foreground">SSH (optional)</p>
+              <p className="text-xs font-medium text-foreground">{t('settings:connectionForm.sshSection')}</p>
               <p className="text-[11px] text-muted-foreground -mt-2">
-                Required for file browser, bot event triggers, and music bot chat commands.
+                {t('settings:connectionForm.sshSectionDescription')}
               </p>
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <FieldLabel label="SSH Port" htmlFor="connection-ssh-port" help={FIELD_HELP.sshPort} />
+                  <FieldLabel label={t('settings:connectionForm.sshPort')} htmlFor="connection-ssh-port" help={fieldHelp.sshPort.help} />
                   <Input
                     type="number"
                     id="connection-ssh-port"
@@ -150,7 +154,7 @@ export function ConnectionFormDialog({
                   />
                 </div>
                 <div>
-                  <FieldLabel label="SSH User" htmlFor="connection-ssh-user" help={FIELD_HELP.sshUsername} tooltipAlign="center" />
+                  <FieldLabel label={t('settings:connectionForm.sshUser')} htmlFor="connection-ssh-user" help={fieldHelp.sshUsername.help} tooltipAlign="center" />
                   <Input
                     id="connection-ssh-user"
                     value={form.sshUsername}
@@ -159,7 +163,7 @@ export function ConnectionFormDialog({
                   />
                 </div>
                 <div>
-                  <FieldLabel label="SSH Password" htmlFor="connection-ssh-password" help={FIELD_HELP.sshPassword} tooltipAlign="end" />
+                  <FieldLabel label={t('settings:connectionForm.sshPassword')} htmlFor="connection-ssh-password" help={fieldHelp.sshPassword.help} tooltipAlign="end" />
                   <Input
                     type="password"
                     id="connection-ssh-password"
@@ -171,10 +175,9 @@ export function ConnectionFormDialog({
             </div>
 
             <div className="space-y-3 border-t border-border pt-3">
-              <p className="text-xs font-medium text-foreground">Native metrics (optional)</p>
+              <p className="text-xs font-medium text-foreground">{t('settings:connectionForm.metricsSection')}</p>
               <p className="text-[11px] text-muted-foreground -mt-2">
-                Scrapes TeamSpeak’s unauthenticated Prometheus metrics listener server-side.
-                Keep port 9187 private — do not expose it to the internet.
+                {t('settings:connectionForm.metricsSectionDescription')}
               </p>
 
               <div className="flex items-center gap-2">
@@ -183,13 +186,13 @@ export function ConnectionFormDialog({
                   checked={form.metricsEnabled}
                   onCheckedChange={(v) => onChange({ ...form, metricsEnabled: v })}
                 />
-                <FieldLabel label="Enable metrics scrape" htmlFor="connection-metrics-enabled" help={FIELD_HELP.metricsEnabled} />
+                <FieldLabel label={t('settings:connectionForm.metricsEnabled')} htmlFor="connection-metrics-enabled" help={fieldHelp.metricsEnabled.help} />
               </div>
 
               {form.metricsEnabled && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <FieldLabel label="Metrics port" htmlFor="connection-metrics-port" help={FIELD_HELP.metricsPort} />
+                    <FieldLabel label={t('settings:connectionForm.metricsPort')} htmlFor="connection-metrics-port" help={fieldHelp.metricsPort.help} />
                     <Input
                       type="number"
                       id="connection-metrics-port"
@@ -198,12 +201,12 @@ export function ConnectionFormDialog({
                     />
                   </div>
                   <div>
-                    <FieldLabel label="Metrics host (optional)" htmlFor="connection-metrics-host" help={FIELD_HELP.metricsHost} tooltipAlign="end" />
+                    <FieldLabel label={t('settings:connectionForm.metricsHost')} htmlFor="connection-metrics-host" help={fieldHelp.metricsHost.help} tooltipAlign="end" />
                     <Input
                       id="connection-metrics-host"
                       value={form.metricsHost}
                       onChange={(e) => onChange({ ...form, metricsHost: e.target.value })}
-                      placeholder="Same as WebQuery host"
+                      placeholder={t('settings:connectionForm.metricsHostPlaceholder')}
                     />
                   </div>
                 </div>
@@ -212,9 +215,9 @@ export function ConnectionFormDialog({
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>{t('settings:connectionForm.cancel')}</Button>
             <Button onClick={onSave} disabled={!canSave || saving}>
-              {saving ? 'Saving...' : editId ? 'Update' : 'Add'}
+              {saving ? t('settings:connectionForm.saving') : editId ? t('settings:connectionForm.update') : t('settings:connectionForm.add')}
             </Button>
           </DialogFooter>
         </TooltipProvider>

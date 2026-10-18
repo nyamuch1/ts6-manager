@@ -1,4 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
+import { translate } from '../i18n/index.js';
+import { requestLocale } from '../i18n/middleware.js';
 
 /**
  * H9: Middleware to enforce per-server access control.
@@ -9,9 +11,10 @@ export function requireServerAccess() {
     // Admins have access to all servers
     if (req.user?.role === 'admin') return next();
 
+    const locale = requestLocale(req);
     const configId = parseInt(req.params.configId as string);
     if (isNaN(configId)) {
-      res.status(400).json({ error: 'Invalid server config ID' });
+      res.status(400).json({ error: translate(locale, 'errors.invalid_server_config') });
       return;
     }
 
@@ -26,7 +29,7 @@ export function requireServerAccess() {
     });
 
     if (!access) {
-      res.status(403).json({ error: 'No access to this server' });
+      res.status(403).json({ error: translate(locale, 'errors.no_server_access') });
       return;
     }
 

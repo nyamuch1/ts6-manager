@@ -45,14 +45,14 @@ interface BaseEventInput {
 
 function assertAction(action: string): AdminAuditAction {
   if (!(ADMIN_AUDIT_ACTIONS as readonly string[]).includes(action)) {
-    throw new AppError(500, 'Invalid audit action');
+    throw new AppError(500, 'Invalid audit action', undefined, { messageKey: 'errors.audit_action_invalid' });
   }
   return action as AdminAuditAction;
 }
 
 function assertOutcome(outcome: string): AdminAuditOutcome {
   if (!(ADMIN_AUDIT_OUTCOMES as readonly string[]).includes(outcome)) {
-    throw new AppError(500, 'Invalid audit outcome');
+    throw new AppError(500, 'Invalid audit outcome', undefined, { messageKey: 'errors.audit_outcome_invalid' });
   }
   return outcome as AdminAuditOutcome;
 }
@@ -68,7 +68,7 @@ function assertResultCode(code: string | null | undefined): AdminAuditResultCode
 function assertTargetType(type: string | null | undefined): AdminAuditTargetType | null {
   if (type == null) return null;
   if (!(ADMIN_AUDIT_TARGET_TYPES as readonly string[]).includes(type)) {
-    throw new AppError(500, 'Invalid audit target type');
+    throw new AppError(500, 'Invalid audit target type', undefined, { messageKey: 'errors.audit_target_invalid' });
   }
   return type as AdminAuditTargetType;
 }
@@ -147,7 +147,7 @@ export async function completeRemoteAttempt(
 ): Promise<void> {
   const outcome = assertOutcome(completion.outcome);
   if (outcome === 'pending') {
-    throw new AppError(500, 'Cannot complete audit as pending');
+    throw new AppError(500, 'Cannot complete audit as pending', undefined, { messageKey: 'errors.audit_complete_pending' });
   }
   const data: Prisma.AdminAuditEventUpdateInput = {
     outcome,
@@ -288,7 +288,7 @@ export function classifyRemoteError(err: unknown): {
 }
 
 export function actorFromRequest(user: { id: number; username: string } | undefined): AuditActor {
-  if (!user?.id) throw new AppError(401, 'Authentication required');
+  if (!user?.id) throw new AppError(401, 'Authentication required', undefined, { messageKey: 'errors.authentication_required' });
   return { id: user.id, username: user.username || `user:${user.id}` };
 }
 

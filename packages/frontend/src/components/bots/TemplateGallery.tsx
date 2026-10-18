@@ -1,5 +1,9 @@
 import { useState } from 'react';
-import { BOT_TEMPLATES, TEMPLATE_CATEGORIES, templateConfigError, type BotTemplate } from '@/data/bot-templates';
+import { useTranslation } from 'react-i18next';
+import {
+  BOT_TEMPLATES, TEMPLATE_CATEGORIES, templateConfigError, templateDescription, templateFieldLabel,
+  templateFieldPlaceholder, templateName, templateOptionLabel, translateFlowLabels, type BotTemplate,
+} from '@/data/bot-templates';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +20,7 @@ interface TemplateGalleryProps {
 }
 
 export function TemplateGallery({ open, onOpenChange, onSelect }: TemplateGalleryProps) {
+  const { t } = useTranslation('bots');
   const [selected, setSelected] = useState<BotTemplate | null>(null);
   const [config, setConfig] = useState<Record<string, string>>({});
 
@@ -42,12 +47,12 @@ export function TemplateGallery({ open, onOpenChange, onSelect }: TemplateGaller
     setConfig(defaults);
   };
 
-  const configError = selected ? templateConfigError(selected, config) : null;
+  const configError = selected ? templateConfigError(selected, config, t) : null;
 
   const handleCreate = () => {
     if (!selected || configError) return;
-    const flowData = selected.flowDataFactory(config);
-    onSelect(selected.name, selected.description, flowData);
+    const flowData = translateFlowLabels(selected.flowDataFactory(config), t);
+    onSelect(templateName(selected, t), templateDescription(selected, t), flowData);
     handleClose(false);
   };
 
@@ -58,11 +63,11 @@ export function TemplateGallery({ open, onOpenChange, onSelect }: TemplateGaller
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {selected && (
-                <Button variant="ghost" size="icon" className="h-6 w-6 mr-1" onClick={handleBack} aria-label="Back to templates" title="Back to templates">
+                <Button variant="ghost" size="icon" className="h-6 w-6 mr-1" onClick={handleBack} aria-label={t('templates.backToTemplates')} title={t('templates.backToTemplates')}>
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
               )}
-              {selected ? `Configure: ${selected.name}` : 'Flow Templates'}
+              {selected ? t('templates.configureTitle', { name: templateName(selected, t) }) : t('templates.title')}
             </DialogTitle>
           </DialogHeader>
         </div>
@@ -76,8 +81,8 @@ export function TemplateGallery({ open, onOpenChange, onSelect }: TemplateGaller
                 return (
                   <div key={cat.id}>
                     <div className="mb-2">
-                      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">{cat.label}</p>
-                      <p className="text-[10px] text-muted-foreground">{cat.description}</p>
+                      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">{t(cat.labelKey)}</p>
+                      <p className="text-[10px] text-muted-foreground">{t(cat.descriptionKey)}</p>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       {templates.map((tpl) => {
@@ -95,12 +100,12 @@ export function TemplateGallery({ open, onOpenChange, onSelect }: TemplateGaller
                               <Icon className="h-4 w-4 text-primary" />
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className="text-xs font-medium">{tpl.name}</p>
-                              <p className="text-[10px] text-muted-foreground line-clamp-2 mt-0.5">{tpl.description}</p>
+                              <p className="text-xs font-medium">{templateName(tpl, t)}</p>
+                              <p className="text-[10px] text-muted-foreground line-clamp-2 mt-0.5">{templateDescription(tpl, t)}</p>
                               {tpl.configFields.length > 0 && (
                                 <div className="flex gap-1 mt-1.5 flex-wrap">
                                   {tpl.configFields.filter(f => f.required).map(f => (
-                                    <Badge key={f.key} variant="secondary" className="text-[8px] px-1 py-0">{f.label}</Badge>
+                                    <Badge key={f.key} variant="secondary" className="text-[8px] px-1 py-0">{templateFieldLabel(f, t)}</Badge>
                                   ))}
                                 </div>
                               )}
@@ -118,16 +123,16 @@ export function TemplateGallery({ open, onOpenChange, onSelect }: TemplateGaller
           <>
             <div className="overflow-y-auto max-h-[60vh] px-6">
               <div className="space-y-4 pb-2">
-                <p className="text-xs text-muted-foreground">{selected.description}</p>
+                <p className="text-xs text-muted-foreground">{templateDescription(selected, t)}</p>
 
                 {selected.configFields.length === 0 ? (
-                  <p className="text-xs text-muted-foreground/60">No configuration needed — ready to create.</p>
+                  <p className="text-xs text-muted-foreground/60">{t('templates.noConfig')}</p>
                 ) : (
                   <div className="space-y-3">
                     {selected.configFields.map((field) => (
                       <div key={field.key}>
                         <Label htmlFor={`template-${field.key}`} className="text-[10px] text-muted-foreground">
-                          {field.label} {field.required && <span className="text-destructive">*</span>}
+                          {templateFieldLabel(field, t)} {field.required && <span className="text-destructive">*</span>}
                         </Label>
                         {field.type === 'select' ? (
                           <Select
@@ -137,7 +142,7 @@ export function TemplateGallery({ open, onOpenChange, onSelect }: TemplateGaller
                             <SelectTrigger id={`template-${field.key}`} className="h-7 text-xs mt-1"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               {field.options?.map(opt => (
-                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                <SelectItem key={opt.value} value={opt.value}>{templateOptionLabel(opt.label, t)}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -146,7 +151,7 @@ export function TemplateGallery({ open, onOpenChange, onSelect }: TemplateGaller
                             id={`template-${field.key}`}
                             type={field.type === 'number' ? 'number' : 'text'}
                             className="h-7 text-xs mt-1 font-mono-data"
-                            placeholder={field.placeholder}
+                            placeholder={templateFieldPlaceholder(field, t)}
                             value={config[field.key] || ''}
                             onChange={(e) => setConfig(prev => ({ ...prev, [field.key]: e.target.value }))}
                           />
@@ -161,9 +166,9 @@ export function TemplateGallery({ open, onOpenChange, onSelect }: TemplateGaller
             <div className="p-6 pt-2">
               {configError && <p role="alert" className="text-[10px] text-destructive mb-2">{configError}</p>}
               <DialogFooter>
-                <Button variant="outline" size="sm" onClick={handleBack}>Back</Button>
+                <Button variant="outline" size="sm" onClick={handleBack}>{t('common:action.back')}</Button>
                 <Button size="sm" onClick={handleCreate} disabled={!!configError}>
-                  Create Bot
+                  {t('templates.createBot')}
                 </Button>
               </DialogFooter>
             </div>

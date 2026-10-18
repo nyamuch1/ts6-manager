@@ -71,6 +71,7 @@ RUN case "$INTEL_VAAPI_DRIVER" in \
       $VAAPI_PACKAGES \
       openssl \
       ffmpeg \
+      fonts-noto-cjk \
       python3 \
       python3-pip \
       ca-certificates \

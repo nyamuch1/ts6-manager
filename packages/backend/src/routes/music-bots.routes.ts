@@ -31,11 +31,23 @@ export const musicBotRoutes: Router = Router();
  * TeamSpeak refuses a nickname outside 3-30 characters at connect (error 1541),
  * so a bot saved with one could never start. Returns the trimmed nickname.
  */
+/** `null`/empty clears the override and inherits the instance default. */
+function validBotLanguage(value: unknown): 'en' | 'zh-CN' | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  if (value === 'en' || value === 'zh-CN') return value;
+  throw new AppError(400, 'language must be en, zh-CN, or null', undefined, {
+    messageKey: 'errors.bot_language_invalid',
+  });
+}
+
 function validNickname(nickname: unknown): string | undefined {
   if (nickname == null) return undefined;
   const trimmed = String(nickname).trim();
   if (trimmed.length < 3 || trimmed.length > 30) {
-    throw new AppError(400, 'Bot nickname must be 3-30 characters (TeamSpeak limit)');
+    throw new AppError(400, 'Bot nickname must be 3-30 characters (TeamSpeak limit)', undefined, {
+      messageKey: 'errors.bot_nickname_length',
+    });
   }
   return trimmed;
 }
@@ -46,7 +58,11 @@ function validNickname(nickname: unknown): string | undefined {
  */
 function parseVolume(raw: unknown): number {
   const vol = typeof raw === 'number' || (typeof raw === 'string' && raw.trim() !== '') ? Number(raw) : NaN;
-  if (!Number.isFinite(vol)) throw new AppError(400, 'volume must be a number from 0 to 100');
+  if (!Number.isFinite(vol)) {
+    throw new AppError(400, 'volume must be a number from 0 to 100', undefined, {
+      messageKey: 'errors.volume_range',
+    });
+  }
   return Math.max(0, Math.min(100, Math.round(vol)));
 }
 
@@ -111,9 +127,9 @@ async function serializeBotSettings<T>(id: number, write: () => Promise<T>): Pro
 }
 async function avatarBot(req: Request) {
   const id = Number(req.params.id);
-  if (!Number.isSafeInteger(id) || id <= 0) throw new AppError(400, 'Invalid bot ID');
+  if (!Number.isSafeInteger(id) || id <= 0) throw new AppError(400, 'Invalid bot ID', undefined, { messageKey: 'errors.invalid_bot_id_upper' });
   const bot = await req.app.locals.prisma.musicBot.findUnique({ where: { id } });
-  if (!bot) throw new AppError(404, 'Music bot not found');
+  if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
   return bot;
 }
 
@@ -121,22 +137,34 @@ musicBotRoutes.get('/:id/avatar', async (req, res, next) => {
   res.setHeader('Cache-Control', 'no-store');
   try {
     const image = await readBotAvatar(await avatarBot(req));
-    if (!image) throw new AppError(404, 'Bot has no avatar');
+    if (!image) throw new AppError(404, 'Bot has no avatar', undefined, { messageKey: 'errors.bot_no_avatar' });
     res.type(avatarImageType(image).mime).send(image);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') next(new AppError(404, 'Bot avatar not found'));
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      next(new AppError(404, 'Bot avatar not found', undefined, { messageKey: 'errors.bot_avatar_not_found' }));
+    }
     else next(error);
   }
 });
 
 musicBotRoutes.put('/:id/avatar', (req, res, next) => {
   avatarUpload(req, res, (error) => {
-    if (error) return next(new AppError(400, error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE' ? 'Avatar must be at most 200 KB' : 'Upload exactly one PNG, JPEG or GIF image'));
+    if (error) {
+      const tooLarge = error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE';
+      return next(new AppError(400,
+        tooLarge ? 'Avatar must be at most 200 KB' : 'Upload exactly one PNG, JPEG or GIF image',
+        undefined,
+        { messageKey: tooLarge ? 'errors.avatar_max_200kb' : 'errors.upload_avatar_hint' }));
+    }
     next();
   });
 }, async (req, res, next) => {
   try {
-    if (!req.file) throw new AppError(400, 'Upload exactly one PNG, JPEG or GIF image');
+    if (!req.file) {
+      throw new AppError(400, 'Upload exactly one PNG, JPEG or GIF image', undefined, {
+        messageKey: 'errors.upload_avatar_hint',
+      });
+    }
     avatarImageType(req.file.buffer);
     const existing = await avatarBot(req);
     await serializeBotSettings(existing.id, () => runRemoteAudited(req.app.locals.prisma, {
@@ -163,11 +191,19 @@ musicBotRoutes.put('/:id/avatar', (req, res, next) => {
 musicBotRoutes.put('/:id/avatar/mode', async (req, res, next) => {
   try {
     const mode = req.body.mode as BotAvatarMode;
-    if (!['custom', 'default', 'none'].includes(mode)) throw new AppError(400, 'mode must be custom, default or none');
+    if (!['custom', 'default', 'none'].includes(mode)) {
+      throw new AppError(400, 'mode must be custom, default or none', undefined, {
+        messageKey: 'errors.avatar_mode_invalid',
+      });
+    }
     const existing = await avatarBot(req);
     await serializeBotSettings(existing.id, async () => {
       const current = await avatarBot(req);
-      if (mode === 'custom' && !current.avatarFile) throw new AppError(400, 'Upload a custom avatar first');
+      if (mode === 'custom' && !current.avatarFile) {
+        throw new AppError(400, 'Upload a custom avatar first', undefined, {
+          messageKey: 'errors.custom_avatar_first',
+        });
+      }
       const image = await readBotAvatar({ ...current, avatarMode: mode });
       const data = { avatarMode: mode, avatarFile: current.avatarFile, avatarMd5: image ? createHash('md5').update(image).digest('hex') : null };
       await runRemoteAudited(req.app.locals.prisma, {
@@ -208,6 +244,7 @@ musicBotRoutes.get('/', async (req: Request, res: Response, next) => {
         virtualServerId: b.virtualServerId,
         voicePort: b.voicePort,
         volume: b.volume,
+        language: b.language ?? null,
         autoStart: b.autoStart,
         automationSettings: readAutomationSettings(b.automationSettings),
         avatarMode: b.avatarMode ?? 'none',
@@ -264,7 +301,7 @@ musicBotRoutes.get('/:id', async (req: Request, res: Response, next) => {
       where: { id },
       include: { serverConfig: { select: { id: true, name: true, host: true } } },
     });
-    if (!dbBot) throw new AppError(404, 'Music bot not found');
+    if (!dbBot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
 
     const bot = manager.getBot(id);
     res.json({
@@ -294,12 +331,16 @@ musicBotRoutes.put('/:id/automation', async (req, res, next) => {
         });
         if (!playlist || (playlist.serverConfigId != null && playlist.serverConfigId !== existing.serverConfigId) ||
             (playlist.musicBot && playlist.musicBot.serverConfigId !== existing.serverConfigId)) {
-          throw new AppError(400, 'Choose a playlist shared with this bot’s server');
+          throw new AppError(400, 'Choose a playlist shared with this bot’s server', undefined, {
+            messageKey: 'errors.playlist_not_shared_with_bot',
+          });
         }
       } else if (settings.source?.kind === 'radio') {
         const station = await prisma.radioStation.findUnique({ where: { id: settings.source.id } });
         if (!station || station.serverConfigId !== existing.serverConfigId) {
-          throw new AppError(400, 'Choose a radio station from this bot’s server');
+          throw new AppError(400, 'Choose a radio station from this bot’s server', undefined, {
+            messageKey: 'errors.radio_not_shared_with_bot',
+          });
         }
       }
       await runRemoteAudited(prisma, {
@@ -319,7 +360,12 @@ musicBotRoutes.post('/', async (req: Request, res: Response, next) => {
   try {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const { name, serverConfigId, nickname, serverPassword, defaultChannel, channelPassword, commandChannelIds, virtualServerId, voicePort, volume, autoStart } = req.body;
-    if (!name || !serverConfigId) throw new AppError(400, 'name and serverConfigId are required');
+    const language = validBotLanguage(req.body.language);
+    if (!name || !serverConfigId) {
+      throw new AppError(400, 'name and serverConfigId are required', undefined, {
+        messageKey: 'errors.name_server_config_required',
+      });
+    }
     const checkedNickname = validNickname(nickname);
 
     const parsedCommandChannels = Array.isArray(commandChannelIds)
@@ -335,6 +381,7 @@ musicBotRoutes.post('/', async (req: Request, res: Response, next) => {
       serverPassword,
       defaultChannel,
       channelPassword,
+      language,
       commandChannelIds: parsedCommandChannels,
       virtualServerId: virtualServerId != null ? parseInt(virtualServerId, 10) : undefined,
       voicePort: voicePort != null ? parseInt(voicePort) : undefined,
@@ -355,6 +402,7 @@ musicBotRoutes.put('/:id', async (req: Request, res: Response, next) => {
     const id = parseInt(req.params.id as string);
     const { name, serverPassword, defaultChannel, channelPassword, commandChannelIds, virtualServerId, voicePort, volume, autoStart } = req.body;
     const nickname = validNickname(req.body.nickname);
+    const language = validBotLanguage(req.body.language);
 
     const commandChannelData =
       commandChannelIds !== undefined
@@ -381,6 +429,7 @@ musicBotRoutes.put('/:id', async (req: Request, res: Response, next) => {
         ...(virtualServerId != null && { virtualServerId: parseInt(virtualServerId, 10) }),
         ...(voicePort != null && { voicePort: parseInt(voicePort) }),
         ...(volume != null && { volume: parseInt(volume) }),
+        ...(language !== undefined && { language }),
         ...(autoStart != null && { autoStart }),
       },
     });
@@ -398,6 +447,7 @@ musicBotRoutes.put('/:id', async (req: Request, res: Response, next) => {
         ...(channelPassword !== undefined && { channelPassword: channelPassword || undefined }),
         ...(voicePort != null && { serverPort: parseInt(voicePort) }),
         ...(volume != null && { volume: parseInt(volume) }),
+        ...(language !== undefined && { language }),
       });
     }
 
@@ -440,7 +490,7 @@ musicBotRoutes.post('/:id/stop', async (req: Request, res: Response, next) => {
 musicBotRoutes.post('/:id/home', async (req: Request, res: Response, next) => {
   try {
     const id = Number(req.params.id);
-    if (!Number.isSafeInteger(id) || id <= 0) throw new AppError(400, 'Invalid bot ID');
+    if (!Number.isSafeInteger(id) || id <= 0) throw new AppError(400, 'Invalid bot ID', undefined, { messageKey: 'errors.invalid_bot_id_upper' });
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     invalidatePlaylistExpansion(id);
     invalidateChatPlaylistExpansion(id);
@@ -455,7 +505,7 @@ musicBotRoutes.post('/:id/restart', async (req: Request, res: Response, next) =>
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const id = parseInt(req.params.id as string);
     const bot = manager.getBot(id);
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     await bot.restart();
     res.json({ success: true });
   } catch (err) { next(err); }
@@ -470,19 +520,21 @@ musicBotRoutes.post('/:id/play', async (req: Request, res: Response, next) => {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const id = parseInt(req.params.id as string);
     const { songId } = req.body;
-    if (!songId) throw new AppError(400, 'songId is required');
+    if (!songId) {
+      throw new AppError(400, 'songId is required', undefined, { messageKey: 'errors.song_id_required' });
+    }
 
     const bot = manager.getBot(id);
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     const replaceSessionIds = parseReplaceSessionIds(req.body);
     bot.assertMusicCanStart(replaceSessionIds);
     if (bot.status !== 'connected' && bot.status !== 'playing' && bot.status !== 'paused') {
-      throw new AppError(400, 'Bot is not connected');
+      throw new AppError(400, 'Bot is not connected', undefined, { messageKey: 'errors.bot_not_connected', reason: 'bot_not_connected', retryable: true });
     }
 
     const generation = invalidatePlaylistExpansion(id);
     const song = await prisma.song.findUnique({ where: { id: parseInt(songId) } });
-    if (!song) throw new AppError(404, 'Song not found');
+    if (!song) throw new AppError(404, 'Song not found', undefined, { messageKey: 'errors.song_not_found' });
 
     const queueItem = {
       id: String(song.id),
@@ -523,14 +575,14 @@ export function createPlayUrlHandler(deps: MediaUrlPipelineDeps = defaultMediaUr
     const id = parseInt(req.params.id as string);
     const { url } = req.body;
     const enqueueOnly = Boolean(req.body?.enqueue);
-    if (!url) throw new AppError(400, 'url is required');
+    if (!url) throw new AppError(400, 'url is required', undefined, { messageKey: 'errors.url_required' });
 
     const bot = manager.getBot(id);
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     const replaceSessionIds = parseReplaceSessionIds(req.body);
     if (!enqueueOnly) bot.assertMusicCanStart(replaceSessionIds);
     if (bot.status !== 'connected' && bot.status !== 'playing' && bot.status !== 'paused') {
-      throw new AppError(400, 'Bot is not connected');
+      throw new AppError(400, 'Bot is not connected', undefined, { messageKey: 'errors.bot_not_connected', reason: 'bot_not_connected', retryable: true });
     }
 
     const generation = invalidatePlaylistExpansion(id);
@@ -636,18 +688,24 @@ musicBotRoutes.post('/:id/play-radio', async (req: Request, res: Response, next)
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const id = parseInt(req.params.id as string);
     const { stationId } = req.body;
-    if (!stationId) throw new AppError(400, 'stationId is required');
+    if (!stationId) {
+      throw new AppError(400, 'stationId is required', undefined, { messageKey: 'errors.station_id_required' });
+    }
 
     const bot = manager.getBot(id);
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     const replaceSessionIds = parseReplaceSessionIds(req.body);
     bot.assertMusicCanStart(replaceSessionIds);
     if (bot.status !== 'connected' && bot.status !== 'playing' && bot.status !== 'paused') {
-      throw new AppError(400, 'Bot is not connected');
+      throw new AppError(400, 'Bot is not connected', undefined, { messageKey: 'errors.bot_not_connected', reason: 'bot_not_connected', retryable: true });
     }
 
     const station = await prisma.radioStation.findUnique({ where: { id: parseInt(stationId) } });
-    if (!station) throw new AppError(404, 'Radio station not found');
+    if (!station) {
+      throw new AppError(404, 'Radio station not found', undefined, {
+        messageKey: 'errors.radio_station_not_found',
+      });
+    }
 
     const queueItem = {
       id: `radio_${station.id}`,
@@ -669,7 +727,7 @@ musicBotRoutes.post('/:id/pause', async (req: Request, res: Response, next) => {
   try {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(parseInt(req.params.id as string));
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     bot.pause();
     res.json({ success: true });
   } catch (err) { next(err); }
@@ -680,7 +738,7 @@ musicBotRoutes.post('/:id/resume', async (req: Request, res: Response, next) => 
   try {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(parseInt(req.params.id as string));
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     bot.resume();
     res.json({ success: true });
   } catch (err) { next(err); }
@@ -692,7 +750,7 @@ musicBotRoutes.post('/:id/stop-playback', async (req: Request, res: Response, ne
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const id = parseInt(req.params.id as string);
     const bot = manager.getBot(id);
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     // Capture generation so a stop delayed by audit insert cannot clear/stop a newer play-url.
     // Invalidate chat before the wait so a skipped/stale stop callback cannot leave chat expanding.
     const stopGeneration = invalidatePlaylistExpansion(id);
@@ -712,7 +770,7 @@ musicBotRoutes.post('/:id/skip', async (req: Request, res: Response, next) => {
   try {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(parseInt(req.params.id as string));
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     const replaceSessionIds = parseReplaceSessionIds(req.body);
     bot.assertMusicCanStart(replaceSessionIds);
     bot.skip({ replaceSessionIds });
@@ -725,7 +783,7 @@ musicBotRoutes.post('/:id/previous', async (req: Request, res: Response, next) =
   try {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(parseInt(req.params.id as string));
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     const replaceSessionIds = parseReplaceSessionIds(req.body);
     bot.assertMusicCanStart(replaceSessionIds);
     bot.previous({ replaceSessionIds });
@@ -738,7 +796,7 @@ musicBotRoutes.post('/:id/seek', async (req: Request, res: Response, next) => {
   try {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(parseInt(req.params.id as string));
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     const { seconds } = req.body;
     bot.seek(parseFloat(seconds) || 0);
     res.json({ success: true });
@@ -763,7 +821,7 @@ musicBotRoutes.get('/:id/state', async (req: Request, res: Response, next) => {
   try {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(parseInt(req.params.id as string));
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
 
     const progress = bot.playbackProgress;
     res.json({
@@ -789,7 +847,7 @@ musicBotRoutes.get('/:id/queue', async (req: Request, res: Response, next) => {
   try {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(parseInt(req.params.id as string));
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     res.json({
       items: bot.queue.getAll(),
       shuffle: bot.queue.shuffle,
@@ -805,15 +863,17 @@ musicBotRoutes.post('/:id/queue', async (req: Request, res: Response, next) => {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const botId = parseInt(req.params.id as string);
     const bot = manager.getBot(botId);
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     // A Stop, queue clear or bot restart while the song is looked up drops this add.
     const stopGeneration = bot.stopGeneration;
 
     const { songId } = req.body;
     const song = await prisma.song.findUnique({ where: { id: parseInt(songId) } });
-    if (!song) throw new AppError(404, 'Song not found');
+    if (!song) throw new AppError(404, 'Song not found', undefined, { messageKey: 'errors.song_not_found' });
     if (manager.getBot(botId) !== bot || bot.stopGeneration !== stopGeneration) {
-      throw new AppError(409, 'Playback was stopped before this song was added.');
+      throw new AppError(409, 'Playback was stopped before this song was added.', undefined, {
+        messageKey: 'errors.playback_stopped_before_queue',
+      });
     }
 
     const item: QueueItem = {
@@ -839,7 +899,7 @@ musicBotRoutes.post('/:id/queue/playlist', async (req: Request, res: Response, n
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const id = parseInt(req.params.id as string);
     const bot = manager.getBot(id);
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     const replaceSessionIds = parseReplaceSessionIds(req.body);
 
     const { playlistId, clearFirst, autoplay } = req.body;
@@ -848,7 +908,9 @@ musicBotRoutes.post('/:id/queue/playlist', async (req: Request, res: Response, n
       where: { id: parseInt(playlistId) },
       include: { songs: { include: { song: true }, orderBy: { position: 'asc' } } },
     });
-    if (!playlist) throw new AppError(404, 'Playlist not found');
+    if (!playlist) {
+      throw new AppError(404, 'Playlist not found', undefined, { messageKey: 'errors.playlist_not_found' });
+    }
 
     const items = playlist.songs.map((ps: any) => ({
       id: String(ps.song.id),
@@ -911,9 +973,17 @@ musicBotRoutes.post('/:id/queue/playlist', async (req: Request, res: Response, n
  */
 function assertQueueEntry(bot: VoiceBot, index: number, expectedId: unknown): void {
   if (expectedId === undefined) return;
-  if (typeof expectedId !== 'string') throw new AppError(400, 'Invalid queue item ID');
+  if (typeof expectedId !== 'string') {
+    throw new AppError(400, 'Invalid queue item ID', undefined, {
+      messageKey: 'errors.invalid_queue_item_id',
+    });
+  }
   if (bot.queue.getAll()[index]?.id !== expectedId) {
-    throw new AppError(409, 'The queue changed', 'Check the queue, then try again.', { reason: 'queue_changed' });
+    throw new AppError(409, 'The queue changed', 'Check the queue, then try again.', {
+      reason: 'queue_changed',
+      messageKey: 'errors.queue_changed',
+      detailsKey: 'errors.queue_changed_details',
+    });
   }
 }
 
@@ -922,7 +992,7 @@ musicBotRoutes.delete('/:id/queue/:index', async (req: Request, res: Response, n
   try {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(parseInt(req.params.id as string));
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
 
     const index = parseInt(req.params.index as string);
     assertQueueEntry(bot, index, req.query.id);
@@ -939,7 +1009,7 @@ musicBotRoutes.delete('/:id/queue', async (req: Request, res: Response, next) =>
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const id = parseInt(req.params.id as string);
     const bot = manager.getBot(id);
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     invalidatePlaylistExpansion(id);
     invalidateChatPlaylistExpansion(id);
     bot.queue.clear();
@@ -953,7 +1023,7 @@ musicBotRoutes.post('/:id/queue/shuffle', async (req: Request, res: Response, ne
   try {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(parseInt(req.params.id as string));
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     bot.queue.setShuffle(req.body.enabled ?? true);
     res.json({ success: true, shuffle: bot.queue.shuffle });
   } catch (err) { next(err); }
@@ -964,9 +1034,13 @@ musicBotRoutes.post('/:id/queue/repeat', async (req: Request, res: Response, nex
   try {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(parseInt(req.params.id as string));
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     const mode = req.body.mode ?? 'off';
-    if (!['off', 'track', 'queue'].includes(mode)) throw new AppError(400, 'Invalid repeat mode');
+    if (!['off', 'track', 'queue'].includes(mode)) {
+      throw new AppError(400, 'Invalid repeat mode', undefined, {
+        messageKey: 'errors.invalid_repeat_mode',
+      });
+    }
     bot.queue.setRepeat(mode);
     res.json({ success: true, repeat: bot.queue.repeat });
   } catch (err) { next(err); }
@@ -977,14 +1051,14 @@ musicBotRoutes.post('/:id/queue/:index/play', async (req: Request, res: Response
   try {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(parseInt(req.params.id as string));
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     const replaceSessionIds = parseReplaceSessionIds(req.body);
     bot.assertMusicCanStart(replaceSessionIds);
 
     const index = parseInt(req.params.index as string);
     assertQueueEntry(bot, index, req.body?.id);
     const item = bot.queue.playAt(index);
-    if (!item) throw new AppError(400, 'Invalid queue index');
+    if (!item) throw new AppError(400, 'Invalid queue index', undefined, { messageKey: 'errors.invalid_queue_index' });
 
     if (item.streamUrl) {
       await runMediaAudited(req, bot, 'media.music.start', () => bot.playStream(item, { replaceSessionIds }), replaceSessionIds);
@@ -1000,13 +1074,19 @@ musicBotRoutes.put('/:id/queue/move', async (req: Request, res: Response, next) 
   try {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(parseInt(req.params.id as string));
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
 
     const { from, to, id } = req.body;
-    if (typeof from !== 'number' || typeof to !== 'number') throw new AppError(400, 'from and to are required');
+    if (typeof from !== 'number' || typeof to !== 'number') {
+      throw new AppError(400, 'from and to are required', undefined, {
+        messageKey: 'errors.queue_range_required',
+      });
+    }
     assertQueueEntry(bot, from, id);
     const moved = bot.queue.move(from, to);
-    if (!moved) throw new AppError(400, 'Invalid indices');
+    if (!moved) {
+      throw new AppError(400, 'Invalid indices', undefined, { messageKey: 'errors.invalid_indices' });
+    }
     res.json({ success: true });
   } catch (err) { next(err); }
 });
@@ -1016,7 +1096,10 @@ musicBotRoutes.put('/:id/queue/move', async (req: Request, res: Response, next) 
 /** Allow http(s) URLs or a bare MUSIC_DIR filename (no path separators). */
 export function assertVideoSource(source: unknown): string {
   if (typeof source !== 'string' || !source.trim()) {
-    throw new AppError(400, 'source is required', undefined, { reason: 'source_invalid' });
+    throw new AppError(400, 'source is required', undefined, {
+      reason: 'source_invalid',
+      messageKey: 'errors.source_required',
+    });
   }
   const trimmed = source.trim();
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
@@ -1024,13 +1107,17 @@ export function assertVideoSource(source: unknown): string {
       // eslint-disable-next-line no-new
       new URL(trimmed);
     } catch {
-      throw new AppError(400, 'Invalid video source URL', undefined, { reason: 'source_invalid' });
+      throw new AppError(400, 'Invalid video source URL', undefined, {
+        reason: 'source_invalid',
+        messageKey: 'errors.invalid_video_source_url',
+      });
     }
     return trimmed;
   }
   if (trimmed.includes('/') || trimmed.includes('\\') || trimmed.includes('..') || trimmed.includes('\0')) {
     throw new AppError(400, 'Local video source must be a filename under the music directory', undefined, {
       reason: 'source_invalid',
+      messageKey: 'errors.source_local_invalid',
     });
   }
   return trimmed;
@@ -1044,7 +1131,7 @@ musicBotRoutes.post('/:id/stream/start', async (req: Request, res: Response, nex
   try {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(parseInt(req.params.id as string));
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     const safeSource = assertVideoSource(req.body?.source);
     const parsed = parseStreamStartOptions(req.body);
     if (!parsed.ok) throw new AppError(400, parsed.error);
@@ -1074,7 +1161,7 @@ musicBotRoutes.post('/:id/stream/stop', async (req: Request, res: Response, next
   try {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(parseInt(req.params.id as string));
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     await runMediaAudited(req, bot, 'media.video.stop', () => bot.stopVideoStream('manual', 'Stopped from the web UI', { cancelPendingRequests: true }));
     res.json({ success: true });
   } catch (err) { next(err); }
@@ -1085,7 +1172,7 @@ musicBotRoutes.post('/:id/stream/source', async (req: Request, res: Response, ne
   try {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(parseInt(req.params.id as string));
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     const { source } = req.body;
     const volume = req.body?.volume != null ? parseVolume(req.body.volume) : undefined;
     const safeSource = assertVideoSource(source);
@@ -1109,9 +1196,11 @@ musicBotRoutes.post('/:id/stream/volume', async (req: Request, res: Response, ne
   try {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(parseInt(req.params.id as string));
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     const { volume } = req.body;
-    if (volume == null) throw new AppError(400, 'volume is required');
+    if (volume == null) {
+      throw new AppError(400, 'volume is required', undefined, { messageKey: 'errors.volume_required' });
+    }
     const vol = parseVolume(volume);
     const prisma = req.app.locals.prisma;
     try {
@@ -1132,7 +1221,7 @@ musicBotRoutes.get('/:id/stream/status', async (req: Request, res: Response, nex
   try {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(parseInt(req.params.id as string));
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     res.json(bot.videoStreamStatus);
   } catch (err) { next(err); }
 });
@@ -1142,7 +1231,7 @@ musicBotRoutes.delete('/:id/stream/viewer/:clid', async (req: Request, res: Resp
   try {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(parseInt(req.params.id as string));
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     await bot.kickVideoViewer(parseInt(req.params.clid as string));
     res.json({ success: true });
   } catch (err) { next(err); }
@@ -1153,9 +1242,15 @@ musicBotRoutes.post('/:id/stream/webrtc/offer', async (req: Request, res: Respon
   try {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(parseInt(req.params.id as string));
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     const offer = await bot.getWebRtcOffer();
-    if (!offer) throw new AppError(409, 'No active stream', 'Start a video first.', { reason: 'stream_not_running' });
+    if (!offer) {
+      throw new AppError(409, 'No active stream', 'Start a video first.', {
+        reason: 'stream_not_running',
+        messageKey: 'errors.stream_not_running',
+        detailsKey: 'errors.stream_not_running_details',
+      });
+    }
     res.json(offer);
   } catch (err) { next(err); }
 });
@@ -1165,9 +1260,11 @@ musicBotRoutes.post('/:id/stream/webrtc/answer', async (req: Request, res: Respo
   try {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(parseInt(req.params.id as string));
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     const { sdp } = req.body;
-    if (!sdp) throw new AppError(400, 'sdp is required');
+    if (!sdp) {
+      throw new AppError(400, 'sdp is required', undefined, { messageKey: 'errors.sdp_required' });
+    }
     await bot.setWebRtcAnswer(sdp);
     res.json({ success: true });
   } catch (err) { next(err); }
@@ -1178,7 +1275,7 @@ musicBotRoutes.post('/:id/stream/webrtc/ice', async (req: Request, res: Response
   try {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(parseInt(req.params.id as string));
-    if (!bot) throw new AppError(404, 'Music bot not found');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
     const { candidate, sdpMid, sdpMLineIndex } = req.body;
     await bot.addWebRtcIceCandidate(candidate, sdpMid, sdpMLineIndex ?? 0);
     res.json({ success: true });

@@ -1,3 +1,5 @@
+import i18n from '../i18n';
+
 const GENERIC_AXIOS = /^Request failed with status code \d+$/i;
 
 export type ApiErrorPresentation = {
@@ -5,6 +7,109 @@ export type ApiErrorPresentation = {
   message: string;
   retryable: boolean;
   action?: string;
+};
+
+function interpolateFallback(fallback: string, vars?: Record<string, string | number>): string {
+  if (!vars) return fallback;
+  return fallback.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (match, name: string) => {
+    const value = vars[name];
+    return value == null ? match : String(value);
+  });
+}
+
+/**
+ * Translate an `adminOps` key at call time.
+ * Before i18n initializes (unit tests, early boot) the current English copy is returned.
+ */
+export function adminOpsText(
+  key: string,
+  fallback: string,
+  vars?: Record<string, string | number>,
+): string {
+  if (!i18n.isInitialized) return interpolateFallback(fallback, vars);
+  return i18n.t(`adminOps:${key}`, { defaultValue: fallback, ...vars });
+}
+
+type ReasonDefault = {
+  title?: { key: string; fallback: string };
+  action?: { key: string; fallback: string };
+  retryable?: boolean;
+};
+
+const REASON_DEFAULTS: Record<string, ReasonDefault> = {
+  stream_already_running: {
+    title: { key: 'errors.reasons.stream_already_running.title', fallback: 'A video is already streaming' },
+    retryable: false,
+  },
+  stream_not_running: {
+    title: { key: 'errors.reasons.stream_not_running.title', fallback: 'No active stream' },
+    action: { key: 'errors.reasons.stream_not_running.action', fallback: 'Start a video first.' },
+    retryable: false,
+  },
+  stream_starting: {
+    title: { key: 'errors.reasons.stream_starting.title', fallback: 'The stream is still starting' },
+    retryable: true,
+  },
+  stream_stopping: {
+    title: { key: 'errors.reasons.stream_stopping.title', fallback: 'The stream is stopping' },
+    retryable: true,
+  },
+  sidecar_unavailable: {
+    title: { key: 'errors.reasons.sidecar_unavailable.title', fallback: 'Media sidecar unavailable' },
+    action: {
+      key: 'errors.reasons.sidecar_unavailable.action',
+      fallback: 'Check that the sidecar is running, then retry.',
+    },
+    retryable: true,
+  },
+  sidecar_timeout: {
+    title: { key: 'errors.reasons.sidecar_timeout.title', fallback: 'Media sidecar timed out' },
+    retryable: true,
+  },
+  request_timeout: {
+    title: { key: 'errors.reasons.request_timeout.title', fallback: 'The request timed out' },
+    retryable: true,
+  },
+  source_invalid: {
+    title: { key: 'errors.reasons.source_invalid.title', fallback: 'Invalid source' },
+    retryable: false,
+  },
+  source_not_found: {
+    title: { key: 'errors.reasons.source_not_found.title', fallback: 'File not found' },
+    retryable: false,
+  },
+  source_refused: {
+    title: { key: 'errors.reasons.source_refused.title', fallback: 'This source cannot be used' },
+    retryable: false,
+  },
+  source_timeout: {
+    title: { key: 'errors.reasons.source_timeout.title', fallback: 'The source timed out' },
+    retryable: true,
+  },
+  source_unavailable: {
+    title: { key: 'errors.reasons.source_unavailable.title', fallback: 'The source could not be played' },
+    retryable: true,
+  },
+  bot_not_connected: {
+    title: { key: 'errors.reasons.bot_not_connected.title', fallback: 'Bot is not connected' },
+    action: { key: 'errors.reasons.bot_not_connected.action', fallback: 'Start the bot, then try again.' },
+    retryable: true,
+  },
+  bot_already_started: {
+    title: { key: 'errors.reasons.bot_already_started.title', fallback: 'This bot is already started' },
+    retryable: false,
+  },
+  unexpected_error: {
+    title: { key: 'errors.reasons.unexpected_error.title', fallback: 'Something went wrong' },
+    action: {
+      key: 'errors.reasons.unexpected_error.action',
+      fallback: 'Try again. If it keeps happening, check the server logs.',
+    },
+    retryable: true,
+  },
+  ts_query_flood: { retryable: true },
+  ts_query_starting: { retryable: true },
+  ts_ssh_disconnected: { retryable: true },
 };
 
 function axiosData(error: unknown): { status?: number; data?: any; message?: string } {
@@ -16,46 +121,33 @@ function axiosData(error: unknown): { status?: number; data?: any; message?: str
   };
 }
 
-const REASON_DEFAULTS: Record<string, Partial<ApiErrorPresentation>> = {
-  stream_already_running: { title: 'A video is already streaming', retryable: false },
-  stream_not_running: { title: 'No active stream', retryable: false, action: 'Start a video first.' },
-  stream_starting: { title: 'The stream is still starting', retryable: true },
-  stream_stopping: { title: 'The stream is stopping', retryable: true },
-  sidecar_unavailable: { title: 'Media sidecar unavailable', retryable: true, action: 'Check that the sidecar is running, then retry.' },
-  sidecar_timeout: { title: 'Media sidecar timed out', retryable: true },
-  request_timeout: { title: 'The request timed out', retryable: true },
-  source_invalid: { title: 'Invalid source', retryable: false },
-  source_not_found: { title: 'File not found', retryable: false },
-  source_refused: { title: 'This source cannot be used', retryable: false },
-  source_timeout: { title: 'The source timed out', retryable: true },
-  source_unavailable: { title: 'The source could not be played', retryable: true },
-  bot_not_connected: { title: 'Bot is not connected', retryable: true, action: 'Start the bot, then try again.' },
-  bot_already_started: { title: 'This bot is already started', retryable: false },
-  unexpected_error: { title: 'Something went wrong', retryable: true, action: 'Try again. If it keeps happening, check the server logs.' },
-  ts_query_flood: { retryable: true },
-  ts_query_starting: { retryable: true },
-  ts_ssh_disconnected: { retryable: true },
-};
-
 export function apiErrorPresentation(error: unknown, fallback: string): ApiErrorPresentation {
   const { status, data, message } = axiosData(error);
   const reason = typeof data?.reason === 'string' ? data.reason : undefined;
   const defaults = (reason && REASON_DEFAULTS[reason]) || {};
+  const defaultTitle = defaults.title
+    ? adminOpsText(defaults.title.key, defaults.title.fallback)
+    : undefined;
   const rawTitle = typeof data?.error === 'string' ? data.error : '';
-  const title = (rawTitle && !GENERIC_AXIOS.test(rawTitle) ? rawTitle : defaults.title) || fallback;
+  const title = (rawTitle && !GENERIC_AXIOS.test(rawTitle) ? rawTitle : defaultTitle) || fallback;
   const details = typeof data?.details === 'string' ? data.details : '';
   const axiosMsg = typeof message === 'string' && !GENERIC_AXIOS.test(message) ? message : '';
-  const bodyMessage = details || (axiosMsg && axiosMsg !== title ? axiosMsg : '') || defaults.message || '';
+  const bodyMessage = details || (axiosMsg && axiosMsg !== title ? axiosMsg : '');
   const retryable = typeof data?.retryable === 'boolean'
     ? data.retryable
     : defaults.retryable === true || status === 429 || status === 503;
-  const action = defaults.action;
+  const action = defaults.action ? adminOpsText(defaults.action.key, defaults.action.fallback) : undefined;
   return { title, message: bodyMessage, retryable, action };
 }
 
 export function apiErrorMessage(error: unknown, fallback: string): string {
   const p = apiErrorPresentation(error, fallback);
-  if (p.message && p.message !== p.title) return `${p.title}. ${p.message}`;
+  if (p.message && p.message !== p.title) {
+    return adminOpsText('errors.sentence', '{{title}}. {{message}}', {
+      title: p.title,
+      message: p.message,
+    });
+  }
   return p.title || fallback;
 }
 
@@ -78,7 +170,8 @@ export function isTeamSpeakStarting(error: unknown): boolean {
   const err = error as any;
   const status = err?.response?.status;
   const reason = err?.response?.data?.reason;
-  if (status === 503 && reason === 'ts_query_starting') return true;
+  // Structured reason first; older servers only expose English text.
+  if (reason === 'ts_query_starting') return true;
 
   const text = `${err?.response?.data?.error || ''} ${err?.response?.data?.details || ''} ${err?.message || ''}`.toLowerCase();
 
@@ -112,10 +205,16 @@ export function isTeamSpeakSshDisconnected(error: unknown): boolean {
   return false;
 }
 
-export function teamSpeakConnectionTitle(error: unknown, failedTitle = 'Connection failed'): string {
-  if (isTeamSpeakLogviewIo(error)) return 'TeamSpeak log file unavailable';
-  if (isTeamSpeakSshDisconnected(error)) return 'SSH reconnecting';
-  return isTeamSpeakStarting(error) ? 'TeamSpeak is still starting' : failedTitle;
+export function teamSpeakConnectionTitle(error: unknown, failedTitle?: string): string {
+  if (isTeamSpeakLogviewIo(error)) {
+    return adminOpsText('errors.connection.logviewTitle', 'TeamSpeak log file unavailable');
+  }
+  if (isTeamSpeakSshDisconnected(error)) {
+    return adminOpsText('errors.connection.sshTitle', 'SSH reconnecting');
+  }
+  return isTeamSpeakStarting(error)
+    ? adminOpsText('errors.connection.startingTitle', 'TeamSpeak is still starting')
+    : failedTitle ?? adminOpsText('errors.connection.failedTitle', 'Connection failed');
 }
 
 export function teamSpeakRefreshTone(error: unknown | null | undefined): 'live' | 'degraded' | 'starting' {

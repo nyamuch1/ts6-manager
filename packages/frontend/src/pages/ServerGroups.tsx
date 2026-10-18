@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   useServerGroups, useServerGroupMembers, useCreateServerGroup, useDeleteServerGroup,
   useAddServerGroupMember, useRemoveServerGroupMember,
@@ -22,6 +23,8 @@ import { Shield, Plus, Trash2, Users, ChevronRight, UserMinus, UserPlus } from '
 import { toast } from 'sonner';
 
 export default function ServerGroups() {
+  const { t } = useTranslation('admin');
+  const { t: tc } = useTranslation();
   const { selectedConfigId, selectedSid } = useServerStore();
   const { data, isLoading, error, refetch, isFetching } = useServerGroups();
   const createGroup = useCreateServerGroup();
@@ -42,19 +45,19 @@ export default function ServerGroups() {
     enabled: !!selectedConfigId && !!selectedSid && showAddMember,
   });
 
-  if (!selectedConfigId || !selectedSid) return <NoServerSelectedState pageTitle="Server Groups" icon={Shield} />;
+  if (!selectedConfigId || !selectedSid) return <NoServerSelectedState pageTitle={t('serverGroups.title')} icon={Shield} />;
   if (isLoading) return <PageLoader />;
   if (error) {
     return (
       <div className="space-y-4">
         <EmptyState
           icon={Shield}
-          title="Connection failed"
-          description={(error as any)?.response?.data?.error || (error as any)?.message || 'Could not load server groups from the TeamSpeak server.'}
+          title={t('connectionFailed')}
+          description={(error as any)?.response?.data?.error || (error as any)?.message || t('serverGroups.loadFailed')}
         />
         <div className="flex justify-center">
           <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
-            {isFetching ? 'Retrying…' : 'Retry'}
+            {isFetching ? t('retrying') : tc('action.retry')}
           </Button>
         </div>
       </div>
@@ -72,16 +75,16 @@ export default function ServerGroups() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">Server Groups</h1>
+        <h1 className="text-xl font-semibold">{t('serverGroups.title')}</h1>
         <Button size="sm" onClick={() => setShowCreate(true)}>
-          <Plus className="h-4 w-4 mr-1" /> Create Group
+          <Plus className="h-4 w-4 mr-1" /> {t('serverGroups.createGroup')}
         </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="lg:col-span-1">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Groups ({groups.length})</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('serverGroups.groupsCount', { count: groups.length })}</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <ScrollArea className="h-[min(20rem,40dvh)] lg:h-[500px]">
@@ -115,19 +118,19 @@ export default function ServerGroups() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                 <Users className="h-4 w-4 text-primary" />
-                Members
+                {t('serverGroups.members')}
                 {selectedGroup && <Badge variant="default" className="font-mono-data text-[10px]">SGID: {selectedGroup}</Badge>}
               </CardTitle>
               {selectedGroup && (
                 <div className="flex items-center gap-2">
                   <Button variant="outline" size="sm" onClick={() => { setAddCldbid(''); setShowAddMember(true); }}>
-                    <UserPlus className="h-3 w-3 mr-1" /> Add member
+                    <UserPlus className="h-3 w-3 mr-1" /> {t('serverGroups.addMember')}
                   </Button>
                   <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => {
                     const g = groups.find((g: any) => g.sgid === selectedGroup);
                     if (g) setDeleteTarget({ sgid: g.sgid, name: g.name });
                   }}>
-                    <Trash2 className="h-3 w-3 mr-1" /> Delete Group
+                    <Trash2 className="h-3 w-3 mr-1" /> {t('serverGroups.deleteGroup')}
                   </Button>
                 </div>
               )}
@@ -135,7 +138,7 @@ export default function ServerGroups() {
           </CardHeader>
           <CardContent>
             {!selectedGroup ? (
-              <p className="text-sm text-muted-foreground text-center py-12">Select a group to view its members</p>
+              <p className="text-sm text-muted-foreground text-center py-12">{t('serverGroups.selectGroupHint')}</p>
             ) : (
               <ScrollArea className="h-[min(440px,55dvh)] min-h-64">
                 <div className="space-y-1">
@@ -164,13 +167,13 @@ export default function ServerGroups() {
                             variant="ghost"
                             size="icon"
                             className="h-9 w-9 shrink-0 text-destructive sm:h-7 sm:w-7"
-                            title="Remove from group"
-                            aria-label={`Remove ${m.client_nickname || `DBID ${m.cldbid}`} from group`}
+                            title={t('serverGroups.removeFromGroup')}
+                            aria-label={t('serverGroups.removeAria', { name: m.client_nickname || `DBID ${m.cldbid}` })}
                             onClick={() => removeMember.mutate(
                               { sgid: selectedGroup, cldbid: Number(m.cldbid) },
                               {
-                                onSuccess: () => toast.success('Member removed'),
-                                onError: () => toast.error('Failed to remove member'),
+                                onSuccess: () => toast.success(t('serverGroups.memberRemoved')),
+                                onError: () => toast.error(t('serverGroups.removeFailed')),
                               },
                             )}
                           >
@@ -180,7 +183,7 @@ export default function ServerGroups() {
                       </div>
                     ))
                   ) : (
-                    <p className="text-sm text-muted-foreground text-center py-8">No members in this group</p>
+                    <p className="text-sm text-muted-foreground text-center py-8">{t('serverGroups.noMembers')}</p>
                   )}
                 </div>
               </ScrollArea>
@@ -191,21 +194,21 @@ export default function ServerGroups() {
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Create Server Group</DialogTitle></DialogHeader>
-          <div><Label className="text-xs">Group Name</Label><Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New Group" autoFocus /></div>
+          <DialogHeader><DialogTitle>{t('serverGroups.createTitle')}</DialogTitle></DialogHeader>
+          <div><Label className="text-xs">{t('serverGroups.groupName')}</Label><Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={t('serverGroups.newGroupPlaceholder')} autoFocus /></div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-            <Button onClick={() => { createGroup.mutate(newName, { onSuccess: () => { toast.success('Group created'); setShowCreate(false); setNewName(''); } }); }}>Create</Button>
+            <Button variant="outline" onClick={() => setShowCreate(false)}>{tc('action.cancel')}</Button>
+            <Button onClick={() => { createGroup.mutate(newName, { onSuccess: () => { toast.success(t('serverGroups.groupCreated')); setShowCreate(false); setNewName(''); } }); }}>{tc('action.create')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={showAddMember} onOpenChange={setShowAddMember}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Add group member</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t('serverGroups.addMemberTitle')}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label className="text-xs">Client database ID</Label>
+              <Label className="text-xs">{t('serverGroups.clientDatabaseId')}</Label>
               <Input
                 value={addCldbid}
                 onChange={(e) => setAddCldbid(e.target.value)}
@@ -215,7 +218,7 @@ export default function ServerGroups() {
             </div>
             {clientOptions.length > 0 && (
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Online clients</Label>
+                <Label className="text-xs text-muted-foreground">{t('serverGroups.onlineClients')}</Label>
                 <ScrollArea className="h-40 border rounded-md">
                   <div className="p-1 space-y-0.5">
                     {clientOptions.map((c) => (
@@ -234,7 +237,7 @@ export default function ServerGroups() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddMember(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setShowAddMember(false)}>{tc('action.cancel')}</Button>
             <Button
               disabled={!selectedGroup || !addCldbid}
               onClick={() => {
@@ -242,19 +245,19 @@ export default function ServerGroups() {
                 addMember.mutate(
                   { sgid: selectedGroup, cldbid: parseInt(addCldbid, 10) },
                   {
-                    onSuccess: () => { toast.success('Member added'); setShowAddMember(false); },
-                    onError: () => toast.error('Failed to add member'),
+                    onSuccess: () => { toast.success(t('serverGroups.memberAdded')); setShowAddMember(false); },
+                    onError: () => toast.error(t('serverGroups.addFailed')),
                   },
                 );
               }}
             >
-              Add
+              {tc('action.add')}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <ConfirmDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)} title="Delete Server Group" description={`Delete "${deleteTarget?.name}"?`} confirmLabel="Delete" destructive onConfirm={() => { if (deleteTarget) deleteGroup.mutate(deleteTarget.sgid, { onSuccess: () => { toast.success('Group deleted'); setDeleteTarget(null); setSelectedGroup(null); } }); }} />
+      <ConfirmDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)} title={t('serverGroups.confirmDeleteTitle')} description={t('serverGroups.confirmDeleteDescription', { name: deleteTarget?.name })} confirmLabel={tc('action.delete')} destructive onConfirm={() => { if (deleteTarget) deleteGroup.mutate(deleteTarget.sgid, { onSuccess: () => { toast.success(t('serverGroups.groupDeleted')); setDeleteTarget(null); setSelectedGroup(null); } }); }} />
     </div>
   );
 }

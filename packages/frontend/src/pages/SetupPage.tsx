@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -7,8 +8,11 @@ import { Label } from '@/components/ui/label';
 import { Loader2, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 import { BrandMark } from '@/components/shared/BrandMark';
+import { LanguageMenu } from '@/components/shared/LanguageMenu';
+import { currentLocale } from '@/i18n';
 
 export default function SetupPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -38,7 +42,7 @@ export default function SetupPage() {
     setError('');
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('app:auth.setup.passwordMismatch'));
       return;
     }
 
@@ -48,10 +52,12 @@ export default function SetupPage() {
         username,
         password,
         displayName: displayName || username,
+      }, {
+        headers: { 'Accept-Language': currentLocale() },
       });
       navigate('/login', { replace: true });
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Setup failed');
+      setError(err.response?.data?.error || t('app:auth.setup.failed'));
     } finally {
       setLoading(false);
     }
@@ -59,25 +65,28 @@ export default function SetupPage() {
 
   return (
     <div className="auth-viewport min-h-screen min-h-dvh flex items-center justify-center bg-background grid-bg">
+      <div className="fixed right-4 top-4 z-10">
+        <LanguageMenu />
+      </div>
       <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
 
       <div className="w-full max-w-sm mx-4 relative">
         <div className="text-center mb-8">
           <BrandMark className="mx-auto mb-4 h-16 w-16 text-primary" />
           <h1 className="text-xl font-semibold text-foreground">TS6 Manager</h1>
-          <p className="text-sm text-muted-foreground mt-1">Initial setup · Create your administrator account</p>
+          <p className="text-sm text-muted-foreground mt-1">{t('app:auth.setup.subtitle')}</p>
         </div>
 
         <Card className="border-border/50 backdrop-blur-sm">
           <CardHeader className="pb-4">
             <h2 className="text-sm font-medium text-center text-muted-foreground">
-              This is the first time setup. Create an admin account to get started.
+              {t('app:auth.setup.heading')}
             </h2>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="username" className="text-xs">Username</Label>
+                <Label htmlFor="username" className="text-xs">{t('app:auth.setup.username')}</Label>
                 <Input
                   id="username"
                   value={username}
@@ -88,34 +97,34 @@ export default function SetupPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="displayName" className="text-xs">Display Name</Label>
+                <Label htmlFor="displayName" className="text-xs">{t('app:auth.setup.displayName')}</Label>
                 <Input
                   id="displayName"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="Administrator"
+                  placeholder={t('app:auth.setup.displayNamePlaceholder')}
                   autoComplete="name"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-xs">Password</Label>
+                <Label htmlFor="password" className="text-xs">{t('app:auth.setup.password')}</Label>
                 <Input
                   id="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Min. 8 chars, uppercase, lowercase, digit"
+                  placeholder={t('app:auth.setup.passwordPlaceholder')}
                   autoComplete="new-password"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword" className="text-xs">Confirm Password</Label>
+                <Label htmlFor="confirmPassword" className="text-xs">{t('app:auth.setup.confirmPassword')}</Label>
                 <Input
                   id="confirmPassword"
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Repeat password"
+                  placeholder={t('app:auth.setup.confirmPlaceholder')}
                   autoComplete="new-password"
                 />
               </div>
@@ -135,10 +144,10 @@ export default function SetupPage() {
                 {loading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Creating account...
+                    {t('app:auth.setup.creating')}
                   </>
                 ) : (
-                  'Create Admin Account'
+                  t('app:auth.setup.createAccount')
                 )}
               </Button>
             </form>

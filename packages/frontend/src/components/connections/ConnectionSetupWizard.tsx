@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { serversApi } from '@/api/servers.api';
 import { Button } from '@/components/ui/button';
@@ -14,8 +15,8 @@ import {
 } from '@/components/connections/ConnectionDiagnosticStages';
 import {
   DEFAULT_CONNECTION_FORM,
-  DEPLOYMENT_SCENARIOS,
-  FIELD_HELP,
+  getDeploymentScenarios,
+  getFieldHelp,
   getTsPrepStep,
   type ConnectionFormState,
   type DeploymentScenarioId,
@@ -31,11 +32,11 @@ import { toast } from 'sonner';
 import { apiErrorMessage } from '@/lib/api-error';
 import { cn } from '@/lib/utils';
 import type { ConnectionDiagnosticReport } from '@ts6/common';
-const STEPS = [
-  'Where is your TeamSpeak server?',
-  'WebQuery connection',
-  'SSH (optional)',
-  'Review & finish',
+const STEP_KEYS = [
+  'settings:wizard.steps.location',
+  'settings:wizard.steps.webquery',
+  'settings:wizard.steps.ssh',
+  'settings:wizard.steps.review',
 ] as const;
 
 const REMOTE_SCENARIOS = new Set<DeploymentScenarioId>(['remote-ts', 'manager-docker-remote-ts']);
@@ -74,6 +75,7 @@ function WizardGuideCallout({
 }
 
 export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: ConnectionSetupWizardProps) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [step, setStep] = useState(0);
   const [scenarioId, setScenarioId] = useState<DeploymentScenarioId>('same-host');
@@ -114,15 +116,14 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
     }
   };
 
-  const scenario = useMemo(
-    () => DEPLOYMENT_SCENARIOS.find((s) => s.id === scenarioId) ?? DEPLOYMENT_SCENARIOS[0],
-    [scenarioId],
-  );
+  const deploymentScenarios = getDeploymentScenarios(t);
+  const fieldHelp = getFieldHelp(t);
+  const scenario = deploymentScenarios.find((s) => s.id === scenarioId) ?? deploymentScenarios[0];
 
-  const webqueryPortGuide = getTsPrepStep('webquery-port');
-  const apiKeyGuide = getTsPrepStep('api-key');
-  const sshGuide = getTsPrepStep('ssh');
-  const firewallGuide = getTsPrepStep('firewall');
+  const webqueryPortGuide = getTsPrepStep(t, 'webquery-port');
+  const apiKeyGuide = getTsPrepStep(t, 'api-key');
+  const sshGuide = getTsPrepStep(t, 'ssh');
+  const firewallGuide = getTsPrepStep(t, 'firewall');
 
   const createServer = useMutation({
     mutationFn: (data: Record<string, unknown>) => serversApi.create(data),
@@ -180,9 +181,9 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
         suggestedScenarioId: null,
         suggestedHost: null,
         confidence: 'none',
-        reason: err?.response?.data?.error || 'Self-check could not run. Choose your deployment manually.',
+        reason: err?.response?.data?.error || t('settings:wizard.selfCheckManual'),
       });
-      toast.error(err?.response?.data?.error || 'Self-check failed');
+      toast.error(err?.response?.data?.error || t('settings:wizard.selfCheckFailed'));
     },
   });
 
@@ -217,7 +218,7 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
 
   const applyScenario = (id: DeploymentScenarioId, hostOverride?: string) => {
     setScenarioId(id);
-    const next = DEPLOYMENT_SCENARIOS.find((s) => s.id === id);
+    const next = deploymentScenarios.find((s) => s.id === id);
     if (!next) return;
     if (hostOverride !== undefined) {
       updateForm((prev) => ({ ...prev, host: hostOverride }));
@@ -240,12 +241,12 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
     } else if (detection.suggestedHost) {
       updateForm((prev) => ({ ...prev, host: detection.suggestedHost! }));
       setHostSuggestionApplied(true);
-      toast.message('Suggested host applied — pick the scenario below that best matches your setup.');
+      toast.message(t('settings:wizard.suggestedHostApplied'));
     }
   };
 
   const suggestedScenario = detection?.suggestedScenarioId
-    ? DEPLOYMENT_SCENARIOS.find((s) => s.id === detection.suggestedScenarioId)
+    ? deploymentScenarios.find((s) => s.id === detection.suggestedScenarioId)
     : null;
 
   const canNext = () => {
@@ -289,7 +290,7 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
         setWebqueryTestOk(false);
         setWebqueryPartial(false);
         setWebqueryDiagnostic(null);
-        toast.error(apiErrorMessage(err, 'WebQuery test failed'));
+        toast.error(apiErrorMessage(err, t('settings:wizard.webqueryTestFailed')));
       },
     });
   };
@@ -309,14 +310,14 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
           return;
         }
         setSshTestOk(!!data?.success);
-        toast.success('SSH connection successful');
+        toast.success(t('settings:wizard.sshTestSuccessful'));
       },
       onError: (err: any, submitted) => {
         if (!shouldApplyConnectionTestResult(draftOwnerRef.current, submitted)) {
           return;
         }
         setSshTestOk(false);
-        toast.error(apiErrorMessage(err, 'SSH test failed'));
+        toast.error(apiErrorMessage(err, t('settings:wizard.sshTestFailed')));
       },
     });
   };
@@ -324,12 +325,12 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
   const handleCreateDemo = () => {
     createDemoServer.mutate(undefined, {
       onSuccess: (data) => {
-        toast.success(data?.existing ? 'Demo server is ready' : 'Demo server created');
+        toast.success(data?.existing ? t('settings:wizard.demoReady') : t('settings:wizard.demoCreated'));
         onComplete?.();
         handleClose(false);
       },
       onError: (err: any) => {
-        toast.error(err?.response?.data?.error || 'Failed to create demo server');
+        toast.error(err?.response?.data?.error || t('settings:wizard.demoCreateFailed'));
       },
     });
   };
@@ -362,12 +363,12 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
         } catch {
           // Connection was created; test can be retried from the card.
         }
-        toast.success('Connection created successfully');
+        toast.success(t('settings:wizard.connectionCreated'));
         if (webqueryOk) onComplete?.();
         handleClose(false);
       },
       onError: (err: any) => {
-        toast.error(err?.response?.data?.error || 'Failed to create connection');
+        toast.error(err?.response?.data?.error || t('settings:wizard.connectionCreateFailed'));
       },
     });
   };
@@ -376,12 +377,16 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-lg [--dialog-max-height:90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Connection setup wizard</DialogTitle>
+          <DialogTitle>{t('settings:wizard.title')}</DialogTitle>
           <p className="text-xs text-muted-foreground">
-            Step {step + 1} of {STEPS.length}: {STEPS[step]}
+            {t('settings:wizard.stepOf', {
+              step: step + 1,
+              total: STEP_KEYS.length,
+              title: t(STEP_KEYS[step]),
+            })}
           </p>
           <div className="flex gap-1 pt-1">
-            {STEPS.map((_, i) => (
+            {STEP_KEYS.map((_, i) => (
               <div
                 key={i}
                 className={cn('h-1 flex-1 rounded-full', i <= step ? 'bg-primary' : 'bg-muted')}
@@ -394,9 +399,9 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed border-primary/40 bg-primary/5 px-3 py-2">
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium">Just exploring? Try a demo server</p>
+                <p className="text-xs font-medium">{t('settings:wizard.demoTitle')}</p>
                 <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  Synthetic channels, clients, groups, and logs. Creating it makes no network connection and changes no real TeamSpeak server.
+                  {t('settings:wizard.demoDescription')}
                 </p>
               </div>
               <Button
@@ -407,21 +412,21 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
                 disabled={createDemoServer.isPending}
               >
                 {createDemoServer.isPending ? (
-                  <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Creating…</>
+                  <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> {t('settings:wizard.creating')}</>
                 ) : (
-                  <><TestTube className="h-3 w-3 mr-1" /> Create demo server</>
+                  <><TestTube className="h-3 w-3 mr-1" /> {t('settings:wizard.createDemoServer')}</>
                 )}
               </Button>
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Or choose how your real TeamSpeak server is deployed relative to ts6-manager.
+              {t('settings:wizard.orChooseDeployment')}
             </p>
 
             <div className="rounded-md border border-border p-3 space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-medium flex items-center gap-1.5">
-                  <Radar className="h-3.5 w-3.5" /> Deployment self-check
+                  <Radar className="h-3.5 w-3.5" /> {t('settings:wizard.selfCheck')}
                 </p>
                 <Button
                   variant="outline"
@@ -431,16 +436,16 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
                   disabled={runDetection.isPending}
                 >
                   {runDetection.isPending ? (
-                    <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Checking…</>
+                    <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> {t('settings:wizard.checking')}</>
                   ) : (
-                    'Run again'
+                    t('settings:wizard.runAgain')
                   )}
                 </Button>
               </div>
 
               {runDetection.isPending && !detection && (
                 <p className="text-[11px] text-muted-foreground">
-                  Probing localhost, Docker host, and common service names from the manager…
+                  {t('settings:wizard.probing')}
                 </p>
               )}
 
@@ -463,7 +468,7 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
                       </Badge>
                     ))}
                     <Badge variant="secondary" className="text-[10px]">
-                      Manager {detection.managerInDocker ? 'in Docker' : 'on host'}
+                      {detection.managerInDocker ? t('settings:wizard.managerInDocker') : t('settings:wizard.managerOnHost')}
                     </Badge>
                   </div>
 
@@ -471,27 +476,39 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
                     <div className="flex flex-wrap items-center gap-2">
                       {suggestedScenario && (
                         <span className="text-[11px] text-muted-foreground">
-                          Suggested: <span className="text-foreground">{suggestedScenario.label}</span>
+                          <Trans
+                            i18nKey="settings:wizard.suggested"
+                            values={{ scenario: suggestedScenario.label }}
+                            components={{ scenario: <span className="text-foreground" /> }}
+                          />
                         </span>
                       )}
                       {detection.suggestedHost && !suggestedScenario && (
                         <span className="text-[11px] text-muted-foreground">
-                          Suggested host: <code className="font-mono-data">{detection.suggestedHost}</code>
+                          <Trans
+                            i18nKey="settings:wizard.suggestedHost"
+                            values={{ host: detection.suggestedHost }}
+                            components={{ host: <code className="font-mono-data" /> }}
+                          />
                         </span>
                       )}
                       {detection.confidence !== 'none' && (
-                        <Badge variant="outline" className="text-[10px] capitalize">{detection.confidence} confidence</Badge>
+                        <Badge variant="outline" className="text-[10px] capitalize">
+                          {t('settings:wizard.confidence', {
+                            confidence: t(`settings:wizard.confidenceLevels.${detection.confidence}`),
+                          })}
+                        </Badge>
                       )}
                       {!(detectionApplied || hostSuggestionApplied) && (
                         <Button size="sm" className="h-7 text-xs" onClick={applyDetection}>
-                          <Sparkles className="h-3 w-3 mr-1" /> Apply suggestion
+                          <Sparkles className="h-3 w-3 mr-1" /> {t('settings:wizard.applySuggestion')}
                         </Button>
                       )}
                       {detectionApplied && (
-                        <Badge variant="outline" className="text-[10px] text-emerald-400 border-emerald-500/30">Applied</Badge>
+                        <Badge variant="outline" className="text-[10px] text-emerald-400 border-emerald-500/30">{t('settings:wizard.applied')}</Badge>
                       )}
                       {hostSuggestionApplied && !detectionApplied && (
-                        <Badge variant="outline" className="text-[10px] text-emerald-400 border-emerald-500/30">Host applied</Badge>
+                        <Badge variant="outline" className="text-[10px] text-emerald-400 border-emerald-500/30">{t('settings:wizard.hostApplied')}</Badge>
                       )}
                     </div>
                   )}
@@ -499,7 +516,7 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
               )}
             </div>
 
-            {DEPLOYMENT_SCENARIOS.map((s) => {
+            {deploymentScenarios.map((s) => {
               const isSuggested = detection?.suggestedScenarioId === s.id && !detectionApplied;
               const isSelected = scenarioId === s.id;
               return (
@@ -519,12 +536,16 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
                   <div className="flex items-center gap-2">
                     <p className="text-xs font-medium">{s.label}</p>
                     {isSuggested && (
-                      <Badge variant="secondary" className="text-[10px]">Suggested</Badge>
+                      <Badge variant="secondary" className="text-[10px]">{t('settings:wizard.suggestedBadge')}</Badge>
                     )}
                   </div>
                   <p className="text-[11px] text-muted-foreground mt-0.5">{s.description}</p>
                   <p className="text-[11px] mt-1">
-                    Suggested host: <code className="font-mono-data">{s.hostPlaceholder}</code>
+                    <Trans
+                      i18nKey="settings:wizard.suggestedHost"
+                      values={{ host: s.hostPlaceholder }}
+                      components={{ host: <code className="font-mono-data" /> }}
+                    />
                   </p>
                   {s.docs && s.docs.length > 0 && (
                     <SetupDocLinks docs={s.docs} className="flex flex-wrap gap-x-3 gap-y-1 mt-2" />
@@ -538,7 +559,7 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
 
         {step === 1 && (
           <div className="space-y-4">
-            <WizardGuideCallout title="Network host" docs={scenario.docs}>
+            <WizardGuideCallout title={t('settings:wizard.networkHost')} docs={scenario.docs}>
               <p>{scenario.hostHint}</p>
               {scenario.notes && <p className="mt-1">{scenario.notes}</p>}
               {REMOTE_SCENARIOS.has(scenarioId) && (
@@ -548,19 +569,19 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
 
             <div className="space-y-3">
               <div>
-                <Label className="text-xs">Name</Label>
-                <p className="text-[11px] text-muted-foreground mb-1">{FIELD_HELP.name}</p>
-                <Input value={form.name} onChange={(e) => updateForm({ ...form, name: e.target.value })} placeholder="My TS Server" />
+                <Label className="text-xs">{t('settings:connectionForm.name')}</Label>
+                <p className="text-[11px] text-muted-foreground mb-1">{fieldHelp.name.help}</p>
+                <Input value={form.name} onChange={(e) => updateForm({ ...form, name: e.target.value })} placeholder={t('settings:connectionForm.namePlaceholder')} />
               </div>
 
               <div>
-                <Label className="text-xs">Host</Label>
-                <p className="text-[11px] text-muted-foreground mb-1">{FIELD_HELP.host}</p>
+                <Label className="text-xs">{t('settings:connectionForm.host')}</Label>
+                <p className="text-[11px] text-muted-foreground mb-1">{fieldHelp.host.help}</p>
                 <Input value={form.host} onChange={(e) => updateForm({ ...form, host: e.target.value })} placeholder={scenario.hostPlaceholder} />
               </div>
 
               <div>
-                <Label className="text-xs">WebQuery Port</Label>
+                <Label className="text-xs">{t('settings:connectionForm.webqueryPort')}</Label>
                 <WizardGuideCallout title={webqueryPortGuide.title} docs={webqueryPortGuide.docs}>
                   <p>{webqueryPortGuide.body}</p>
                 </WizardGuideCallout>
@@ -573,8 +594,8 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
               </div>
 
               <div>
-                <Label className="text-xs">API Key</Label>
-                {[getTsPrepStep('guest-query'), getTsPrepStep('bootstrap-api-key')].map(guide => (
+                <Label className="text-xs">{t('settings:connectionForm.apiKey')}</Label>
+                {[getTsPrepStep(t, 'guest-query'), getTsPrepStep(t, 'bootstrap-api-key')].map(guide => (
                   <WizardGuideCallout key={guide.id} title={guide.title} docs={guide.docs}>
                     <p>{guide.body}</p>
                     {'code' in guide && <pre className="rounded bg-muted px-2 py-1.5 font-mono text-[11px] whitespace-pre-wrap">{guide.code}</pre>}
@@ -591,35 +612,35 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
                   type="password"
                   value={form.apiKey}
                   onChange={(e) => updateForm({ ...form, apiKey: e.target.value })}
-                  placeholder="WebQuery API Key"
+                  placeholder={t('settings:connectionForm.apiKeyPlaceholder')}
                 />
               </div>
 
               <div className="flex items-center gap-2">
                 <Switch checked={form.useHttps} onCheckedChange={(v) => updateForm({ ...form, useHttps: v })} />
-                <Label className="text-xs">{FIELD_HELP.useHttps}</Label>
+                <Label className="text-xs">{fieldHelp.useHttps.help}</Label>
               </div>
               <SetupDocLinks
-                docs={[{ label: 'HTTPS WebQuery setup (TS6 docs)', url: TS6_SERVER_DOCS.httpQuery }]}
+                docs={[{ label: t('content:docLinks.httpsWebquery'), url: TS6_SERVER_DOCS.httpQuery }]}
                 className="flex flex-wrap gap-x-3 gap-y-1"
               />
 
               <div className="space-y-3 border-t border-border pt-3">
-                <p className="text-xs font-medium text-foreground">Native metrics (optional)</p>
+                <p className="text-xs font-medium text-foreground">{t('settings:connectionForm.metricsSection')}</p>
                 <p className="text-[11px] text-muted-foreground -mt-1">
-                  Keep the metrics listener private — it is unauthenticated (default port 9187).
+                  {t('settings:wizard.metricsDescription')}
                 </p>
                 <div className="flex items-center gap-2">
                   <Switch
                     checked={form.metricsEnabled}
                     onCheckedChange={(v) => updateForm({ ...form, metricsEnabled: v })}
                   />
-                  <Label className="text-xs">{FIELD_HELP.metricsEnabled}</Label>
+                  <Label className="text-xs">{fieldHelp.metricsEnabled.help}</Label>
                 </div>
                 {form.metricsEnabled && (
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label className="text-xs">Metrics port</Label>
+                      <Label className="text-xs">{t('settings:connectionForm.metricsPort')}</Label>
                       <Input
                         type="number"
                         value={form.metricsPort}
@@ -627,11 +648,11 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">Metrics host (optional)</Label>
+                      <Label className="text-xs">{t('settings:connectionForm.metricsHost')}</Label>
                       <Input
                         value={form.metricsHost}
                         onChange={(e) => updateForm({ ...form, metricsHost: e.target.value })}
-                        placeholder="Same as WebQuery host"
+                        placeholder={t('settings:connectionForm.metricsHostPlaceholder')}
                       />
                     </div>
                   </div>
@@ -647,12 +668,12 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
                 disabled={testWebqueryDraft.isPending || !form.host || !form.apiKey}
               >
                 {testWebqueryDraft.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <TestTube className="h-3 w-3 mr-1" />}
-                Test WebQuery
+                {t('settings:connections.testWebquery')}
               </Button>
-              {webqueryTestOk === true && <Badge variant="outline" className="text-emerald-400 border-emerald-500/30">WebQuery OK</Badge>}
-              {webqueryPartial && <Badge variant="outline" className="text-amber-400 border-amber-500/30">Partial</Badge>}
+              {webqueryTestOk === true && <Badge variant="outline" className="text-emerald-400 border-emerald-500/30">{t('settings:wizard.webqueryOk')}</Badge>}
+              {webqueryPartial && <Badge variant="outline" className="text-amber-400 border-amber-500/30">{t('settings:wizard.partial')}</Badge>}
               {webqueryTestOk === false && !webqueryPartial && (
-                <Badge variant="outline" className="text-destructive border-destructive/30">WebQuery failed</Badge>
+                <Badge variant="outline" className="text-destructive border-destructive/30">{t('settings:wizard.webqueryFailed')}</Badge>
               )}
             </div>
             {(webqueryDiagnostic || testWebqueryDraft.isPending) && (
@@ -666,32 +687,32 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
 
         {step === 2 && (
           <div className="space-y-4">
-            <WizardGuideCallout title="Optional — SSH ServerQuery" docs={sshGuide.docs}>
+            <WizardGuideCallout title={t('settings:wizard.optionalSshQuery')} docs={sshGuide.docs}>
               <p>{sshGuide.body}</p>
-              <p className="mt-1 text-[10px]">Enables file browser, bot event triggers, and music bot !commands.</p>
+              <p className="mt-1 text-[10px]">{t('settings:wizard.optionalSshHint')}</p>
             </WizardGuideCallout>
 
             <div className="flex gap-2">
-              <Button variant={skipSsh ? 'default' : 'outline'} size="sm" onClick={() => setSkipSsh(true)}>Skip for now</Button>
-              <Button variant={!skipSsh ? 'default' : 'outline'} size="sm" onClick={() => setSkipSsh(false)}>Configure SSH</Button>
+              <Button variant={skipSsh ? 'default' : 'outline'} size="sm" onClick={() => setSkipSsh(true)}>{t('settings:wizard.skipForNow')}</Button>
+              <Button variant={!skipSsh ? 'default' : 'outline'} size="sm" onClick={() => setSkipSsh(false)}>{t('settings:wizard.configureSsh')}</Button>
             </div>
 
             {!skipSsh && (
               <div className="space-y-3">
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <Label className="text-xs">SSH Port</Label>
-                    <p className="text-[11px] text-muted-foreground mb-1">{FIELD_HELP.sshPort}</p>
+                    <Label className="text-xs">{t('settings:connectionForm.sshPort')}</Label>
+                    <p className="text-[11px] text-muted-foreground mb-1">{fieldHelp.sshPort.help}</p>
                     <Input type="number" value={form.sshPort} onChange={(e) => updateForm({ ...form, sshPort: e.target.value })} />
                   </div>
                   <div>
-                    <Label className="text-xs">SSH User</Label>
-                    <p className="text-[11px] text-muted-foreground mb-1">{FIELD_HELP.sshUsername}</p>
+                    <Label className="text-xs">{t('settings:connectionForm.sshUser')}</Label>
+                    <p className="text-[11px] text-muted-foreground mb-1">{fieldHelp.sshUsername.help}</p>
                     <Input value={form.sshUsername} onChange={(e) => updateForm({ ...form, sshUsername: e.target.value })} placeholder="serveradmin" />
                   </div>
                   <div>
-                    <Label className="text-xs">SSH Password</Label>
-                    <p className="text-[11px] text-muted-foreground mb-1">{FIELD_HELP.sshPassword}</p>
+                    <Label className="text-xs">{t('settings:connectionForm.sshPassword')}</Label>
+                    <p className="text-[11px] text-muted-foreground mb-1">{fieldHelp.sshPassword.help}</p>
                     <Input type="password" value={form.sshPassword} onChange={(e) => updateForm({ ...form, sshPassword: e.target.value })} />
                   </div>
                 </div>
@@ -704,10 +725,10 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
                     disabled={testSshDraft.isPending || !form.host || !form.sshUsername || !form.sshPassword}
                   >
                     {testSshDraft.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <TestTube className="h-3 w-3 mr-1" />}
-                    Test SSH
+                    {t('settings:connections.testSsh')}
                   </Button>
-                  {sshTestOk === true && <Badge variant="outline" className="text-emerald-400 border-emerald-500/30">SSH OK</Badge>}
-                  {sshTestOk === false && <Badge variant="outline" className="text-destructive border-destructive/30">SSH failed</Badge>}
+                  {sshTestOk === true && <Badge variant="outline" className="text-emerald-400 border-emerald-500/30">{t('settings:wizard.sshOk')}</Badge>}
+                  {sshTestOk === false && <Badge variant="outline" className="text-destructive border-destructive/30">{t('settings:wizard.sshFailed')}</Badge>}
                 </div>
               </div>
             )}
@@ -717,31 +738,34 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
         {step === 3 && (
           <div className="space-y-3 text-xs">
             <div className="rounded-md border border-border p-3 space-y-1">
-              <p><span className="text-muted-foreground">Deployment:</span> {scenario.label}</p>
-              <p><span className="text-muted-foreground">Name:</span> {form.name}</p>
-              <p><span className="text-muted-foreground">Host:</span> {form.host}:{form.webqueryPort}</p>
-              <p><span className="text-muted-foreground">HTTPS:</span> {form.useHttps ? 'Yes' : 'No'}</p>
+              <p><span className="text-muted-foreground">{t('settings:wizard.deployment')}</span> {scenario.label}</p>
+              <p><span className="text-muted-foreground">{t('settings:wizard.name')}</span> {form.name}</p>
+              <p><span className="text-muted-foreground">{t('settings:wizard.host')}</span> {form.host}:{form.webqueryPort}</p>
+              <p><span className="text-muted-foreground">{t('settings:wizard.https')}</span> {form.useHttps ? t('settings:wizard.yes') : t('settings:wizard.no')}</p>
               <p>
-                <span className="text-muted-foreground">Native metrics:</span>{' '}
+                <span className="text-muted-foreground">{t('settings:wizard.nativeMetrics')}</span>{' '}
                 {form.metricsEnabled
-                  ? `Enabled (${form.metricsHost.trim() || form.host}:${form.metricsPort})`
-                  : 'Disabled'}
+                  ? t('settings:wizard.metricsEnabledValue', {
+                    host: form.metricsHost.trim() || form.host,
+                    port: form.metricsPort,
+                  })
+                  : t('settings:wizard.disabled')}
               </p>
               <p>
-                <span className="text-muted-foreground">SSH:</span>{' '}
-                {skipSsh || !form.sshUsername ? 'Not configured' : `${form.sshUsername}@${form.host}:${form.sshPort}`}
+                <span className="text-muted-foreground">{t('settings:wizard.ssh')}</span>{' '}
+                {skipSsh || !form.sshUsername ? t('settings:wizard.notConfigured') : `${form.sshUsername}@${form.host}:${form.sshPort}`}
               </p>
             </div>
 
             {(webqueryTestOk !== null || webqueryPartial || sshTestOk !== null) && (
               <div className="flex flex-wrap gap-2">
-                {webqueryTestOk === true && <Badge variant="outline" className="text-emerald-400 border-emerald-500/30">WebQuery tested</Badge>}
-                {webqueryPartial && <Badge variant="outline" className="text-amber-400 border-amber-500/30">WebQuery partial</Badge>}
+                {webqueryTestOk === true && <Badge variant="outline" className="text-emerald-400 border-emerald-500/30">{t('settings:wizard.webqueryTested')}</Badge>}
+                {webqueryPartial && <Badge variant="outline" className="text-amber-400 border-amber-500/30">{t('settings:wizard.webqueryPartial')}</Badge>}
                 {webqueryTestOk === false && !webqueryPartial && (
-                  <Badge variant="outline" className="text-destructive border-destructive/30">WebQuery test failed</Badge>
+                  <Badge variant="outline" className="text-destructive border-destructive/30">{t('settings:wizard.webqueryTestFailed')}</Badge>
                 )}
-                {sshTestOk === true && <Badge variant="outline" className="text-emerald-400 border-emerald-500/30">SSH tested</Badge>}
-                {sshTestOk === false && <Badge variant="outline" className="text-destructive border-destructive/30">SSH test failed</Badge>}
+                {sshTestOk === true && <Badge variant="outline" className="text-emerald-400 border-emerald-500/30">{t('settings:wizard.sshTested')}</Badge>}
+                {sshTestOk === false && <Badge variant="outline" className="text-destructive border-destructive/30">{t('settings:wizard.sshTestFailed')}</Badge>}
               </div>
             )}
             {webqueryDiagnostic && (
@@ -753,19 +777,19 @@ export function ConnectionSetupWizard({ open, onOpenChange, onComplete }: Connec
         <DialogFooter className="gap-2 sm:gap-0">
           {step > 0 && (
             <Button variant="outline" onClick={() => setStep((s) => s - 1)}>
-              <ArrowLeft className="h-3 w-3 mr-1" /> Back
+              <ArrowLeft className="h-3 w-3 mr-1" /> {t('settings:wizard.back')}
             </Button>
           )}
-          {step < STEPS.length - 1 ? (
+          {step < STEP_KEYS.length - 1 ? (
             <Button onClick={() => setStep((s) => s + 1)} disabled={!canNext()}>
-              Next <ArrowRight className="h-3 w-3 ml-1" />
+              {t('settings:wizard.next')} <ArrowRight className="h-3 w-3 ml-1" />
             </Button>
           ) : (
             <Button onClick={handleFinish} disabled={createServer.isPending || !form.name || !form.host || !form.apiKey}>
               {createServer.isPending ? (
-                <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Creating...</>
+                <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> {t('settings:wizard.creatingConnection')}</>
               ) : (
-                <><Check className="h-3 w-3 mr-1" /> Create connection</>
+                <><Check className="h-3 w-3 mr-1" /> {t('settings:wizard.createConnection')}</>
               )}
             </Button>
           )}

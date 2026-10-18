@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useServers } from '@/hooks/use-servers';
 import { useServerStore } from '@/stores/server.store';
 import { PageLoader } from '@/components/shared/LoadingSpinner';
@@ -39,13 +40,14 @@ import { TS6_CHAT_RESPONSE_EXAMPLE } from '@/lib/ts6-chat-format';
 import { Ts6ChatResponseEditor } from '@/components/Ts6ChatResponseEditor';
 import { BUILTIN_CHAT_COMMANDS } from '@ts6/common';
 import { useFlowCommandTriggers } from '@/hooks/use-flow-command-triggers';
-import { describeCommandClash, findCommandClashes } from '@/lib/command-clashes';
+import { findCommandClashes, type CommandClash } from '@/lib/command-clashes';
 
 
 // ─── Commands Tab ────────────────────────────────────────────────────────────
 
 /** Render custom chat command CRUD, optionally with Bot Flows clash context. */
 export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?: boolean } = {}) {
+  const { t } = useTranslation('media');
   const { selectedConfigId } = useServerStore();
   const { data: servers } = useServers();
   const [serverId, setServerId] = useState<number | null>(selectedConfigId);
@@ -78,6 +80,28 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
       })
     : [];
 
+  const describeClash = (clash: CommandClash) => {
+    const labels = clash.sources.map((source) => t(
+      source === 'custom'
+        ? 'commands.clashSourceCustom'
+        : source === 'flow'
+          ? 'commands.clashSourceFlow'
+          : 'commands.clashSourceBuiltin',
+    ));
+    if (labels.length === 2) {
+      return t('commands.clashTwo', {
+        name: clash.name,
+        first: labels[0],
+        second: labels[1],
+      });
+    }
+    return t('commands.clashMany', {
+      name: clash.name,
+      sources: labels.slice(0, -1).join(t('shared.listSeparator')),
+      last: labels[labels.length - 1],
+    });
+  };
+
   const resetForm = () => setForm({ name: '', response: '', description: '', enabled: true });
 
   const openEdit = (cmd: ChatCommandInfo) => {
@@ -95,23 +119,21 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
     seedPresets.mutate(configId, {
       onSuccess: (result: { created: number; createdNames: string[] }) => {
         if (result.created === 0) {
-          toast.message('All recommended presets are already present');
+          toast.message(t('commands.allPresetsPresent'));
         } else {
-          toast.success(
-            `Added ${result.created} preset${result.created === 1 ? '' : 's'} (disabled until you edit & enable)`,
-          );
+          toast.success(t('commands.presetsAdded', { count: result.created }));
         }
         setShowPresets(false);
       },
       onError: (err: any) =>
-        toast.error(err?.response?.data?.error || 'Failed to seed presets'),
+        toast.error(err?.response?.data?.error || t('commands.seedFailed')),
     });
   };
 
   const handleCreateFromPreset = (preset: ChatCommandPreset) => {
     if (!configId) return;
     if (existingNames.has(preset.name)) {
-      toast.message(`!${preset.name} already exists`);
+      toast.message(t('commands.alreadyExists', { name: preset.name }));
       return;
     }
     createCommand.mutate(
@@ -125,16 +147,16 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
         },
       },
       {
-        onSuccess: () => toast.success(`Added !${preset.name} (disabled)`),
+        onSuccess: () => toast.success(t('commands.addedDisabled', { name: preset.name })),
         onError: (err: any) =>
-          toast.error(err?.response?.data?.error || `Failed to add !${preset.name}`),
+          toast.error(err?.response?.data?.error || t('commands.addNameFailed', { name: preset.name })),
       },
     );
   };
 
   const handleCreate = () => {
     if (!configId || !form.name.trim() || !form.response.trim()) {
-      toast.error('Name and response are required');
+      toast.error(t('commands.nameResponseRequired'));
       return;
     }
     createCommand.mutate(
@@ -149,12 +171,12 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
       },
       {
         onSuccess: () => {
-          toast.success('Command added');
+          toast.success(t('commands.commandAdded'));
           setShowAdd(false);
           resetForm();
         },
         onError: (err: any) =>
-          toast.error(err?.response?.data?.error || 'Failed to add command'),
+          toast.error(err?.response?.data?.error || t('commands.commandAddFailed')),
       },
     );
   };
@@ -174,12 +196,12 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
       },
       {
         onSuccess: () => {
-          toast.success('Command updated');
+          toast.success(t('commands.commandUpdated'));
           setEditCmd(null);
           resetForm();
         },
         onError: (err: any) =>
-          toast.error(err?.response?.data?.error || 'Failed to update command'),
+          toast.error(err?.response?.data?.error || t('commands.commandUpdateFailed')),
       },
     );
   };
@@ -188,8 +210,8 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
     return (
       <EmptyState
         icon={MessageSquare}
-        title="Select a server"
-        description="Choose a server to manage custom chat commands."
+        title={t('commands.selectServer')}
+        description={t('commands.selectServerDescription')}
       />
     );
   }
@@ -199,19 +221,19 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
       {showClashWarnings && (
         <>
           <p className="text-sm text-muted-foreground">
-            Custom replies are answered by media bots in their command channels; flows run in the flow engine.
+            {t('commands.intro')}
           </p>
           {clashes.length > 0 && (
             <div role="alert" className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-              <p className="font-medium text-amber-200">Command name clashes</p>
+              <p className="font-medium text-amber-200">{t('commands.clashTitle')}</p>
               <ul className="mt-1 list-disc pl-5 text-muted-foreground">
-                {clashes.map((clash) => <li key={clash.name}>{describeCommandClash(clash)}</li>)}
+                {clashes.map((clash) => <li key={clash.name}>{describeClash(clash)}</li>)}
               </ul>
             </div>
           )}
           <div className="rounded-md border p-3">
-            <p className="text-sm font-medium">Built-in commands</p>
-            <p className="mt-1 text-xs text-muted-foreground">These commands are handled by media bots.</p>
+            <p className="text-sm font-medium">{t('commands.builtInTitle')}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t('commands.builtInDescription')}</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {BUILTIN_CHAT_COMMANDS.map((name) => <code key={name} className="rounded bg-muted px-1.5 py-0.5 text-xs">!{name}</code>)}
             </div>
@@ -221,7 +243,7 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
       <div className="flex items-center gap-2 flex-wrap">
         <Select value={String(configId)} onValueChange={(v) => setServerId(parseInt(v))}>
           <SelectTrigger className="w-48">
-            <SelectValue placeholder="Server..." />
+            <SelectValue placeholder={t('commands.serverPlaceholder')} />
           </SelectTrigger>
           <SelectContent>
             {serverList.map((s: any) => (
@@ -233,7 +255,7 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
         </Select>
         <div className="flex-1" />
         <Button variant="outline" size="sm" onClick={() => setShowPresets(true)}>
-          <MessageSquare className="h-4 w-4 mr-1" /> Presets
+          <MessageSquare className="h-4 w-4 mr-1" /> {t('commands.presets')}
           {missingPresetCount > 0 && (
             <Badge variant="secondary" className="ml-1.5 text-[10px]">
               {missingPresetCount}
@@ -247,15 +269,16 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
             setShowAdd(true);
           }}
         >
-          <Plus className="h-4 w-4 mr-1" /> Add command
+          <Plus className="h-4 w-4 mr-1" /> {t('commands.addCommand')}
         </Button>
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Users type <code className="text-[11px]">!help</code> for built-in music commands or{' '}
-        <code className="text-[11px]">!commands</code> for enabled custom replies. Seed recommended
-        presets (!rules, !links, !discord, !info, !about), edit the text, then enable. Custom
-        responses support TS6 Markdown.
+        <Trans
+          i18nKey="commands.helpText"
+          ns="media"
+          components={{ code: <code className="text-[11px]" /> }}
+        />
       </p>
 
       {isLoading ? (
@@ -263,11 +286,11 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
       ) : commandList.length === 0 ? (
         <EmptyState
           icon={MessageSquare}
-          title="No custom commands"
-          description="Seed recommended presets or add a command like !rules that replies with fixed text in chat."
+          title={t('commands.emptyTitle')}
+          description={t('commands.emptyDescription')}
         >
           <Button size="sm" variant="outline" onClick={() => setShowPresets(true)}>
-            Browse presets
+            {t('commands.browsePresets')}
           </Button>
         </EmptyState>
       ) : (
@@ -283,7 +306,7 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
                   <p className="text-sm font-medium">!{cmd.name}</p>
                   {!cmd.enabled && (
                     <Badge variant="secondary" className="text-[10px]">
-                      Disabled
+                      {t('commands.disabled')}
                     </Badge>
                   )}
                 </div>
@@ -293,14 +316,14 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
                 <p className="text-[11px] text-muted-foreground/80 line-clamp-2 mt-0.5">{cmd.response}</p>
               </div>
               <div className="touch-action-reveal flex shrink-0 items-center gap-1 transition-opacity">
-                <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={`Edit command ${cmd.name}`} onClick={() => openEdit(cmd)}>
+                <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={t('commands.editCommandAria', { name: cmd.name })} onClick={() => openEdit(cmd)}>
                   <Pencil className="h-3.5 w-3.5" />
                 </Button>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7 text-destructive"
-                  aria-label={`Delete command ${cmd.name}`}
+                  aria-label={t('commands.deleteCommandAria', { name: cmd.name })}
                   onClick={() => setDeleteId(cmd.id)}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -314,16 +337,18 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
       <Dialog open={showPresets} onOpenChange={setShowPresets}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Recommended command presets</DialogTitle>
+            <DialogTitle>{t('commands.presetsTitle')}</DialogTitle>
             <DialogDescription>
-              Seed server-scoped canned replies. New presets are created disabled so you can edit
-              placeholder text before enabling. Built-in <code>!commands</code> lists enabled
-              customs (no seed needed).
+              <Trans
+                i18nKey="commands.presetsDescription"
+                ns="media"
+                components={{ code: <code /> }}
+              />
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 max-h-80 overflow-y-auto">
             {presetList.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-8">No presets available.</p>
+              <p className="text-xs text-muted-foreground text-center py-8">{t('commands.noPresets')}</p>
             ) : (
               presetList.map((preset) => {
                 const exists = existingNames.has(preset.name);
@@ -338,7 +363,7 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
                     </div>
                     {exists ? (
                       <Badge variant="secondary" className="text-[10px] shrink-0">
-                        Added
+                        {t('commands.added')}
                       </Badge>
                     ) : (
                       <Button
@@ -348,7 +373,7 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
                         disabled={createCommand.isPending}
                         onClick={() => handleCreateFromPreset(preset)}
                       >
-                        Add
+                        {t('commands.add')}
                       </Button>
                     )}
                   </div>
@@ -358,13 +383,15 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowPresets(false)}>
-              Close
+              {t('commands.close')}
             </Button>
             <Button
               onClick={handleSeedPresets}
               disabled={seedPresets.isPending || missingPresetCount === 0}
             >
-              {seedPresets.isPending ? 'Seeding…' : `Seed missing (${missingPresetCount})`}
+              {seedPresets.isPending
+                ? t('commands.seeding')
+                : t('commands.seedMissing', { count: missingPresetCount })}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -381,36 +408,33 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
       >
         <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>Add chat command</DialogTitle>
-            <DialogDescription>
-              When someone types !name in the media bot channel, the bot replies with your response.
-              Use the formatting toolbar to match TS6 chat styling.
-            </DialogDescription>
+            <DialogTitle>{t('commands.addTitle')}</DialogTitle>
+            <DialogDescription>{t('commands.addDescription')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label className="text-xs" htmlFor="chat-command-name">Command name</Label>
+              <Label className="text-xs" htmlFor="chat-command-name">{t('commands.commandName')}</Label>
               <div className="flex items-center gap-1">
                 <span className="text-sm text-muted-foreground">!</span>
                 <Input
                   id="chat-command-name"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="rules"
+                  placeholder={t('commands.commandNamePlaceholder')}
                   className="flex-1"
                 />
               </div>
             </div>
             <div>
-              <Label className="text-xs">Help blurb (optional)</Label>
+              <Label className="text-xs">{t('commands.helpBlurb')}</Label>
               <Input
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
-                placeholder="Shown next to the command in !help"
+                placeholder={t('commands.helpBlurbPlaceholder')}
               />
             </div>
             <div>
-              <Label className="text-xs">Response</Label>
+              <Label className="text-xs">{t('commands.response')}</Label>
               <Ts6ChatResponseEditor
                 value={form.response}
                 onChange={(response) => setForm({ ...form, response })}
@@ -419,7 +443,7 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
                 className="mt-1"
               />
               <p className="text-[10px] text-muted-foreground mt-1">
-                Preview in TS6 client — web toolbar inserts Markdown / BBCode source text.
+                {t('commands.previewHint')}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -427,15 +451,15 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
                 checked={form.enabled}
                 onCheckedChange={(enabled) => setForm({ ...form, enabled })}
               />
-              <Label className="text-xs">Enabled</Label>
+              <Label className="text-xs">{t('commands.enabled')}</Label>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAdd(false)}>
-              Cancel
+              {t('commands.cancel')}
             </Button>
             <Button onClick={handleCreate} disabled={createCommand.isPending}>
-              Add
+              {t('commands.add')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -452,11 +476,11 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
       >
         <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>Edit !{editCmd?.name}</DialogTitle>
+            <DialogTitle>{t('commands.editTitle', { name: editCmd?.name })}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label className="text-xs" htmlFor="chat-command-name">Command name</Label>
+              <Label className="text-xs" htmlFor="chat-command-name">{t('commands.commandName')}</Label>
               <div className="flex items-center gap-1">
                 <span className="text-sm text-muted-foreground">!</span>
                 <Input
@@ -468,14 +492,14 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
               </div>
             </div>
             <div>
-              <Label className="text-xs">Help blurb (optional)</Label>
+              <Label className="text-xs">{t('commands.helpBlurb')}</Label>
               <Input
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
               />
             </div>
             <div>
-              <Label className="text-xs">Response</Label>
+              <Label className="text-xs">{t('commands.response')}</Label>
               <Ts6ChatResponseEditor
                 value={form.response}
                 onChange={(response) => setForm({ ...form, response })}
@@ -483,7 +507,7 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
                 className="mt-1"
               />
               <p className="text-[10px] text-muted-foreground mt-1">
-                Preview in TS6 client — web toolbar inserts Markdown / BBCode source text.
+                {t('commands.previewHint')}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -491,15 +515,15 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
                 checked={form.enabled}
                 onCheckedChange={(enabled) => setForm({ ...form, enabled })}
               />
-              <Label className="text-xs">Enabled</Label>
+              <Label className="text-xs">{t('commands.enabled')}</Label>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditCmd(null)}>
-              Cancel
+              {t('commands.cancel')}
             </Button>
             <Button onClick={handleUpdate} disabled={updateCommand.isPending}>
-              Save
+              {t('commands.save')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -508,18 +532,18 @@ export function CommandsTab({ showClashWarnings = false }: { showClashWarnings?:
       <ConfirmDialog
         open={deleteId !== null}
         onOpenChange={() => setDeleteId(null)}
-        title="Delete command?"
-        description="Users will no longer be able to trigger this chat command."
+        title={t('commands.deleteTitle')}
+        description={t('commands.deleteDescription')}
         onConfirm={() => {
           if (!configId || deleteId === null) return;
           deleteCommand.mutate(
             { configId, id: deleteId },
             {
               onSuccess: () => {
-                toast.success('Command deleted');
+                toast.success(t('commands.commandDeleted'));
                 setDeleteId(null);
               },
-              onError: () => toast.error('Failed to delete command'),
+              onError: () => toast.error(t('commands.commandDeleteFailed')),
             },
           );
         }}

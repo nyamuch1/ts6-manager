@@ -9,6 +9,35 @@ import type { EventBridge } from '../../bot-engine/event-bridge.js';
 import { clientRateKey } from '../../utils/client-address.js';
 import type { ListenerRemoteRefusalAudit, RefusalEvent } from '../../audit/index.js';
 import { config } from '../../config.js';
+import { translate, type MessageKey } from '../../i18n/index.js';
+import { requestLocale } from '../../i18n/middleware.js';
+
+/**
+ * ListenerRemoteError originates in the voice service and route helpers, which
+ * have no request locale. Serialize its known English copy through the
+ * dictionary; unknown (dynamic) messages pass through unchanged.
+ */
+const LISTENER_REMOTE_MESSAGE_KEYS: Record<string, MessageKey> = {
+  'Listener remote is unavailable.': 'errors.listener_remote_unavailable',
+  'You are not allowed to use this command.': 'errors.listener_permission_denied',
+  'Bot not found.': 'errors.bot_not_found_period',
+  'Listener access is invalid or expired.': 'errors.listener_access_invalid',
+  'Invalid listener request.': 'errors.invalid_listener_request',
+  'Song not found.': 'errors.listener_song_not_found',
+  'The queue is full.': 'errors.queue_full',
+  'Playback was stopped before this request was ready.': 'errors.playback_stopped_before_request',
+  'This media URL is not allowed.': 'errors.media_url_not_allowed',
+  'A media request is already pending.': 'errors.media_request_pending',
+  'The media link took too long to load.': 'errors.media_link_timeout',
+  'Remote access is invalid or expired': 'errors.remote_access_invalid',
+  'Invalid remote listener identity': 'errors.invalid_remote_identity',
+  'Remote access is temporarily unavailable': 'errors.remote_temporarily_unavailable',
+};
+
+export function listenerRemoteErrorCopy(req: Request, err: ListenerRemoteError): string {
+  const key = LISTENER_REMOTE_MESSAGE_KEYS[err.message];
+  return key ? translate(requestLocale(req), key) : err.message;
+}
 
 export function service(req: Request): ListenerRemoteService {
   const value = req.app.locals.listenerRemote;
@@ -103,11 +132,14 @@ export function endpoint(fn: (req: Request, res: Response) => Promise<void>) {
       if (err instanceof ListenerRemoteError) {
         recordRefusal(req, res, err, routeLabel(req));
         if (err.status === 429) res.setHeader('Retry-After', retryAfter(err));
-        res.status(err.status).json({ error: err.message, code: err.code });
+        res.status(err.status).json({ error: listenerRemoteErrorCopy(req, err), code: err.code });
       } else {
         // Resolver/Query/database exceptions can contain credentials or pasted URLs.
         recordRefusal(req, res, new ListenerRemoteError(503, 'unavailable', 'Listener remote is unavailable.'));
-        res.status(503).json({ error: 'Listener remote is unavailable.', code: 'unavailable' });
+        res.status(503).json({
+          error: translate(requestLocale(req), 'errors.listener_remote_unavailable'),
+          code: 'unavailable',
+        });
       }
     });
   };
@@ -151,8 +183,13 @@ export const listenerRemoteIpGuard: RequestHandler = (req, res, next) => {
     if (err instanceof ListenerRemoteError) {
       recordRefusal(req, res, err, routeLabel(req));
       if (err.status === 429) res.setHeader('Retry-After', retryAfter(err));
-      res.status(err.status).json({ error: err.message, code: err.code });
-    } else res.status(503).json({ error: 'Listener remote is unavailable.', code: 'unavailable' });
+      res.status(err.status).json({ error: listenerRemoteErrorCopy(req, err), code: err.code });
+    } else {
+      res.status(503).json({
+        error: translate(requestLocale(req), 'errors.listener_remote_unavailable'),
+        code: 'unavailable',
+      });
+    }
   }
 };
 

@@ -4,6 +4,7 @@ import {
   sanitizeCustomCssEnabled,
   sanitizeCustomCssText,
 } from '@/lib/custom-css';
+import { isLanguagePreference, type LanguagePreference } from '@/i18n/languages';
 
 export const BASE_THEMES = ['light', 'dark', 'black'] as const;
 export const ACCENTS = ['cyan', 'violet', 'red', 'blue', 'emerald', 'amber'] as const;
@@ -42,6 +43,9 @@ export const DEFAULT_SIDEBAR_SECTIONS: SidebarSections = {
   automation: false,
 };
 const COMPACT_SIDEBAR_DEFAULTS_VERSION = 7;
+export const DEFAULT_LANGUAGE: LanguagePreference = 'system';
+/** Persist schema version; 8 added the language preference. */
+const UI_STORE_VERSION = 8;
 
 function isBaseTheme(value: unknown): value is BaseTheme {
   return typeof value === 'string' && BASE_THEMES.includes(value as BaseTheme);
@@ -119,6 +123,7 @@ function migrateUiState(persisted: unknown, fromVersion?: number) {
     customCssEnabled: sanitizeCustomCssEnabled(state.customCssEnabled, customCssText),
     permissionLabelMode: isPermissionLabelMode(state.permissionLabelMode) ? state.permissionLabelMode : 'simple',
     showQueryClients: state.showQueryClients === true,
+    language: isLanguagePreference(state.language) ? state.language : DEFAULT_LANGUAGE,
   };
 }
 
@@ -134,6 +139,8 @@ interface UiStore {
   customCssEnabled: boolean;
   permissionLabelMode: PermissionLabelMode;
   showQueryClients: boolean;
+  language: LanguagePreference;
+  setLanguage: (language: LanguagePreference) => void;
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   toggleSidebarSection: (sectionId: SidebarSectionId) => void;
@@ -166,6 +173,8 @@ export const useUiStore = create<UiStore>()(
       customCssEnabled: DEFAULT_CUSTOM_CSS_ENABLED,
       permissionLabelMode: 'simple',
       showQueryClients: false,
+      language: DEFAULT_LANGUAGE,
+      setLanguage: (language) => set({ language }),
       toggleSidebar: () => set({ sidebarCollapsed: !get().sidebarCollapsed }),
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
       toggleSidebarSection: (sectionId) => set(state => ({
@@ -216,12 +225,12 @@ export const useUiStore = create<UiStore>()(
     }),
     {
       name: 'ts6-ui',
-      version: COMPACT_SIDEBAR_DEFAULTS_VERSION,
+      version: UI_STORE_VERSION,
       migrate: (persisted, fromVersion) => migrateUiState(persisted, fromVersion),
       merge: (persisted, current) => ({ ...current, ...migrateUiState(persisted) }),
       partialize: ({
         sidebarCollapsed, sidebarSections, baseTheme, accent, background, backgroundMotion, backgroundIntensity,
-        customCssText, customCssEnabled, permissionLabelMode, showQueryClients,
+        customCssText, customCssEnabled, permissionLabelMode, showQueryClients, language,
       }) => ({
         sidebarCollapsed,
         sidebarSections,
@@ -234,6 +243,7 @@ export const useUiStore = create<UiStore>()(
         customCssEnabled,
         permissionLabelMode,
         showQueryClients,
+        language,
       }),
       onRehydrateStorage: () => (state) => {
         applyAppearance(state?.baseTheme ?? DEFAULT_BASE_THEME, state?.accent ?? DEFAULT_ACCENT);

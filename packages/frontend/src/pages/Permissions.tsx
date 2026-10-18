@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { permissionsApi } from '@/api/permissions.api';
@@ -20,25 +21,25 @@ import {
 import { toast } from 'sonner';
 
 // Permission categories based on TS3 naming convention
-const PERM_CATEGORIES: Record<string, string> = {
-  b_virtualserver: 'Virtual Server',
-  b_serverinstance: 'Server Instance',
-  b_serverquery: 'Server Query',
-  b_channel: 'Channel',
-  b_client: 'Client',
-  b_group: 'Group',
-  b_ft: 'File Transfer',
-  i_channel: 'Channel (Values)',
-  i_group: 'Group (Values)',
-  i_client: 'Client (Values)',
-  i_ft: 'File Transfer (Values)',
-  i_max: 'Limits',
-  i_needed: 'Needed Powers',
-};
+const PERM_CATEGORY_PREFIXES = [
+  'b_virtualserver',
+  'b_serverinstance',
+  'b_serverquery',
+  'b_channel',
+  'b_client',
+  'b_group',
+  'b_ft',
+  'i_channel',
+  'i_group',
+  'i_client',
+  'i_ft',
+  'i_max',
+  'i_needed',
+];
 
 function getCategoryKey(permsid: string): string {
   // Match longest prefix first
-  const prefixes = Object.keys(PERM_CATEGORIES).sort((a, b) => b.length - a.length);
+  const prefixes = [...PERM_CATEGORY_PREFIXES].sort((a, b) => b.length - a.length);
   for (const prefix of prefixes) {
     if (permsid.startsWith(prefix)) return prefix;
   }
@@ -174,11 +175,11 @@ function normalizePermissionValues(values: unknown, permIdToName: Map<number, st
   return normalized;
 }
 
-const LAYERS: { key: PermLayer; label: string; icon: React.ElementType }[] = [
-  { key: 'server-group', label: 'Server Groups', icon: Shield },
-  { key: 'channel-group', label: 'Channel Groups', icon: Users },
-  { key: 'channel', label: 'Channel', icon: Hash },
-  { key: 'client', label: 'Client', icon: User },
+const LAYERS: { key: PermLayer; labelKey: string; selectKey: string; icon: React.ElementType }[] = [
+  { key: 'server-group', labelKey: 'permissions.layers.serverGroup', selectKey: 'permissions.selectEntity.serverGroup', icon: Shield },
+  { key: 'channel-group', labelKey: 'permissions.layers.channelGroup', selectKey: 'permissions.selectEntity.channelGroup', icon: Users },
+  { key: 'channel', labelKey: 'permissions.layers.channel', selectKey: 'permissions.selectEntity.channel', icon: Hash },
+  { key: 'client', labelKey: 'permissions.layers.client', selectKey: 'permissions.selectEntity.client', icon: User },
 ];
 
 interface CompareColumn {
@@ -190,12 +191,15 @@ interface CompareColumn {
   errorStatus?: number;
 }
 
-function describePermissionValue(value: PermValue | undefined): string {
-  if (!value) return 'Unset';
-  const parts = [`Value ${value.permvalue}`];
-  if (value.permskip) parts.push('Skip');
-  if (value.permnegated) parts.push('Negate');
-  return parts.join(', ');
+function useDescribePermissionValue() {
+  const { t } = useTranslation('admin');
+  return (value: PermValue | undefined): string => {
+    if (!value) return t('permissions.unset');
+    const parts = [t('permissions.value', { value: value.permvalue })];
+    if (value.permskip) parts.push(t('permissions.skip'));
+    if (value.permnegated) parts.push(t('permissions.negate'));
+    return parts.join(t('permissions.listSeparator'));
+  };
 }
 
 function PermissionCompare({
@@ -207,6 +211,8 @@ function PermissionCompare({
   columns: CompareColumn[];
   labelMode: 'simple' | 'technical';
 }) {
+  const { t } = useTranslation('admin');
+  const describePermissionValue = useDescribePermissionValue();
   const [search, setSearch] = useState('');
   const [setOnAny, setSetOnAny] = useState(false);
   const [differencesOnly, setDifferencesOnly] = useState(false);
@@ -237,18 +243,18 @@ function PermissionCompare({
       <div className="flex flex-wrap items-center gap-3">
         <label className="flex min-h-9 items-center gap-2 text-xs text-muted-foreground">
           <input type="checkbox" checked={setOnAny} onChange={event => setSetOnAny(event.target.checked)} />
-          Set on any
+          {t('permissions.setOnAny')}
         </label>
         <label className="flex min-h-9 items-center gap-2 text-xs text-muted-foreground">
           <input type="checkbox" checked={differencesOnly} onChange={event => setDifferencesOnly(event.target.checked)} />
-          Differences only
+          {t('permissions.differencesOnly')}
         </label>
         <div className="relative min-w-0 flex-1 sm:min-w-64">
           <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             value={search}
             onChange={event => setSearch(event.target.value)}
-            placeholder="Search compared permissions..."
+            placeholder={t('permissions.searchComparePlaceholder')}
             className="h-9 pl-7 text-xs"
           />
         </div>
@@ -257,7 +263,7 @@ function PermissionCompare({
         <table className="w-full border-collapse text-left text-xs" style={{ minWidth: `${Math.max(720, 260 + columns.length * 180)}px` }}>
           <thead className="bg-muted/40">
             <tr>
-              <th scope="col" className="sticky left-0 z-10 w-64 border-b border-r border-border bg-muted px-3 py-2">Permission</th>
+              <th scope="col" className="sticky left-0 z-10 w-64 border-b border-r border-border bg-muted px-3 py-2">{t('permissions.permission')}</th>
               {normalizedColumns.map(column => (
                 <th key={column.id} scope="col" className="min-w-44 border-b border-border px-3 py-2 align-top">
                   <span className="block font-semibold text-foreground">{column.name}</span>
@@ -265,7 +271,7 @@ function PermissionCompare({
                   {column.isError && (
                     <span className="mt-1 flex items-center gap-1 text-destructive" role="status">
                       <AlertTriangle className="h-3 w-3" />
-                      {column.errorStatus === 429 ? 'Query cooldown active' : 'Failed to load'}
+                      {column.errorStatus === 429 ? t('permissions.queryCooldown') : t('permissions.failedToLoad')}
                     </span>
                   )}
                 </th>
@@ -287,21 +293,21 @@ function PermissionCompare({
                 </th>
                 {normalizedColumns.map(column => {
                   const value = column.permissions.get(permission.permsid);
-                  const failureDescription = column.errorStatus === 429 ? 'Query cooldown active' : 'Failed to load';
-                  const description = column.isError ? failureDescription : column.isLoading ? 'Loading' : describePermissionValue(value);
+                  const failureDescription = column.errorStatus === 429 ? t('permissions.queryCooldown') : t('permissions.failedToLoad');
+                  const description = column.isError ? failureDescription : column.isLoading ? t('permissions.loading') : describePermissionValue(value);
                   return (
                     <td key={column.id} aria-label={`${column.name}: ${description}`} className="px-3 py-2 align-top">
                       {column.isError ? (
                         <span className="font-medium text-destructive">{failureDescription}</span>
                       ) : column.isLoading ? (
-                        <span className="text-muted-foreground">Loading…</span>
+                        <span className="text-muted-foreground">{t('permissions.loadingEllipsis')}</span>
                       ) : !value ? (
-                        <Badge variant="outline">Unset</Badge>
+                        <Badge variant="outline">{t('permissions.unset')}</Badge>
                       ) : (
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span className="font-mono-data font-medium">{value.permvalue}</span>
-                          {!!value.permskip && <Badge variant="secondary">Skip</Badge>}
-                          {!!value.permnegated && <Badge variant="destructive">Negate</Badge>}
+                          {!!value.permskip && <Badge variant="secondary">{t('permissions.skip')}</Badge>}
+                          {!!value.permnegated && <Badge variant="destructive">{t('permissions.negate')}</Badge>}
                         </div>
                       )}
                     </td>
@@ -312,7 +318,7 @@ function PermissionCompare({
           </tbody>
         </table>
         {filtered.length === 0 && (
-          <p className="p-8 text-center text-sm text-muted-foreground">No permissions match the Compare filters</p>
+          <p className="p-8 text-center text-sm text-muted-foreground">{t('permissions.noCompareMatch')}</p>
         )}
       </div>
     </div>
@@ -320,6 +326,8 @@ function PermissionCompare({
 }
 
 export default function Permissions() {
+  const { t } = useTranslation('admin');
+  const { t: tc } = useTranslation();
   const { selectedConfigId: c, selectedSid: s, setServer } = useServerStore();
   const { permissionLabelMode, setPermissionLabelMode } = useUiStore();
   const qc = useQueryClient();
@@ -361,7 +369,7 @@ export default function Permissions() {
     if (isDirty && draft) {
       setServer(draft.owner.configId, draft.owner.sid);
       setPendingTransition({
-        description: 'Discard the draft before switching the TeamSpeak connection or virtual server?',
+        description: t('permissions.discardConnection'),
         apply: () => {
           acceptedServerContext.current = requested;
           setEntityId(null);
@@ -375,7 +383,7 @@ export default function Permissions() {
     acceptedServerContext.current = requested;
     setEntityId(null);
     resetCompare();
-  }, [c, s, draft, isDirty, resetCompare, setServer]);
+  }, [c, s, draft, isDirty, resetCompare, setServer, t]);
 
   useEffect(() => {
     if (!isDirty) return;
@@ -396,14 +404,14 @@ export default function Permissions() {
       event.preventDefault();
       event.stopPropagation();
       setPendingTransition({
-        description: 'Discard the draft before leaving Permissions?',
+        description: t('permissions.discardLeave'),
         apply: () => navigate(destinationPath),
       });
     };
 
     document.addEventListener('click', protectInAppNavigation, true);
     return () => document.removeEventListener('click', protectInAppNavigation, true);
-  }, [isDirty, navigate]);
+  }, [isDirty, navigate, t]);
 
   useEffect(() => {
     if (!isDirty) return;
@@ -574,17 +582,18 @@ export default function Permissions() {
 
   const changeLayer = useCallback((nextLayer: PermLayer) => {
     if (nextLayer === layer) return;
-    requestTransition(`Discard the draft before switching to ${LAYERS.find((item) => item.key === nextLayer)?.label}?`, () => {
+    const targetLayer = LAYERS.find((item) => item.key === nextLayer);
+    requestTransition(t('permissions.discardLayer', { layer: targetLayer ? t(targetLayer.labelKey) : nextLayer }), () => {
       setLayer(nextLayer);
       setEntityId(null);
       resetCompare();
     });
-  }, [layer, requestTransition, resetCompare]);
+  }, [layer, requestTransition, resetCompare, t]);
 
   const changeEntity = useCallback((nextEntityId: number, name: string) => {
     if (nextEntityId === entityId) return;
-    requestTransition(`Discard the draft before editing ${name}?`, () => setEntityId(nextEntityId));
-  }, [entityId, requestTransition]);
+    requestTransition(t('permissions.discardEdit', { name }), () => setEntityId(nextEntityId));
+  }, [entityId, requestTransition, t]);
 
   const toggleCompareEntity = useCallback((selectedEntityId: number) => {
     setCompareSelection((current) => {
@@ -594,12 +603,12 @@ export default function Permissions() {
         return next;
       }
       if (current.length >= 4) {
-        toast.warning('Compare is limited to 4 entities');
+        toast.warning(t('permissions.compareLimit'));
         return current;
       }
       return [...current, selectedEntityId];
     });
-  }, []);
+  }, [t]);
 
   const clearCompletedChanges = useCallback((snapshot: SaveSnapshot, completed: PendingChange[]) => {
     setDraft((current) => {
@@ -633,20 +642,24 @@ export default function Permissions() {
     onSuccess: ({ snapshot, completed }) => {
       clearCompletedChanges(snapshot, completed);
       void invalidateSavedContext(snapshot.owner);
-      toast.success('Permissions saved to the original draft context');
+      toast.success(t('permissions.saved'));
     },
     onError: (error) => {
       if (!(error instanceof PermissionSaveError)) {
-        toast.error('Permission save failed. The draft was retained.');
+        toast.error(t('permissions.saveFailed'));
         return;
       }
       clearCompletedChanges(error.snapshot, error.completed);
       void invalidateSavedContext(error.snapshot.owner);
       const remaining = error.snapshot.mutations.length - error.completed.length;
       if (error.completed.length === 0) {
-        toast.error(`No permission changes were saved. ${remaining} ${remaining === 1 ? 'change remains' : 'changes remain'}.`);
+        toast.error(t('permissions.savedNone', { count: remaining }));
       } else {
-        toast.error(`${error.completed.length} of ${error.snapshot.mutations.length} permission changes saved. ${remaining} ${remaining === 1 ? 'change remains' : 'changes remain'}.`);
+        toast.error(t('permissions.savedPartial', {
+          count: remaining,
+          saved: error.completed.length,
+          total: error.snapshot.mutations.length,
+        }));
       }
     },
     onSettled: () => { saveLock.current = false; },
@@ -661,7 +674,7 @@ export default function Permissions() {
     });
   }, [draft, saveMutation]);
 
-  if (!c || !s) return <NoServerSelectedState pageTitle="Permissions" icon={Lock} />;
+  if (!c || !s) return <NoServerSelectedState pageTitle={t('permissions.title')} icon={Lock} />;
   if (loadingDefs) return <PageLoader />;
 
   const entities = (() => {
@@ -703,7 +716,7 @@ export default function Permissions() {
   })();
   const compareColumns: CompareColumn[] = compareSelection.map((selectedEntityId, index) => ({
     id: selectedEntityId,
-    name: entities.find(entity => entity.id === selectedEntityId)?.name || `Entity ${selectedEntityId}`,
+    name: entities.find(entity => entity.id === selectedEntityId)?.name || t('permissions.entityFallback', { id: selectedEntityId }),
     data: compareResults[index]?.data,
     isLoading: compareResults[index]?.isLoading ?? false,
     isError: compareResults[index]?.isError ?? false,
@@ -714,33 +727,33 @@ export default function Permissions() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-xl font-semibold">Permissions</h1>
+          <h1 className="text-xl font-semibold">{t('permissions.title')}</h1>
           <Button
             variant={showCompare ? 'default' : 'outline'}
             size="sm"
             className="min-h-10 sm:min-h-8"
             disabled={compareSelection.length < 2}
-            aria-label={`Compare ${compareSelection.length} selected entities`}
+            aria-label={t('permissions.compareAria', { count: compareSelection.length })}
             onClick={() => setShowCompare(true)}
           >
-            <Columns3 className="mr-1 h-3.5 w-3.5" /> Compare ({compareSelection.length})
+            <Columns3 className="mr-1 h-3.5 w-3.5" /> {t('permissions.compare', { count: compareSelection.length })}
           </Button>
           {showCompare && (
             <Button variant="ghost" size="sm" className="min-h-10 sm:min-h-8" onClick={() => setShowCompare(false)}>
-              Return to editor
+              {t('permissions.returnToEditor')}
             </Button>
           )}
         </div>
         {isDirty && (
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary" className="font-mono-data" role="status">
-              {changes.size} unsaved {changes.size === 1 ? 'change' : 'changes'}
+              {t('permissions.unsaved', { count: changes.size })}
             </Badge>
             <Button variant="outline" size="sm" className="min-h-10 sm:min-h-8" onClick={() => setDraft(null)}>
-              <X className="h-3.5 w-3.5 mr-1" /> Discard
+              <X className="h-3.5 w-3.5 mr-1" /> {t('permissions.discard')}
             </Button>
             <Button size="sm" className="min-h-10 sm:min-h-8" onClick={saveDraft} disabled={saveMutation.isPending}>
-              <Save className="h-3.5 w-3.5 mr-1" /> Save
+              <Save className="h-3.5 w-3.5 mr-1" /> {tc('action.save')}
             </Button>
           </div>
         )}
@@ -748,7 +761,7 @@ export default function Permissions() {
 
       {/* Layer Tabs */}
       <div className="flex max-w-full gap-1 overflow-x-auto rounded-lg bg-muted/30 p-1">
-        {LAYERS.map(({ key, label, icon: Icon }) => (
+        {LAYERS.map(({ key, labelKey, icon: Icon }) => (
           <button
             key={key}
             onClick={() => changeLayer(key)}
@@ -761,7 +774,7 @@ export default function Permissions() {
             )}
           >
             <Icon className="h-3.5 w-3.5" />
-            {label}
+            {t(labelKey)}
           </button>
         ))}
       </div>
@@ -771,11 +784,11 @@ export default function Permissions() {
         <Card className="lg:col-span-3">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Select {LAYERS.find((l) => l.key === layer)?.label.replace(/s$/, '')}
+              {t(LAYERS.find((l) => l.key === layer)?.selectKey || 'permissions.selectEntityHint')}
             </CardTitle>
             {layer === 'client' && (
               <Input
-                placeholder="Search online/offline clients..."
+                placeholder={t('permissions.searchClientsPlaceholder')}
                 value={clientSearch}
                 onChange={(e) => setClientSearch(e.target.value)}
                 className="h-8 text-xs mt-2"
@@ -802,12 +815,12 @@ export default function Permissions() {
                       )}
                     >
                       <span className="min-w-0 flex-1 truncate">{ent.name}</span>
-                      {entityId === ent.id && <Badge variant="secondary" className="h-5 text-[9px]">Editing</Badge>}
+                      {entityId === ent.id && <Badge variant="secondary" className="h-5 text-[9px]">{t('permissions.editing')}</Badge>}
                       <span className="shrink-0 font-mono-data text-[10px] text-muted-foreground">#{ent.id}</span>
                     </button>
                     <button
                       type="button"
-                      aria-label={`Select ${ent.name} for Compare`}
+                      aria-label={t('permissions.selectForCompare', { name: ent.name })}
                       aria-pressed={compareSelection.includes(ent.id)}
                       onClick={() => toggleCompareEntity(ent.id)}
                       className={cn(
@@ -817,12 +830,12 @@ export default function Permissions() {
                           : 'border-border text-muted-foreground hover:text-foreground',
                       )}
                     >
-                      Compare
+                      {t('permissions.compareButton')}
                     </button>
                   </div>
                 ))}
                 {entities.length === 0 && (
-                  <p className="text-xs text-muted-foreground text-center py-4">No entities found</p>
+                  <p className="text-xs text-muted-foreground text-center py-4">{t('permissions.noEntities')}</p>
                 )}
               </div>
             </ScrollArea>
@@ -834,14 +847,14 @@ export default function Permissions() {
           <CardHeader className="pb-2">
             <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                {showCompare ? 'Permissions Compare — read only' : entityId ? 'Permissions' : 'Select an entity'}
+                {showCompare ? t('permissions.compareReadOnly') : entityId ? t('permissions.permissionsHeader') : t('permissions.selectEntityHint')}
               </CardTitle>
               {(entityId || showCompare) && (
                 <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
-                  <div className="flex rounded-md border border-border p-0.5" aria-label="Permission label style">
+                  <div className="flex rounded-md border border-border p-0.5" aria-label={t('permissions.labelStyle')}>
                     <button
                       type="button"
-                      aria-label="Simple labels"
+                      aria-label={t('permissions.simpleLabels')}
                       aria-pressed={permissionLabelMode === 'simple'}
                       onClick={() => setPermissionLabelMode('simple')}
                       className={cn(
@@ -849,11 +862,11 @@ export default function Permissions() {
                         permissionLabelMode === 'simple' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground',
                       )}
                     >
-                      Simple
+                      {t('permissions.simple')}
                     </button>
                     <button
                       type="button"
-                      aria-label="Technical labels"
+                      aria-label={t('permissions.technicalLabels')}
                       aria-pressed={permissionLabelMode === 'technical'}
                       onClick={() => setPermissionLabelMode('technical')}
                       className={cn(
@@ -861,7 +874,7 @@ export default function Permissions() {
                         permissionLabelMode === 'technical' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground',
                       )}
                     >
-                      Technical
+                      {t('permissions.technical')}
                     </button>
                   </div>
                   {!showCompare && (
@@ -871,15 +884,15 @@ export default function Permissions() {
                           type="checkbox"
                           checked={showSetOnly}
                           onChange={(e) => setShowSetOnly(e.target.checked)}
-                          title="Show currently set permissions and staged changes"
+                          title={t('permissions.showSetOnlyTitle')}
                           className="rounded border-border"
                         />
-                        Set only
+                        {t('permissions.setOnly')}
                       </label>
                       <div className="relative min-w-0 flex-1 sm:w-64 sm:flex-none">
                         <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
                         <Input
-                          placeholder="Search permissions..."
+                          placeholder={t('permissions.searchPermissionsPlaceholder')}
                           value={search}
                           onChange={(e) => setSearch(e.target.value)}
                           className="pl-7 h-8 text-xs"
@@ -898,7 +911,7 @@ export default function Permissions() {
               <ScrollArea className="h-[min(500px,60dvh)] min-h-72">
               {!entityId ? (
                 <div className="flex h-[min(400px,50dvh)] min-h-64 items-center justify-center">
-                  <p className="text-sm text-muted-foreground">Select an entity from the left panel</p>
+                  <p className="text-sm text-muted-foreground">{t('permissions.selectEntityLeft')}</p>
                 </div>
               ) : loadingPerms ? (
                 <div className="flex h-[min(400px,50dvh)] min-h-64 items-center justify-center">
@@ -914,17 +927,17 @@ export default function Permissions() {
                         className="flex items-center gap-1.5 w-full px-2 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors rounded"
                       >
                         {expandedCats.has(catKey) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                        {PERM_CATEGORIES[catKey] || catKey}
+                        {t('permissions.categories.' + catKey)}
                         <Badge variant="secondary" className="text-[9px] h-4 ml-1">{perms.length}</Badge>
                       </button>
                       {expandedCats.has(catKey) && (
                         <div className="ml-4 border-l border-border/50 pl-2">
                           {/* Header */}
                           <div className="grid grid-cols-12 gap-2 px-2 py-1 text-[10px] text-muted-foreground uppercase tracking-wider">
-                            <div className="col-span-5">Permission</div>
-                            <div className="col-span-2 text-center">Value</div>
-                            <div className="col-span-1 text-center">Skip</div>
-                            <div className="col-span-1 text-center">Negate</div>
+                            <div className="col-span-5">{t('permissions.permission')}</div>
+                            <div className="col-span-2 text-center">{t('permissions.valueHeader')}</div>
+                            <div className="col-span-1 text-center">{t('permissions.skip')}</div>
+                            <div className="col-span-1 text-center">{t('permissions.negate')}</div>
                             <div className="col-span-3"></div>
                           </div>
                           {perms.map((perm) => {
@@ -955,7 +968,7 @@ export default function Permissions() {
                                 <div className="col-span-2 flex justify-center">
                                   {isBoolean ? (
                                     <button
-                                      aria-label={`${getSimplePermissionLabel(perm)} permission`}
+                                      aria-label={t('permissions.labelPermissionAria', { label: getSimplePermissionLabel(perm) })}
                                       aria-pressed={isSet}
                                       onClick={() => {
                                         if (isSet) removePerm(perm.permsid);
@@ -973,7 +986,7 @@ export default function Permissions() {
                                   ) : (
                                     <Input
                                       type="number"
-                                      aria-label={`${getSimplePermissionLabel(perm)} value`}
+                                      aria-label={t('permissions.labelValueAria', { label: getSimplePermissionLabel(perm) })}
                                       className="h-6 w-20 text-xs text-center font-mono-data px-1"
                                       value={effective?.permvalue ?? ''}
                                       placeholder="—"
@@ -991,7 +1004,7 @@ export default function Permissions() {
                                 <div className="col-span-1 flex justify-center">
                                   {!isBoolean && (
                                     <button
-                                      aria-label={`${getSimplePermissionLabel(perm)} Skip`}
+                                      aria-label={t('permissions.labelSkipAria', { label: getSimplePermissionLabel(perm) })}
                                       aria-pressed={!!(isSet && effective?.permskip)}
                                       disabled={!isSet}
                                       onClick={() => {
@@ -1005,16 +1018,16 @@ export default function Permissions() {
                                           ? 'border-warning bg-warning/20 text-warning'
                                           : 'border-border/50',
                                       )}
-                                      title="Skip"
+                                      title={t('permissions.skip')}
                                     >
-                                      {isSet && effective?.permskip ? 'S' : ''}
+                                      {isSet && effective?.permskip ? t('permissions.skipShort') : ''}
                                     </button>
                                   )}
                                 </div>
                                 <div className="col-span-1 flex justify-center">
                                   {!isBoolean && (
                                     <button
-                                      aria-label={`${getSimplePermissionLabel(perm)} Negate`}
+                                      aria-label={t('permissions.labelNegateAria', { label: getSimplePermissionLabel(perm) })}
                                       aria-pressed={!!(isSet && effective?.permnegated)}
                                       disabled={!isSet}
                                       onClick={() => {
@@ -1028,9 +1041,9 @@ export default function Permissions() {
                                           ? 'bg-destructive/20 border-destructive text-destructive'
                                           : 'border-border/50',
                                       )}
-                                      title="Negate"
+                                      title={t('permissions.negate')}
                                     >
-                                      {isSet && effective?.permnegated ? 'N' : ''}
+                                      {isSet && effective?.permnegated ? t('permissions.negateShort') : ''}
                                     </button>
                                   )}
                                 </div>
@@ -1038,15 +1051,15 @@ export default function Permissions() {
                                   {isSet && (
                                     <button
                                       onClick={() => removePerm(perm.permsid)}
-                                      aria-label={`Remove ${getSimplePermissionLabel(perm)}`}
+                                      aria-label={t('permissions.removeLabelAria', { label: getSimplePermissionLabel(perm) })}
                                       className="flex h-10 w-10 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive sm:h-7 sm:w-7"
-                                      title="Remove permission"
+                                      title={t('permissions.removePermission')}
                                     >
                                       <Minus className="h-3 w-3" />
                                     </button>
                                   )}
                                   {isChanged && (
-                                    <span className="text-[9px] text-primary font-mono-data">Staged</span>
+                                    <span className="text-[9px] text-primary font-mono-data">{t('permissions.staged')}</span>
                                   )}
                                 </div>
                               </div>
@@ -1058,7 +1071,7 @@ export default function Permissions() {
                   ))}
                   {categories.size === 0 && (
                     <div className="flex items-center justify-center h-[300px]">
-                      <p className="text-sm text-muted-foreground">No permissions match your search</p>
+                      <p className="text-sm text-muted-foreground">{t('permissions.noSearchMatch')}</p>
                     </div>
                   )}
                 </div>
@@ -1073,10 +1086,10 @@ export default function Permissions() {
         onOpenChange={(open) => {
           if (!open) setPendingTransition(null);
         }}
-        title="Unsaved permission changes"
-        description={pendingTransition?.description || 'Discard this permission draft?'}
-        cancelLabel="Stay"
-        confirmLabel="Discard & continue"
+        title={t('permissions.unsavedTitle')}
+        description={pendingTransition?.description || t('permissions.discardDraft')}
+        cancelLabel={t('permissions.stay')}
+        confirmLabel={t('permissions.discardContinue')}
         destructive
         onConfirm={() => {
           const transition = pendingTransition;

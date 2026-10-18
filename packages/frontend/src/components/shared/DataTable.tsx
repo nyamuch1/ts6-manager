@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   type ColumnDef,
   flexRender,
@@ -61,15 +62,21 @@ export function DataTable<TData, TValue>({
   data,
   searchEnabled = false,
   searchKey,
-  searchPlaceholder = 'Search...',
-  searchLabel = 'Search table',
+  searchPlaceholder,
+  searchLabel,
   pageSize = 20,
   density = 'comfortable',
   stickyHeader = false,
-  tableLabel = 'Data table',
-  emptyText = 'No data available',
-  filteredEmptyText = 'No results match your search',
+  tableLabel,
+  emptyText,
+  filteredEmptyText,
 }: DataTableProps<TData, TValue>) {
+  const { t } = useTranslation();
+  const resolvedSearchPlaceholder = searchPlaceholder ?? t('common:dataTable.searchPlaceholder');
+  const resolvedSearchLabel = searchLabel ?? t('common:dataTable.searchLabel');
+  const resolvedTableLabel = tableLabel ?? t('common:dataTable.tableLabel');
+  const resolvedEmptyText = emptyText ?? t('common:dataTable.empty');
+  const resolvedFilteredEmptyText = filteredEmptyText ?? t('common:dataTable.filteredEmpty');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
   const [scrollState, setScrollState] = useState({ overflow: false, left: false, right: false });
@@ -145,9 +152,9 @@ export function DataTable<TData, TValue>({
           <Input
             id={`${tableId}-search`}
             type="search"
-            aria-label={searchLabel}
+            aria-label={resolvedSearchLabel}
             aria-controls={tableId}
-            placeholder={searchPlaceholder}
+            placeholder={resolvedSearchPlaceholder}
             value={globalFilter}
             onChange={(event) => setSearch(event.target.value)}
             className="h-10 pl-9 pr-11 sm:h-9"
@@ -157,7 +164,7 @@ export function DataTable<TData, TValue>({
               type="button"
               variant="ghost"
               size="icon"
-              aria-label="Clear search"
+              aria-label={t('common:dataTable.clearSearch')}
               onClick={() => setSearch('')}
               className="absolute right-0 top-0"
             >
@@ -177,7 +184,7 @@ export function DataTable<TData, TValue>({
           )}
           tabIndex={0}
           role="region"
-          aria-label={tableLabel}
+          aria-label={resolvedTableLabel}
           aria-describedby={scrollState.overflow ? scrollHintId : undefined}
           data-density={density}
           data-sticky-header={stickyHeader ? 'true' : 'false'}
@@ -251,7 +258,7 @@ export function DataTable<TData, TValue>({
               ) : (
                 <tr>
                   <td colSpan={table.getVisibleLeafColumns().length || 1} className="h-24 px-3 text-center text-muted-foreground">
-                    {data.length > 0 && hasSearch ? filteredEmptyText : emptyText}
+                    {data.length > 0 && hasSearch ? resolvedFilteredEmptyText : resolvedEmptyText}
                   </td>
                 </tr>
               )}
@@ -272,19 +279,19 @@ export function DataTable<TData, TValue>({
 
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground" aria-live="polite">
-          {filteredCount} {filteredCount === 1 ? 'result' : 'results'}
+          {t('common:dataTable.resultCount', { count: filteredCount })}
         </p>
         {filteredCount > 0 && pageCount > 1 && (
-          <nav className="flex max-w-full flex-wrap items-center justify-end gap-2" aria-label="Table pagination">
+          <nav className="flex max-w-full flex-wrap items-center justify-end gap-2" aria-label={t('common:dataTable.pagination')}>
             <Button
               variant="outline"
               size="sm"
               className="min-h-10"
-              aria-label="Previous page"
+              aria-label={t('common:dataTable.previousPage')}
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
             >
-              Previous
+              {t('common:dataTable.previous')}
             </Button>
             <span className="min-w-12 text-center text-xs text-muted-foreground font-mono-data" aria-current="page" aria-live="polite">
               {table.getState().pagination.pageIndex + 1} / {pageCount}
@@ -293,11 +300,11 @@ export function DataTable<TData, TValue>({
               variant="outline"
               size="sm"
               className="min-h-10"
-              aria-label="Next page"
+              aria-label={t('common:dataTable.nextPage')}
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
             >
-              Next
+              {t('common:dataTable.next')}
             </Button>
           </nav>
         )}

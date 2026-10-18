@@ -5,6 +5,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
+import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { MusicBotSummary } from '@ts6/common';
@@ -51,6 +52,8 @@ interface BotForm {
   channelPassword: string;
   voicePort: number;
   volume: number;
+  /** Empty means inherit the instance default. */
+  language: 'en' | 'zh-CN' | '';
   autoStart: boolean;
 }
 
@@ -64,6 +67,7 @@ const EMPTY_FORM: BotForm = {
   channelPassword: '',
   voicePort: 9987,
   volume: 50,
+  language: '',
   autoStart: false,
 };
 
@@ -78,6 +82,7 @@ function formFor(bot: MusicBotSummary): BotForm {
     channelPassword: bot.channelPassword || '',
     voicePort: bot.voicePort ?? 9987,
     volume: bot.volume,
+    language: bot.language ?? '',
     autoStart: bot.autoStart,
   };
 }
@@ -96,6 +101,7 @@ export function BotFormDialog({ open, bot, onClose, defaultServerId }: {
   /** Pre-selected server for a new bot (usually the header's selection). */
   defaultServerId?: number | null;
 }) {
+  const { t } = useTranslation('bots');
   const queryClient = useQueryClient();
   const { data: servers } = useServers();
   const serverList = Array.isArray(servers) ? servers : [];
@@ -122,7 +128,7 @@ export function BotFormDialog({ open, bot, onClose, defaultServerId }: {
 
   const handleCreate = async () => {
     const configId = parseInt(form.serverConfigId);
-    if (!configId) { toast.error('Please select a server'); return; }
+    if (!configId) { toast.error(t('form.toasts.selectServer')); return; }
     const createdName = form.name;
     // Bots that exist before this create, to recognise ours if the response is lost.
     let known = queryClient.getQueryData<MusicBotSummary[]>(['music-bots']);
@@ -145,9 +151,10 @@ export function BotFormDialog({ open, bot, onClose, defaultServerId }: {
       channelPassword: form.channelPassword || undefined,
       voicePort: form.voicePort,
       volume: form.volume,
+      language: form.language || null,
       autoStart: form.autoStart,
     }, {
-      onSuccess: () => { toast.success('Media bot created'); void queryClient.invalidateQueries({ queryKey: ['bot-media'] }); onClose(); },
+      onSuccess: () => { toast.success(t('form.toasts.created')); void queryClient.invalidateQueries({ queryKey: ['bot-media'] }); onClose(); },
       onError: async (err) => {
         // Proxy/client often abort (499 / timeout) while the bot row already exists.
         if (isMusicBotCreateTransportFailure(err)) {
@@ -161,7 +168,7 @@ export function BotFormDialog({ open, bot, onClose, defaultServerId }: {
               (b: MusicBotSummary) => b.name === createdName && !knownIds.has(b.id),
             );
             if (appeared) {
-              toast.success('Media bot created');
+              toast.success(t('form.toasts.created'));
               void queryClient.invalidateQueries({ queryKey: ['bot-media'] });
               onClose();
               return;
@@ -170,7 +177,7 @@ export function BotFormDialog({ open, bot, onClose, defaultServerId }: {
             // fall through to failure toast
           }
         }
-        toast.error('Failed to create bot');
+        toast.error(t('form.toasts.createFailed'));
       },
     });
   };
@@ -187,31 +194,33 @@ export function BotFormDialog({ open, bot, onClose, defaultServerId }: {
       channelPassword: form.channelPassword || undefined,
       voicePort: form.voicePort,
       volume: form.volume,
+      language: form.language || null,
       autoStart: form.autoStart,
     }}, {
-      onSuccess: () => { toast.success('Bot updated'); void queryClient.invalidateQueries({ queryKey: ['bot-media'] }); onClose(); },
-      onError: () => toast.error('Failed to update bot'),
+      onSuccess: () => { toast.success(t('form.toasts.updated')); void queryClient.invalidateQueries({ queryKey: ['bot-media'] }); onClose(); },
+      onError: () => toast.error(t('form.toasts.updateFailed')),
     });
   };
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
       <DialogContent>
-        <DialogHeader><DialogTitle>{bot ? 'Edit bot' : 'New bot'}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{bot ? t('form.editTitle') : t('form.newTitle')}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label className="text-xs">Name</Label>
-            <Input type="text" aria-label="Bot name and TeamSpeak nickname" aria-required="true" aria-invalid={nameLengthError} aria-describedby="bot-nickname-hint" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="My Media Bot" maxLength={MAX_BOT_NICKNAME_LENGTH} />
+            <Label className="text-xs">{t('form.name')}</Label>
+            <Input type="text" aria-label={t('form.nameAria')} aria-required="true" aria-invalid={nameLengthError} aria-describedby="bot-nickname-hint" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={t('form.namePlaceholder')} maxLength={MAX_BOT_NICKNAME_LENGTH} />
             <p id="bot-nickname-hint" className={`text-[10px] mt-1 ${nameLengthError ? 'text-destructive' : 'text-muted-foreground'}`}>
-              Also the bot's TeamSpeak nickname: {MIN_BOT_NICKNAME_LENGTH}-{MAX_BOT_NICKNAME_LENGTH} characters
-              {nameLengthError && ` (now ${form.name.trim().length})`}.
+              {nameLengthError
+                ? t('form.nicknameHintWithLength', { min: MIN_BOT_NICKNAME_LENGTH, max: MAX_BOT_NICKNAME_LENGTH, length: form.name.trim().length })
+                : t('form.nicknameHint', { min: MIN_BOT_NICKNAME_LENGTH, max: MAX_BOT_NICKNAME_LENGTH })}
             </p>
           </div>
           {!bot && (
             <div>
-              <Label className="text-xs">Server</Label>
+              <Label className="text-xs">{t('form.server')}</Label>
               <Select value={form.serverConfigId} onValueChange={(v) => setForm({ ...form, serverConfigId: v })}>
-                <SelectTrigger aria-label="Server"><SelectValue placeholder="Select server..." /></SelectTrigger>
+                <SelectTrigger aria-label={t('form.server')}><SelectValue placeholder={t('form.selectServer')} /></SelectTrigger>
                 <SelectContent>
                   {serverList.map((s: any) => (
                     <SelectItem key={s.id} value={String(s.id)}>{s.name} ({s.host})</SelectItem>
@@ -221,33 +230,32 @@ export function BotFormDialog({ open, bot, onClose, defaultServerId }: {
             </div>
           )}
           <div>
-            <Label className="text-xs">Voice Port</Label>
+            <Label className="text-xs">{t('form.voicePort')}</Label>
             <Input type="number" value={form.voicePort} onChange={(e) => setForm({ ...form, voicePort: parseInt(e.target.value) || 9987 })} placeholder="9987" />
           </div>
           <div>
-            <Label className="text-xs">Server Password</Label>
-            <Input type="password" value={form.serverPassword} onChange={(e) => setForm({ ...form, serverPassword: e.target.value })} placeholder="Leave empty if none" />
+            <Label className="text-xs">{t('form.serverPassword')}</Label>
+            <Input type="password" value={form.serverPassword} onChange={(e) => setForm({ ...form, serverPassword: e.target.value })} placeholder={t('form.leaveEmptyNone')} />
           </div>
           <div>
-            <Label className="text-xs">Default Channel</Label>
-            <Input value={form.defaultChannel} onChange={(e) => setForm({ ...form, defaultChannel: e.target.value })} placeholder="Channel name or ID (playback channel)" />
+            <Label className="text-xs">{t('form.defaultChannel')}</Label>
+            <Input value={form.defaultChannel} onChange={(e) => setForm({ ...form, defaultChannel: e.target.value })} placeholder={t('form.defaultChannelPlaceholder')} />
           </div>
           {bot && (
             <div>
-              <Label className="text-xs">Command channels (optional)</Label>
+              <Label className="text-xs">{t('form.commandChannels')}</Label>
               <Input
                 value={form.commandChannelsText}
                 onChange={(e) => setForm({ ...form, commandChannelsText: e.target.value })}
-                placeholder="e.g. 12, 45 — channel IDs where !commands work"
+                placeholder={t('form.commandChannelsPlaceholder')}
               />
               <p className="text-[10px] text-muted-foreground mt-1">
-                Leave empty to use same-channel voice commands plus the SSH roaming helper.
-                Pin IDs only if you need fixed command rooms. Requires ServerQuery SSH.
+                {t('form.commandChannelsHint')}
               </p>
             </div>
           )}
           <div>
-            <Label className="text-xs">Virtual server ID</Label>
+            <Label className="text-xs">{t('form.virtualServerId')}</Label>
             <Input
               type="number"
               min={1}
@@ -256,23 +264,38 @@ export function BotFormDialog({ open, bot, onClose, defaultServerId }: {
             />
           </div>
           <div>
-            <Label className="text-xs">Channel Password</Label>
-            <Input type="password" value={form.channelPassword} onChange={(e) => setForm({ ...form, channelPassword: e.target.value })} placeholder="Leave empty if none" />
+            <Label className="text-xs">{t('form.channelPassword')}</Label>
+            <Input type="password" value={form.channelPassword} onChange={(e) => setForm({ ...form, channelPassword: e.target.value })} placeholder={t('form.leaveEmptyNone')} />
           </div>
           <div>
-            <Label className="text-xs">Volume ({form.volume}%)</Label>
+            <Label className="text-xs">{t('form.volume', { percent: form.volume })}</Label>
             <Slider value={[form.volume]} max={100} step={1} onValueChange={([v]) => setForm({ ...form, volume: v })} />
+          </div>
+          <div>
+            <Label className="text-xs">{t('form.chatLanguage')}</Label>
+            <Select
+              value={form.language || 'default'}
+              onValueChange={(v) => setForm({ ...form, language: v === 'default' ? '' : v as 'en' | 'zh-CN' })}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">{t('form.languageDefault')}</SelectItem>
+                <SelectItem value="en">English</SelectItem>
+                <SelectItem value="zh-CN">简体中文</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="mt-1 text-xs text-muted-foreground">{t('form.chatLanguageHint')}</p>
           </div>
           <div className="flex items-center gap-2">
             <Switch checked={form.autoStart} onCheckedChange={(v) => setForm({ ...form, autoStart: v })} />
-            <Label className="text-xs">Auto-start on server startup</Label>
+            <Label className="text-xs">{t('form.autoStart')}</Label>
           </div>
           {bot && <BotAvatarSettings key={bot.id} bot={bot} />}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" onClick={onClose}>{t('common:action.cancel')}</Button>
           <Button onClick={() => { if (bot) handleUpdate(); else void handleCreate(); }} disabled={!isBotNicknameLengthOk(form.name) || (!bot && !form.serverConfigId) || createBot.isPending || updateBot.isPending}>
-            {bot ? 'Save' : 'Create'}
+            {bot ? t('common:action.save') : t('common:action.create')}
           </Button>
         </DialogFooter>
       </DialogContent>

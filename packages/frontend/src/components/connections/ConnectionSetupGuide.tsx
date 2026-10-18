@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ConnectionSetupHelpDialog } from '@/components/connections/ConnectionSetupHelpDialog';
@@ -18,6 +19,7 @@ export function ConnectionSetupGuide({
   webqueryTestPassed,
   onStartWizard,
 }: ConnectionSetupGuideProps) {
+  const { t } = useTranslation();
   const [helpOpen, setHelpOpen] = useState(false);
 
   if (!hasConnections) return null;
@@ -28,10 +30,10 @@ export function ConnectionSetupGuide({
         <CardContent className="py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <BookOpen className="h-4 w-4 shrink-0" />
-            <span>Need help with connections?</span>
+            <span>{t('settings:connectionGuide.needHelp')}</span>
           </div>
           <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setHelpOpen(true)}>
-            <HelpCircle className="h-3 w-3 mr-1" /> Help
+            <HelpCircle className="h-3 w-3 mr-1" /> {t('settings:connectionGuide.help')}
           </Button>
         </CardContent>
       </Card>

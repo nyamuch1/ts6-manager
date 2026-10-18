@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Network } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,19 +24,18 @@ import { useIptvNetworkSettings, useUpdateIptvNetworkSettings } from '@/hooks/us
 import { apiErrorMessage } from '@/lib/api-error';
 import { parseHostLines } from '@/lib/iptv-network';
 
-const TOOLTIP = 'Allow Threadfin / xTeVe / TVHeadend for IPTV';
-
 /** Header / empty-state control that opens the allowlist dialog. */
 export function IptvLocalHostsTrigger({ onClick }: { onClick: () => void }) {
+  const { t } = useTranslation('media');
   const query = useIptvNetworkSettings(true);
   const count = query.data?.allowedLocalHosts.length ?? 0;
 
   return (
-    <Button type="button" variant="outline" onClick={onClick} title={TOOLTIP}>
+    <Button type="button" variant="outline" onClick={onClick} title={t('localHosts.tooltip')}>
       <Network className="h-4 w-4 mr-1.5" aria-hidden="true" />
-      Local hosts
+      {t('localHosts.trigger')}
       {count > 0 && (
-        <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]" aria-label={`${count} allowed hosts`}>
+        <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]" aria-label={t('localHosts.countAria', { count })}>
           {count}
         </Badge>
       )}
@@ -50,6 +50,7 @@ export function IptvLocalHostsDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const { t } = useTranslation('media');
   const query = useIptvNetworkSettings(true);
   const update = useUpdateIptvNetworkSettings();
   const saved = query.data?.allowedLocalHosts ?? [];
@@ -81,11 +82,11 @@ export function IptvLocalHostsDialog({
     update.mutate(hosts, {
       onSuccess: (data) => {
         setDraft(data.allowedLocalHosts.join('\n'));
-        toast.success(data.allowedLocalHosts.length
-          ? 'Local IPTV hosts saved — refresh a playlist to use them'
-          : 'Local IPTV hosts cleared');
+        toast.success(t(data.allowedLocalHosts.length
+          ? 'localHosts.saved'
+          : 'localHosts.cleared'));
       },
-      onError: (e) => toast.error(apiErrorMessage(e, 'Failed to save local IPTV hosts')),
+      onError: (e) => toast.error(apiErrorMessage(e, t('localHosts.saveFailed'))),
     });
   };
 
@@ -100,16 +101,15 @@ export function IptvLocalHostsDialog({
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Network className="h-4 w-4" aria-hidden="true" /> Local network sources
+            <Network className="h-4 w-4" aria-hidden="true" /> {t('localHosts.title')}
           </DialogTitle>
           <DialogDescription>
-            Playlists and channels on your home network (for example Threadfin, xTeVe or TVHeadend at 192.168.x.x)
-            are blocked by default. List the hosts you trust to allow them for IPTV only.
+            {t('localHosts.description')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-2 py-1">
-          <Label htmlFor="iptv-local-hosts">Allowed local IPTV hosts</Label>
+          <Label htmlFor="iptv-local-hosts">{t('localHosts.allowedHosts')}</Label>
           <Textarea
             id="iptv-local-hosts"
             rows={5}
@@ -120,19 +120,18 @@ export function IptvLocalHostsDialog({
             disabled={draft === null || !query.data}
           />
           <p className="text-xs text-muted-foreground">
-            One per line: an IP, a range or a hostname. Links typed in chat or the video URL box stay blocked;
-            loopback and link-local addresses cannot be allowed.
+            {t('localHosts.help')}
           </p>
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
           {dirty && (
             <Button type="button" variant="ghost" onClick={() => setDraft(saved.join('\n'))}>
-              Reset
+              {t('localHosts.reset')}
             </Button>
           )}
           <Button type="button" onClick={save} disabled={draft === null || !query.data || !dirty || update.isPending}>
-            {update.isPending ? 'Saving…' : 'Save hosts'}
+            {t(update.isPending ? 'localHosts.saving' : 'localHosts.saveHosts')}
           </Button>
         </DialogFooter>
       </DialogContent>

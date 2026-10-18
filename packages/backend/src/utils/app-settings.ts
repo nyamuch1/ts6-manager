@@ -13,6 +13,28 @@ import {
   isEncodeProfile,
   isNamedEncodeProfile,
 } from '../voice/streaming/encode-profiles.js';
+import { DEFAULT_LOCALE, isSupportedLocale, type SupportedLocale } from '../i18n/index.js';
+
+/**
+ * Instance default for bot chat replies. Bots without their own language
+ * inherit it; invalid or unset values mean English.
+ */
+export const DEFAULT_BOT_LANGUAGE_KEY = 'default_bot_language';
+
+/** Validate a stored or submitted default bot language. */
+export function parseDefaultBotLanguage(raw: unknown): SupportedLocale {
+  return isSupportedLocale(raw) ? raw : DEFAULT_LOCALE;
+}
+
+export async function loadDefaultBotLanguage(prisma: PrismaClient): Promise<SupportedLocale> {
+  try {
+    const row = await prisma.appSetting.findUnique({ where: { key: DEFAULT_BOT_LANGUAGE_KEY } });
+    return parseDefaultBotLanguage(row?.value);
+  } catch {
+    // Chat must keep working when settings cannot be read (e.g. during an upgrade).
+    return DEFAULT_LOCALE;
+  }
+}
 
 export const MAX_VIDEO_DURATION_KEY = 'max_video_duration';
 export const MAX_PLAYLIST_IMPORT_KEY = 'max_playlist_import';

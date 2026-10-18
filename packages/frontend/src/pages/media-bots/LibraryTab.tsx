@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMusicBots } from '@/hooks/use-music-bots';
 import {
@@ -55,6 +56,7 @@ import { ImportQueueOptions } from './ImportQueueOptions';
 // ─── Library Tab ─────────────────────────────────────────────────────────────
 
 export function LibraryTab() {
+  const { t } = useTranslation('media');
   const qc = useQueryClient();
   const { selectedConfigId } = useServerStore();
   const { data: servers } = useServers();
@@ -109,8 +111,8 @@ export function LibraryTab() {
       const formData = new FormData();
       formData.append('file', file);
       uploadSong.mutate({ configId, formData }, {
-        onSuccess: () => toast.success(`Uploaded: ${file.name}`),
-        onError: () => toast.error(`Failed to upload: ${file.name}`),
+        onSuccess: () => toast.success(t('library.uploaded', { file: file.name })),
+        onError: () => toast.error(t('library.uploadFailed', { file: file.name })),
       });
     });
     e.target.value = '';
@@ -123,15 +125,15 @@ export function LibraryTab() {
         setYtResults(Array.isArray(data) ? data : data?.results || []);
         setShowYt(true);
       },
-      onError: () => toast.error('YouTube search failed'),
+      onError: () => toast.error(t('library.youtubeSearchFailed')),
     });
   };
 
   const handleYtDownload = (url: string) => {
     if (!configId) return;
     ytDownload.mutate({ configId, url }, {
-      onSuccess: () => toast.success('Download complete'),
-      onError: () => toast.error('Download failed'),
+      onSuccess: () => toast.success(t('library.downloadComplete')),
+      onError: () => toast.error(t('library.downloadFailed')),
     });
   };
 
@@ -160,16 +162,16 @@ export function LibraryTab() {
     if (!configId || !urlInfo) return;
     const selected = selectedUrlItems(urlInfo.items, selectedUrlIds);
     const urls = selected.map((item) => `https://www.youtube.com/watch?v=${item.id}`);
-    setBatchProgress('Preparing download…');
+    setBatchProgress(t('library.preparingDownload'));
     ytBatchDownload.mutate({ configId, urls }, {
       onSuccess: (data: any) => {
         setBatchProgress(null);
-        toast.success(`Downloaded ${data.downloaded}/${data.total} songs`);
-        if (data.errors?.length) toast.error(`${data.errors.length} failed`);
+        toast.success(t('library.downloadedSongs', { downloaded: data.downloaded, total: data.total }));
+        if (data.errors?.length) toast.error(t('library.failedCount', { count: data.errors.length }));
         setUrlInfo(null);
         setYtUrl('');
       },
-      onError: () => { setBatchProgress(null); toast.error('Batch download failed'); },
+      onError: () => { setBatchProgress(null); toast.error(t('library.batchDownloadFailed')); },
     });
   };
 
@@ -186,7 +188,7 @@ export function LibraryTab() {
   const handleImportPlaylist = (reimport = false, queueOnly = false) => {
     if (!configId || !ytUrl.trim()) return;
     if (queueOnly && !importQueueBotId) {
-      toast.error('Select a running media bot to import to its queue');
+      toast.error(t('library.selectRunningBot'));
       return;
     }
     const musicBotId = importQueueBotId ? parseInt(importQueueBotId, 10) : undefined;
@@ -205,12 +207,12 @@ export function LibraryTab() {
     }, {
       onSuccess: (data: any) => {
         setImportJobId(data.jobId);
-        toast.success(queueOnly ? 'Queue import started' : 'Playlist import started', {
+        toast.success(t(queueOnly ? 'library.queueImportStarted' : 'library.playlistImportStarted'), {
           description: importCapHint(maxPlaylistImport),
         });
       },
       onError: (err: any) =>
-        toast.error(err?.response?.data?.error || 'Failed to start playlist import'),
+        toast.error(err?.response?.data?.error || t('library.failedToStartImport')),
     });
   };
 
@@ -227,13 +229,13 @@ export function LibraryTab() {
       setUrlInfo(null);
       setYtUrl('');
     } else if (importJob?.status === 'failed') {
-      toast.error(importJob.errors[0] || 'Playlist import failed');
+      toast.error(importJob.errors[0] || t('library.playlistImportFailed'));
       setImportJobId(null);
     }
   }, [importJob?.status, configId, qc, importJob]);
 
   if (!configId) {
-    return <EmptyState icon={Music} title="Select a server" description="Choose a server to manage its music library." />;
+    return <EmptyState icon={Music} title={t('library.selectServer')} description={t('library.selectServerDescription')} />;
   }
 
   return (
@@ -242,7 +244,7 @@ export function LibraryTab() {
       {/* Server selector + actions */}
       <div className="flex items-center gap-2 flex-wrap">
         <Select value={String(configId)} onValueChange={(v) => setLibServerId(parseInt(v))}>
-          <SelectTrigger className="w-48"><SelectValue placeholder="Server..." /></SelectTrigger>
+          <SelectTrigger className="w-48"><SelectValue placeholder={t('library.serverPlaceholder')} /></SelectTrigger>
           <SelectContent>
             {serverList.map((s: any) => (
               <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
@@ -253,12 +255,12 @@ export function LibraryTab() {
         <Input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter songs..."
+          placeholder={t('library.filterSongs')}
           className="w-48"
         />
         <input ref={fileInputRef} type="file" accept="audio/*" multiple hidden onChange={handleUpload} />
         <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploadSong.isPending}>
-          <Upload className="h-4 w-4 mr-1" /> {uploadSong.isPending ? 'Uploading...' : 'Upload'}
+          <Upload className="h-4 w-4 mr-1" /> {t(uploadSong.isPending ? 'library.uploading' : 'library.upload')}
         </Button>
         <Button
           variant="outline"
@@ -271,19 +273,23 @@ export function LibraryTab() {
                 const imported = data?.imported ?? 0;
                 const updated = data?.updated ?? 0;
                 if (imported === 0 && updated === 0) {
-                  toast.success('Scan complete — nothing new');
+                  toast.success(t('library.scanNothingNew'));
                 } else {
-                  const parts = [];
-                  if (imported) parts.push(`imported ${imported}`);
-                  if (updated) parts.push(`updated ${updated} YouTube file(s)`);
-                  toast.success(`Scan complete — ${parts.join(', ')}`);
+                  toast.success(t(
+                    imported && updated
+                      ? 'library.scanImportedUpdated'
+                      : imported
+                        ? 'library.scanImportedOnly'
+                        : 'library.scanUpdatedOnly',
+                    { imported, updated },
+                  ));
                 }
               },
-              onError: () => toast.error('Library scan failed'),
+              onError: () => toast.error(t('library.scanFailed')),
             });
           }}
         >
-          <Search className="h-4 w-4 mr-1" /> {scanLibrary.isPending ? 'Scanning...' : 'Scan folder'}
+          <Search className="h-4 w-4 mr-1" /> {t(scanLibrary.isPending ? 'library.scanning' : 'library.scanFolder')}
         </Button>
       </div>
 
@@ -309,22 +315,22 @@ export function LibraryTab() {
                 value={ytUrl}
                 onChange={(e) => setYtUrl(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleLoadUrl()}
-                placeholder="Paste YouTube, Apple Music, or Playlist URL..."
+                placeholder={t('library.urlPlaceholder')}
                 className="pl-9"
               />
             </div>
             <Button variant="outline" size="sm" onClick={handleLoadUrl} disabled={ytInfo.isPending || !ytUrl.trim()}>
               {ytInfo.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Youtube className="h-4 w-4 mr-1" />}
-              Load
+              {t('library.load')}
             </Button>
             {ytInfo.isPending && (
-              <span className="text-[10px] text-muted-foreground">Large Apple Music playlists can take 1–2 minutes</span>
+              <span className="text-[10px] text-muted-foreground">{t('library.largePlaylistHint')}</span>
             )}
             {ytUrl.trim() && !urlInfo && (
               <>
                 <Input
                   className="h-8 w-40 text-xs"
-                  placeholder="Playlist name (optional)"
+                  placeholder={t('library.playlistNameOptional')}
                   value={importPlaylistName}
                   onChange={(e) => setImportPlaylistName(e.target.value)}
                 />
@@ -341,7 +347,7 @@ export function LibraryTab() {
                     </>
                   ) : (
                     <>
-                      <ListMusic className="h-3 w-3 mr-1" /> Import as Playlist
+                      <ListMusic className="h-3 w-3 mr-1" /> {t('library.importAsPlaylist')}
                     </>
                   )}
                 </Button>
@@ -352,13 +358,13 @@ export function LibraryTab() {
                     onClick={() => handleImportPlaylist(false, true)}
                     disabled={ytImportPlaylist.isPending || !!importJobId}
                   >
-                    <ListMusic className="h-3 w-3 mr-1" /> Import to queue
+                    <ListMusic className="h-3 w-3 mr-1" /> {t('library.importToQueue')}
                   </Button>
                 )}
               </>
             )}
             {urlInfo && (
-              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Clear URL details" onClick={() => { setUrlInfo(null); setYtUrl(''); }}>
+              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t('library.clearUrlDetails')} onClick={() => { setUrlInfo(null); setYtUrl(''); }}>
                 <X className="h-4 w-4" />
               </Button>
             )}
@@ -376,26 +382,26 @@ export function LibraryTab() {
                     <Button variant="ghost" size="sm" className="h-6 text-[10px]"
                       onClick={() => setSelectedUrlIds(allUrlItemKeys(urlInfo.items.length))}
                     >
-                      Select All
+                      {t('library.selectAll')}
                     </Button>
                     <Button variant="ghost" size="sm" className="h-6 text-[10px]"
                       onClick={() => setSelectedUrlIds(new Set())}
                     >
-                      Deselect All
+                      {t('library.deselectAll')}
                     </Button>
                     <Button variant="default" size="sm" className="h-7 text-xs"
                       onClick={handleBatchDownload}
                       disabled={selectedUrlIds.size === 0 || ytBatchDownload.isPending}
                     >
                       {ytBatchDownload.isPending ? (
-                        <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> {ytBatchDownload.progress || batchProgress || 'Downloading...'}</>
+                        <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> {ytBatchDownload.progress || batchProgress || t('library.downloading')}</>
                       ) : (
-                        <><Download className="h-3 w-3 mr-1" /> Download {selectedUrlIds.size} Selected</>
+                        <><Download className="h-3 w-3 mr-1" /> {t('library.downloadSelected', { count: selectedUrlIds.size })}</>
                       )}
                     </Button>
                     <Input
                       className="h-7 w-40 text-xs"
-                      placeholder="Playlist name (optional)"
+                      placeholder={t('library.playlistNameOptional')}
                       value={importPlaylistName}
                       onChange={(e) => setImportPlaylistName(e.target.value)}
                     />
@@ -406,15 +412,15 @@ export function LibraryTab() {
                       {importJobId ? (
                         <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> {importJobProgressLabel(importJob)}</>
                       ) : (
-                        <><ListMusic className="h-3 w-3 mr-1" /> Import as Playlist</>
+                        <><ListMusic className="h-3 w-3 mr-1" /> {t('library.importAsPlaylist')}</>
                       )}
                     </Button>
                     <Button variant="outline" size="sm" className="h-7 text-xs"
                       onClick={() => handleImportPlaylist(true)}
                       disabled={ytImportPlaylist.isPending || !!importJobId}
-                      title="Re-import adds missing tracks and re-links existing downloads"
+                      title={t('library.reimportHint')}
                     >
-                      Re-import
+                      {t('library.reimport')}
                     </Button>
                   </div>
                 )}
@@ -450,7 +456,7 @@ export function LibraryTab() {
                         onClick={(e) => { e.stopPropagation(); handleYtDownload(`https://www.youtube.com/watch?v=${item.id}`); }}
                         disabled={ytDownload.isPending}
                       >
-                        <Download className="h-3 w-3 mr-1" /> Download
+                        <Download className="h-3 w-3 mr-1" /> {t('library.download')}
                       </Button>
                     )}
                   </div>
@@ -469,13 +475,13 @@ export function LibraryTab() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleYtSearch()}
-            placeholder="Search YouTube..."
+            placeholder={t('library.searchYoutube')}
             className="pl-9"
           />
         </div>
         <Button variant="outline" size="sm" onClick={handleYtSearch} disabled={ytSearch.isPending || !searchQuery.trim()}>
           {ytSearch.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Youtube className="h-4 w-4 mr-1" />}
-          Search
+          {t('library.search')}
         </Button>
       </div>
 
@@ -484,8 +490,8 @@ export function LibraryTab() {
         <Card>
           <CardHeader className="py-2 px-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-xs">YouTube Results ({ytResults.length})</CardTitle>
-              <Button variant="ghost" size="icon" className="h-6 w-6" aria-label="Close YouTube results" onClick={() => setShowYt(false)}>
+              <CardTitle className="text-xs">{t('library.youtubeResults', { count: ytResults.length })}</CardTitle>
+              <Button variant="ghost" size="icon" className="h-6 w-6" aria-label={t('library.closeYoutubeResults')} onClick={() => setShowYt(false)}>
                 <X className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -505,7 +511,7 @@ export function LibraryTab() {
                     onClick={() => handleYtDownload(`https://www.youtube.com/watch?v=${r.id}`)}
                     disabled={ytDownload.isPending}
                   >
-                    <Download className="h-3 w-3 mr-1" /> Download
+                    <Download className="h-3 w-3 mr-1" /> {t('library.download')}
                   </Button>
                 </div>
               ))}
@@ -516,14 +522,14 @@ export function LibraryTab() {
 
       {/* Song List */}
       {isLoading ? <PageLoader /> : filtered.length === 0 ? (
-        <EmptyState icon={Music} title="No songs yet" description="Upload audio files or download from YouTube to build your library." />
+        <EmptyState icon={Music} title={t('library.noSongs')} description={t('library.noSongsDescription')} />
       ) : (
         <div className="max-w-full overflow-x-auto rounded-lg border">
           <div className="grid min-w-[38rem] grid-cols-[minmax(0,1fr)_auto_auto_auto_auto] gap-2 bg-muted/50 px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-            <span>Title</span>
-            <span className="w-20 text-right">Duration</span>
-            <span className="w-16 text-center">Source</span>
-            <span className="w-16 text-right">Size</span>
+            <span>{t('library.columnTitle')}</span>
+            <span className="w-20 text-right">{t('library.columnDuration')}</span>
+            <span className="w-16 text-center">{t('library.columnSource')}</span>
+            <span className="w-16 text-right">{t('library.columnSize')}</span>
             <span className="w-16" />
           </div>
           <div className="max-h-[400px] overflow-y-auto">
@@ -540,7 +546,7 @@ export function LibraryTab() {
                 <span className="text-xs text-muted-foreground w-16 text-right">{song.fileSize ? formatBytes(song.fileSize) : '-'}</span>
                 <div className="w-16 flex justify-end">
                   <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive"
-                    aria-label={`Delete ${song.title}`}
+                    aria-label={t('library.deleteSongAria', { title: song.title })}
                     onClick={() => setDeleteId(song.id)}
                   >
                     <Trash2 className="h-3 w-3" />
@@ -555,11 +561,11 @@ export function LibraryTab() {
       <ConfirmDialog
         open={deleteId !== null}
         onOpenChange={() => setDeleteId(null)}
-        title="Delete Song?"
-        description="This will permanently remove this song from the library."
+        title={t('library.deleteSongTitle')}
+        description={t('library.deleteSongDescription')}
         onConfirm={() => {
           if (deleteId && configId) deleteSong.mutate({ configId, songId: deleteId }, {
-            onSuccess: () => { toast.success('Song deleted'); setDeleteId(null); },
+            onSuccess: () => { toast.success(t('library.songDeleted')); setDeleteId(null); },
           });
         }}
         destructive

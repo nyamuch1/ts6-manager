@@ -1,0 +1,503 @@
+{
+  "logs": {
+    "title": "服务器日志",
+    "configFallback": "配置 {{id}}",
+    "connection": "连接：{{name}}",
+    "fetched": "获取时间：{{time}}",
+    "filterPlaceholder": "筛选此页…",
+    "filterLabel": "筛选此页",
+    "levelFilterLabel": "筛选此页的级别",
+    "pageSizeLabel": "每页行数",
+    "sourceScopeLabel": "日志来源范围",
+    "sourceVirtualServer": "虚拟服务器日志",
+    "sourceInstance": "实例日志",
+    "filterHint": "搜索和级别筛选仅适用于此页，不会获取更早的历史记录。",
+    "timezoneHint": "时间戳按 TeamSpeak 写入时的原样显示。WebQuery 不会报告服务器日志时区是 UTC 还是本地时间。",
+    "previous": "上一页",
+    "older": "更早",
+    "pageMeta": {
+      "newest": "最新页",
+      "newestEnd": "最新页 · 已到可用游标末尾",
+      "older_one": "更早的页面 {{count}}",
+      "older_other": "更早的页面 {{count}}",
+      "olderEnd_one": "更早的页面 {{count}} · 已到可用游标末尾",
+      "olderEnd_other": "更早的页面 {{count}} · 已到可用游标末尾"
+    },
+    "countInstance": "此页共 {{total}} 条，显示 {{filtered}} 条 · 实例日志文件",
+    "countVirtualServer": "此页共 {{total}} 条，显示 {{filtered}} 条 · 虚拟服务器 {{sid}}",
+    "lines_one": "{{count}} 行",
+    "lines_other": "{{count}} 行",
+    "level": {
+      "all": "所有级别（此页）",
+      "error": "错误（此页）",
+      "warning": "警告（此页）",
+      "info": "信息（此页）",
+      "debug": "调试（此页）",
+      "unknown": "未知（此页）"
+    },
+    "levelBadge": {
+      "error": "ERR",
+      "warning": "WAR",
+      "info": "INF",
+      "debug": "DEB",
+      "unknown": "UNK"
+    },
+    "scope": {
+      "instance": "实例日志（不限于所选虚拟服务器）",
+      "virtualServerNamed": "虚拟服务器日志 · SID {{sid}} · {{name}}",
+      "virtualServer": "虚拟服务器日志 · SID {{sid}}"
+    },
+    "empty": {
+      "noOlder": "此游标下没有更早的日志条目。如果日志已轮转，请刷新以查看最新页。",
+      "instanceEmpty": "实例日志未返回任何条目。TeamSpeak 实例日志文件可能为空，或此连接不支持实例 logview。",
+      "virtualServerEmpty": "此页没有虚拟服务器日志条目。",
+      "noMatches": "此页没有匹配项。"
+    },
+    "errors": {
+      "loadFailed": "无法从 TeamSpeak 加载服务器日志。",
+      "logviewIo": "TeamSpeak 无法读取其日志文件（权限、锁定或轮转）。管理器已连接——请稍等几秒后使用一次重试，或检查 TeamSpeak 日志卷。",
+      "logviewIoBackground": "TeamSpeak 无法读取其日志文件。仍显示上次成功获取的页面——请重试一次；不要对此页面保持自动刷新。",
+      "refreshFailed": "日志刷新失败。仍显示上次成功获取的页面。",
+      "scopeMismatch": "日志范围响应与所选的实例/虚拟服务器模式不匹配。请刷新以重新加载。",
+      "starting": "启动后 TeamSpeak Query 仍在启动中。请稍候并重试。",
+      "startingBackground": "TeamSpeak Query 仍在启动中。在其上线之前，日志数据可能不完整。"
+    },
+    "refresh": {
+      "idleNewest": "最新日志页已是最新",
+      "idleOlder": "此日志页已加载",
+      "refreshing": "正在刷新日志…",
+      "degraded": "日志更新已中断"
+    }
+  },
+  "audit": {
+    "title": "管理审计",
+    "description": "仅记录由管理器发起的管​​理操作——与 TeamSpeak 客户端活动和服务器日志分开。保留时间：{{days}} 天或 {{rows}} 行（以先到者为准）。此界面中无法删除记录。",
+    "live": "实时",
+    "liveTitle": "最新页会自动刷新",
+    "actorUser": "用户 #{{id}}",
+    "targetWithId": "{{type}} {{id}}",
+    "context": {
+      "connection": "连接 {{id}}",
+      "sid": "SID {{id}}"
+    },
+    "event": {
+      "operation": "操作 {{id}}",
+      "result": "结果：{{result}}",
+      "duration": "耗时：{{duration}}",
+      "completed": "完成于：{{when}}"
+    },
+    "filter": {
+      "action": "操作",
+      "outcome": "结果",
+      "actorUserId": "操作者用户 ID",
+      "connectionId": "连接 ID",
+      "virtualServerId": "虚拟服务器 ID",
+      "all": "全部",
+      "any": "任意"
+    },
+    "table": {
+      "dateTime": "日期 / 时间",
+      "action": "操作",
+      "actor": "操作者",
+      "target": "目标",
+      "context": "上下文",
+      "outcome": "结果"
+    },
+    "empty": {
+      "title": "尚无审计事件",
+      "description": "已接入审计的踢出、封禁、连接、流程、用户和设置变更将显示在这里。"
+    },
+    "newer": "较新",
+    "older": "较早",
+    "refresh": {
+      "idleLive": "审计历史实时更新已启用",
+      "idleNewest": "审计历史已是最新",
+      "idleOlder": "此审计页已加载",
+      "refreshing": "正在刷新审计…",
+      "degraded": "审计更新已中断"
+    },
+    "errors": {
+      "refreshFailed": "审计刷新失败。仍显示上次成功获取的页面。",
+      "loadFailed": "无法加载审计历史。请确认你已以管理员身份登录。"
+    },
+    "actions": {
+      "client_kick": "踢出客户端",
+      "client_ban": "封禁客户端",
+      "client_move": "移动客户端",
+      "client_poke": "戳一戳客户端",
+      "client_message": "向客户端发送消息",
+      "client_permission_add": "添加客户端权限",
+      "client_permission_delete": "删除客户端权限",
+      "ban_create": "添加封禁",
+      "ban_delete": "删除封禁",
+      "ban_delete_all": "清除封禁",
+      "channel_create": "创建频道",
+      "channel_update": "编辑频道",
+      "channel_delete": "删除频道",
+      "channel_move": "移动频道",
+      "channel_permission_add": "添加频道权限",
+      "channel_permission_delete": "删除频道权限",
+      "server_group_create": "创建服务器组",
+      "server_group_update": "重命名服务器组",
+      "server_group_delete": "删除服务器组",
+      "server_group_copy": "复制服务器组",
+      "server_group_member_add": "添加服务器组成员",
+      "server_group_member_remove": "移除服务器组成员",
+      "server_group_permission_add": "添加服务器组权限",
+      "server_group_permission_delete": "删除服务器组权限",
+      "channel_group_create": "创建频道组",
+      "channel_group_update": "重命名频道组",
+      "channel_group_delete": "删除频道组",
+      "channel_group_assign": "分配频道组",
+      "channel_group_permission_add": "添加频道组权限",
+      "channel_group_permission_delete": "删除频道组权限",
+      "privilege_key_create": "创建特权密钥",
+      "privilege_key_delete": "删除特权密钥",
+      "virtual_server_edit": "编辑虚拟服务器",
+      "virtual_server_start": "启动虚拟服务器",
+      "virtual_server_stop": "停止虚拟服务器",
+      "connection_create": "创建连接",
+      "connection_update": "更新连接",
+      "connection_credentials_changed": "更改连接凭据",
+      "connection_delete": "删除连接",
+      "flow_create": "创建流程",
+      "flow_update": "更新流程",
+      "flow_delete": "删除流程",
+      "flow_enable": "启用流程",
+      "flow_disable": "禁用流程",
+      "user_create": "创建用户",
+      "user_update": "更新用户",
+      "user_delete": "删除用户",
+      "settings_yt_cookies_changed": "更新 yt-dlp Cookies",
+      "settings_yt_cookies_removed": "移除 yt-dlp Cookies",
+      "settings_limits_update": "更新应用限制",
+      "settings_video_streaming_update": "更新视频流默认设置",
+      "settings_iptv_network_update": "更新允许的本地 IPTV 主机",
+      "media_music_start": "开始播放音乐",
+      "media_music_stop": "停止播放音乐",
+      "media_video_start": "开始视频流",
+      "media_video_stop": "停止视频流",
+      "media_video_source_change": "更改流媒体源",
+      "media_video_queue_add": "将视频加入队列",
+      "media_video_queue_change": "更改视频队列",
+      "media_video_skip": "跳到队列中的视频",
+      "media_session_switch": "切换媒体（替换当前播放内容）",
+      "listener_remote_queue_add": "听众遥控：添加媒体库歌曲",
+      "listener_remote_issue": "签发听众遥控链接",
+      "listener_remote_request": "听众遥控：请求链接",
+      "listener_remote_revoke": "撤销听众遥控访问",
+      "listener_remote_auth_failed": "听众遥控：拒绝访问（5 分钟内累计）",
+      "listener_remote_rate_limited": "听众遥控：触发速率限制（5 分钟内累计）",
+      "listener_remote_denied": "听众遥控：权限被拒绝",
+      "listener_remote_capacity": "听众遥控：队列已满",
+      "music_bot_avatar_update": "更新机器人头像",
+      "music_bot_automation_update": "更新机器人自动化",
+      "channel_banner_upload": "上传频道横幅",
+      "channel_banner_delete": "删除频道横幅",
+      "server_icon_upload": "上传服务器图标",
+      "server_icon_delete": "删除服务器图标",
+      "settings_public_url_update": "更新公共 URL"
+    },
+    "outcomes": {
+      "pending": "待处理",
+      "success": "成功",
+      "failure": "失败",
+      "partial": "部分成功",
+      "unknown": "未知"
+    },
+    "results": {
+      "ok": "正常",
+      "ts_error": "TeamSpeak 错误",
+      "timeout": "超时",
+      "network_error": "网络错误",
+      "engine_reload_failed": "引擎重新加载失败",
+      "pool_refresh_failed": "连接池刷新失败",
+      "not_found": "未找到",
+      "validation_failed": "验证失败",
+      "storage_failed": "存储失败",
+      "invalid_access": "访问无效或已过期",
+      "permission_denied": "权限被拒绝",
+      "rate_limited": "触发速率限制",
+      "queue_full": "队列已满",
+      "invalid_request": "请求无效",
+      "cancelled": "已取消",
+      "unavailable": "不可用",
+      "unknown": "未知"
+    },
+    "targets": {
+      "client": "客户端",
+      "ban": "封禁",
+      "channel": "频道",
+      "server_group": "服务器组",
+      "channel_group": "频道组",
+      "privilege_key": "特权密钥",
+      "virtual_server": "虚拟服务器",
+      "connection": "连接",
+      "listener_remote_refusals": "拒绝次数",
+      "flow": "流程",
+      "user": "用户",
+      "settings": "设置",
+      "music_bot": "音乐机器人",
+      "channel_banner": "频道横幅",
+      "server_icon": "服务器图标"
+    }
+  },
+  "journal": {
+    "title": "活动记录",
+    "description": "此连接和虚拟服务器的可选 TeamSpeak 加入/离开历史。身份字段采用允许列表（不含 IP 或聊天内容）。保留时间：{{days}} 天 / 每个连接-SID {{perSid}} 条 / 全局 {{global}} 条。",
+    "selectDescription": "选择一个连接和虚拟服务器以查看活动记录。",
+    "loadFailedTitle": "无法加载记录历史",
+    "historyError": "无法加载活动记录历史。",
+    "historyRefreshError": "历史刷新失败。仍显示上次成功获取的页面。",
+    "statusError": "无法刷新捕获状态。",
+    "live": "实时",
+    "liveTitle": "捕获期间会刷新历史",
+    "captureFor": "为配置 {{config}} / SID {{sid}} 捕获",
+    "status": "状态：",
+    "gaps": "缺口：丢失 {{count}} 条",
+    "captureStatus": {
+      "unknown": "未知",
+      "disabled": "已禁用",
+      "connecting": "正在连接",
+      "capturing": "正在捕获",
+      "interrupted": "已中断",
+      "persistenceError": "持久化错误",
+      "reconnecting": "已中断——正在重新连接",
+      "stale": "{{status}}（已过期）"
+    },
+    "classification": {
+      "knownBot": "已知机器人",
+      "query": "Query",
+      "voice": "语音",
+      "unknown": "未知"
+    },
+    "filters": {
+      "allEvents": "所有事件",
+      "joins": "加入",
+      "leaves": "离开",
+      "allClassifications": "所有分类"
+    },
+    "table": {
+      "dateTime": "日期 / 时间",
+      "event": "事件",
+      "user": "用户",
+      "type": "类型",
+      "identity": "身份"
+    },
+    "empty": {
+      "unknown": "此页没有记录条目。捕获状态尚不可知。",
+      "enabled": "此上下文尚无记录条目。",
+      "disabled": "捕获已禁用。启用捕获以记录加入和离开事件。"
+    },
+    "identity": {
+      "databaseId": "dbid {{id}}",
+      "via": "经由 {{value}}",
+      "clientId": "clid {{id}}"
+    },
+    "newer": "较新",
+    "older": "较早",
+    "refresh": {
+      "idleLive": "实时记录历史已启用",
+      "idleConnecting": "正在连接捕获…",
+      "idleInterruptedReconnecting": "捕获已中断——正在重新连接…",
+      "idleInterrupted": "捕获已中断",
+      "idleUpToDate": "记录历史已是最新",
+      "idleOlder": "此记录页已加载",
+      "refreshing": "正在刷新记录…",
+      "degraded": "记录更新已中断"
+    }
+  },
+  "mediaDiagnostics": {
+    "title": "媒体诊断",
+    "description": "检查媒体工具、音频编码和边车健康状态。",
+    "copyReport": "复制诊断报告",
+    "checking": "正在检查媒体工具…",
+    "lastChecked": "上次检查：{{time}}",
+    "clipboardUnavailable": "剪贴板不可用",
+    "copied": "诊断报告已复制",
+    "copyFailed": "无法复制诊断报告",
+    "notChecked": "未检查。浏览器联网时请使用刷新。",
+    "runFailed": "无法运行媒体诊断。请使用刷新重试。",
+    "stale": "此报告已过期。请使用刷新重新探测。",
+    "toolsTitle": "工具与冒烟测试",
+    "sidecarTitle": "边车",
+    "mode": "模式：{{mode}}",
+    "version": "版本：{{version}}",
+    "health": "健康状态：{{health}}",
+    "ports": "端口：{{video}} 视频 / {{audio}} 音频",
+    "notReportedByHealth": "未由 GET /health 报告",
+    "notReported": "未报告",
+    "encodersTitle": "编码器",
+    "encoder": {
+      "summary": "{{codec}} · {{kind}}",
+      "withDetail": "{{summary}} — {{detail}}",
+      "hardware": "硬件",
+      "software": "软件",
+      "decodes": "可解码",
+      "no": "否"
+    },
+    "av1Decoding": "AV1 解码",
+    "warningsTitle": "警告与失败项",
+    "none": "无。",
+    "executable": "可执行文件：{{path}}",
+    "status": {
+      "green": "正常",
+      "warning": "警告",
+      "failed": "失败",
+      "notChecked": "未检查"
+    },
+    "overall": {
+      "green": "正常",
+      "warning": "警告",
+      "failed": "失败"
+    },
+    "report": {
+      "title": "TS6 Manager 媒体诊断",
+      "checked": "检查时间：{{time}}",
+      "overall": "总体：{{overall}}",
+      "checks": "检查项：",
+      "sidecar": "边车（{{mode}}）：[{{status}}] {{message}}",
+      "version": "  版本：{{version}}",
+      "health": "  健康状态：{{health}}",
+      "videoPort": "  视频端口：{{port}}",
+      "audioPort": "  音频端口：{{port}}",
+      "encoders": "编码器：[{{status}}] {{message}}",
+      "notLoaded": "- 未加载",
+      "warnings": "警告：",
+      "none": "- 无",
+      "checkLine": "- [{{status}}] {{label}} — {{message}}",
+      "checkLineVersion": "- [{{status}}] {{label}} — {{message}}（{{version}}）",
+      "executable": "  可执行文件：{{path}}",
+      "encoderItem": "- {{id}}（{{codec}}，{{kind}}）：{{state}}",
+      "available": "可用",
+      "unavailable": "不可用",
+      "unavailableDetail": "不可用——{{detail}}",
+      "av1": "AV1 解码：{{message}}",
+      "av1Item": "- {{hwaccel}}：{{state}}",
+      "decodesAv1": "可解码 AV1",
+      "doesNotDecodeAv1": "无法解码 AV1",
+      "doesNotDecodeAv1Detail": "无法解码 AV1——{{detail}}"
+    }
+  },
+  "runtimeMedia": {
+    "title": "运行时 / 媒体",
+    "staleMarker": "· 已过期",
+    "notChecked": "未检查。使用刷新探测 yt-dlp、ffmpeg、ffprobe 和媒体边车。",
+    "runFailed": "无法运行运行时诊断。请使用刷新重试。",
+    "refreshLabel": "刷新运行时媒体诊断",
+    "stagesLabel": "运行时媒体诊断阶段",
+    "stage": {
+      "sidecar": "边车"
+    },
+    "overall": {
+      "notChecked": "未检查",
+      "ready": "就绪",
+      "partial": "部分可用",
+      "unavailable": "不可用"
+    },
+    "updateHintYtDlp": "内置 yt-dlp 不会在运行时自动更新——请拉取或重新构建 TS6 Manager 镜像以更新它。",
+    "updateHintSidecar": "视频和 IPTV 流媒体需要可访问的媒体边车（Docker SIDECAR_URL 或本地二进制文件）。"
+  },
+  "connectionDiagnostics": {
+    "stagesLabel": "WebQuery 诊断阶段",
+    "stage": {
+      "reachability": "可达性",
+      "authentication": "身份验证",
+      "permissions": "读取权限",
+      "virtual_server": "虚拟服务器"
+    },
+    "partial": "部分成功：{{message}}",
+    "failed": "连接诊断失败"
+  },
+  "guidance": {
+    "diagnosticReadDoesNotAuthorizeWrites": "仅确认管理读取权限——不代表拥有踢出、封禁、文件更改或设置的写入授权。",
+    "diagnosticSuccessWithVersion": "WebQuery 读取阶段正常（{{version}}）——写入操作仍需要各自的权限",
+    "diagnosticSuccessWithoutVersion": "WebQuery 读取阶段成功——写入操作仍需要各自的权限",
+    "deleteConfirm": "确定要删除“{{name}}”（{{path}}）吗？此操作无法撤销。浏览此文件夹并不确认拥有创建或删除文件的权限。"
+  },
+  "files": {
+    "browse": {
+      "sshRequired": "文件浏览需要 SSH 访问，因为 TeamSpeak WebQuery HTTP API 不支持文件传输命令。请在服务器设置中配置 SSH 凭据（用户名和密码）。",
+      "sshDisconnected": "到 TeamSpeak 的 SSH 暂时断开（通常发生在启动时 Query 洪水保护之后）。请稍候重试——凭据通常没有问题。",
+      "sshFailed": "无法通过 SSH 连接到 TeamSpeak。请检查服务器设置中的 SSH 凭据和端口。",
+      "permissionDenied": "Query 身份没有权限列出此频道中的文件。WebQuery 读取成功不代表拥有文件传输访问权限。",
+      "failed": "无法加载文件。请确保在服务器设置中配置了 SSH 凭据。"
+    },
+    "write": {
+      "create": {
+        "sshRequired": "无法创建目录：文件更改需要 SSH（WebQuery HTTP 不支持 ft* 命令）。",
+        "sshDisconnected": "无法创建目录：SSH 暂时断开。请等待重新连接后重试。",
+        "sshFailed": "无法创建目录：SSH 连接失败。请检查服务器设置中的 SSH 凭据和端口。",
+        "permissionDenied": "没有创建目录所需的 TeamSpeak 权限。列出此文件夹并不代表拥有写入授权——请为 Query 身份授予所需的文件传输权限。",
+        "failed": "创建目录失败"
+      },
+      "delete": {
+        "sshRequired": "无法删除文件：文件更改需要 SSH（WebQuery HTTP 不支持 ft* 命令）。",
+        "sshDisconnected": "无法删除文件：SSH 暂时断开。请等待重新连接后重试。",
+        "sshFailed": "无法删除文件：SSH 连接失败。请检查服务器设置中的 SSH 凭据和端口。",
+        "permissionDenied": "没有删除文件所需的 TeamSpeak 权限。列出此文件夹并不代表拥有写入授权——请为 Query 身份授予所需的文件传输权限。",
+        "failed": "删除文件失败"
+      }
+    }
+  },
+  "errors": {
+    "sentence": "{{title}}。{{message}}",
+    "connection": {
+      "logviewTitle": "TeamSpeak 日志文件不可用",
+      "sshTitle": "SSH 正在重新连接",
+      "startingTitle": "TeamSpeak 正在启动",
+      "failedTitle": "连接失败"
+    },
+    "reasons": {
+      "stream_already_running": {
+        "title": "已有视频正在推流"
+      },
+      "stream_not_running": {
+        "title": "没有正在进行的流",
+        "action": "请先启动视频。"
+      },
+      "stream_starting": {
+        "title": "流仍在启动中"
+      },
+      "stream_stopping": {
+        "title": "流正在停止"
+      },
+      "sidecar_unavailable": {
+        "title": "媒体边车不可用",
+        "action": "检查边车是否正在运行，然后重试。"
+      },
+      "sidecar_timeout": {
+        "title": "媒体边车超时"
+      },
+      "request_timeout": {
+        "title": "请求超时"
+      },
+      "source_invalid": {
+        "title": "源无效"
+      },
+      "source_not_found": {
+        "title": "文件未找到"
+      },
+      "source_refused": {
+        "title": "无法使用此源"
+      },
+      "source_timeout": {
+        "title": "源超时"
+      },
+      "source_unavailable": {
+        "title": "无法播放此源"
+      },
+      "bot_not_connected": {
+        "title": "机器人未连接",
+        "action": "启动机器人，然后重试。"
+      },
+      "bot_already_started": {
+        "title": "此机器人已启动"
+      },
+      "unexpected_error": {
+        "title": "出了问题",
+        "action": "请重试。如果持续发生，请检查服务器日志。"
+      }
+    }
+  }
+}

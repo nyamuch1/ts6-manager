@@ -24,10 +24,18 @@ widgetRoutes.post('/', requireRole('admin'), async (req: Request, res: Response,
     const prisma = req.app.locals.prisma;
     const { name, serverConfigId, virtualServerId, theme, showChannelTree, showClients, hideEmptyChannels, maxChannelDepth } = req.body;
 
-    if (!name || !serverConfigId) throw new AppError(400, 'name and serverConfigId are required');
+    if (!name || !serverConfigId) {
+      throw new AppError(400, 'name and serverConfigId are required', undefined, {
+        messageKey: 'errors.name_server_config_required',
+      });
+    }
 
     const serverConfig = await prisma.tsServerConfig.findUnique({ where: { id: serverConfigId } });
-    if (!serverConfig) throw new AppError(404, 'Server config not found');
+    if (!serverConfig) {
+      throw new AppError(404, 'Server config not found', undefined, {
+        messageKey: 'errors.server_config_not_found',
+      });
+    }
 
     const widget = await prisma.widget.create({
       data: {
@@ -57,7 +65,9 @@ widgetRoutes.patch('/:id', requireRole('admin'), async (req: Request, res: Respo
 
     // Invalidate cache for this widget's token
     const existing = await prisma.widget.findUnique({ where: { id } });
-    if (!existing) throw new AppError(404, 'Widget not found');
+    if (!existing) {
+      throw new AppError(404, 'Widget not found', undefined, { messageKey: 'errors.widget_not_found' });
+    }
     widgetDataCache.delete(existing.token);
 
     const widget = await prisma.widget.update({
@@ -84,7 +94,9 @@ widgetRoutes.delete('/:id', requireRole('admin'), async (req: Request, res: Resp
     const id = parseInt(req.params.id as string);
 
     const existing = await prisma.widget.findUnique({ where: { id } });
-    if (!existing) throw new AppError(404, 'Widget not found');
+    if (!existing) {
+      throw new AppError(404, 'Widget not found', undefined, { messageKey: 'errors.widget_not_found' });
+    }
     widgetDataCache.delete(existing.token);
 
     await prisma.widget.delete({ where: { id } });
@@ -99,7 +111,9 @@ widgetRoutes.post('/:id/regenerate-token', requireRole('admin'), async (req: Req
     const id = parseInt(req.params.id as string);
 
     const existing = await prisma.widget.findUnique({ where: { id } });
-    if (!existing) throw new AppError(404, 'Widget not found');
+    if (!existing) {
+      throw new AppError(404, 'Widget not found', undefined, { messageKey: 'errors.widget_not_found' });
+    }
     widgetDataCache.delete(existing.token);
 
     const widget = await prisma.widget.update({

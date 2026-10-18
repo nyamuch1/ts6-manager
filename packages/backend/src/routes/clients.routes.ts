@@ -3,6 +3,8 @@ import { Router, Request, Response } from 'express';
 import { requireRole } from '../middleware/rbac.js';
 import type { ConnectionPool } from '../ts-client/connection-pool.js';
 import { AppError, TSApiError } from '../middleware/error-handler.js';
+import { translate } from '../i18n/index.js';
+import { requestLocale } from '../i18n/middleware.js';
 import {
   actorFromRequest,
   runRemoteAudited,
@@ -35,7 +37,9 @@ function avatarContentType(data: Buffer): string {
   if (data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) return 'image/jpeg';
   if (data.length >= 6 && ['GIF87a', 'GIF89a'].includes(data.subarray(0, 6).toString('ascii'))) return 'image/gif';
   if (data.length >= 12 && data.subarray(0, 4).toString('ascii') === 'RIFF' && data.subarray(8, 12).toString('ascii') === 'WEBP') return 'image/webp';
-  throw new AppError(502, 'TeamSpeak profile avatar is not a supported image');
+  throw new AppError(502, 'TeamSpeak profile avatar is not a supported image', undefined, {
+    messageKey: 'errors.avatar_unsupported_image',
+  });
 }
 
 function parseMyTeamSpeakAvatar(rawValue: unknown): URL | null {
@@ -46,7 +50,9 @@ function parseMyTeamSpeakAvatar(rawValue: unknown): URL | null {
   try {
     url = new URL(value);
   } catch {
-    throw new AppError(502, 'TeamSpeak returned an invalid profile avatar URL');
+    throw new AppError(502, 'TeamSpeak returned an invalid profile avatar URL', undefined, {
+      messageKey: 'errors.avatar_invalid_url',
+    });
   }
   if (
     url.protocol !== 'https:'
@@ -56,17 +62,32 @@ function parseMyTeamSpeakAvatar(rawValue: unknown): URL | null {
     || url.username !== ''
     || url.password !== ''
   ) {
-    throw new AppError(502, 'TeamSpeak returned an untrusted profile avatar URL');
+    throw new AppError(502, 'TeamSpeak returned an untrusted profile avatar URL', undefined, {
+      messageKey: 'errors.avatar_untrusted_url',
+    });
   }
   return url;
 }
 
 async function fetchAvatar(url: URL): Promise<AvatarCacheEntry> {
   const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(8000) });
-  if (!response.ok) throw new AppError(502, `TeamSpeak profile avatar returned HTTP ${response.status}`);
+  if (!response.ok) {
+    throw new AppError(502, `TeamSpeak profile avatar returned HTTP ${response.status}`, undefined, {
+      messageKey: 'errors.avatar_http_status',
+      messageParams: { status: response.status },
+    });
+  }
   const declaredSize = Number(response.headers.get('content-length') || 0);
-  if (declaredSize > MAX_AVATAR_BYTES) throw new AppError(502, 'TeamSpeak profile avatar is too large');
-  if (!response.body) throw new AppError(502, 'TeamSpeak profile avatar returned an empty response');
+  if (declaredSize > MAX_AVATAR_BYTES) {
+    throw new AppError(502, 'TeamSpeak profile avatar is too large', undefined, {
+      messageKey: 'errors.avatar_too_large',
+    });
+  }
+  if (!response.body) {
+    throw new AppError(502, 'TeamSpeak profile avatar returned an empty response', undefined, {
+      messageKey: 'errors.avatar_empty_response',
+    });
+  }
   const reader = response.body.getReader();
   const chunks: Buffer[] = [];
   let received = 0;
@@ -76,7 +97,9 @@ async function fetchAvatar(url: URL): Promise<AvatarCacheEntry> {
     received += value.byteLength;
     if (received > MAX_AVATAR_BYTES) {
       await reader.cancel();
-      throw new AppError(502, 'TeamSpeak profile avatar is too large');
+      throw new AppError(502, 'TeamSpeak profile avatar is too large', undefined, {
+        messageKey: 'errors.avatar_too_large',
+      });
     }
     chunks.push(Buffer.from(value));
   }
@@ -119,7 +142,11 @@ clientRoutes.get('/database/:cldbid', requireRole('admin'), async (req: Request,
 clientRoutes.get('/:clid/avatar', async (req: Request, res: Response, next) => {
   try {
     const clid = Number(req.params.clid);
-    if (!Number.isInteger(clid) || clid <= 0) throw new AppError(400, 'A valid connected client ID is required');
+    if (!Number.isInteger(clid) || clid <= 0) {
+      throw new AppError(400, 'A valid connected client ID is required', undefined, {
+        messageKey: 'errors.valid_client_id_required',
+      });
+    }
 
     const configId = Number(req.params.configId);
     const prisma = req.app.locals.prisma;
@@ -131,7 +158,7 @@ clientRoutes.get('/:clid/avatar', async (req: Request, res: Response, next) => {
     const missingKey = `${req.params.configId}:${getSid(req)}:${clid}`;
     const missingUntil = missingAvatarUntil.get(missingKey) || 0;
     if (missingUntil > Date.now()) {
-      res.status(404).json({ error: 'This client has no TeamSpeak profile avatar' });
+      res.status(404).json({ error: translate(requestLocale(req), 'errors.client_no_avatar') });
       return;
     }
     if (missingUntil) missingAvatarUntil.delete(missingKey);
@@ -159,7 +186,7 @@ clientRoutes.get('/:clid/avatar', async (req: Request, res: Response, next) => {
     const avatarUrl = parseMyTeamSpeakAvatar(info.client_myteamspeak_avatar);
     if (!avatarUrl) {
       missingAvatarUntil.set(missingKey, Date.now() + AVATAR_CACHE_TTL_MS);
-      res.status(404).json({ error: 'This client has no TeamSpeak profile avatar' });
+      res.status(404).json({ error: translate(requestLocale(req), 'errors.client_no_avatar') });
       return;
     }
     missingAvatarUntil.delete(missingKey);

@@ -6,6 +6,12 @@ import { renderWidgetSvg } from '../widget/widget-svg.js';
 import type { WidgetData } from '@ts6/common';
 import type { VoiceBotManager } from '../voice/voice-bot-manager.js';
 import { config } from '../config.js';
+import {
+  isSupportedLocale,
+  translate,
+  type SupportedLocale,
+} from '../i18n/index.js';
+import { requestLocale } from '../i18n/middleware.js';
 
 // Simple in-process cache (45s TTL) with bounded size
 interface CacheEntry { data: WidgetData; expiresAt: number; }
@@ -81,6 +87,51 @@ async function getWidgetData(token: string, req: Request): Promise<WidgetData | 
   return data;
 }
 
+/**
+ * A valid `?lang=en|zh-CN` wins; invalid values fall through to
+ * Accept-Language (negotiated by the global locale middleware), then English.
+ * The query string is part of the public cache key.
+ */
+function queryLocale(req: Request): SupportedLocale | null {
+  const raw = req.query.lang;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return isSupportedLocale(value) ? value : null;
+}
+
+function widgetLocale(req: Request): SupportedLocale {
+  return queryLocale(req) ?? requestLocale(req);
+}
+
+/**
+ * Player widgets default to the bot's configured language, then the instance
+ * default, then Accept-Language. The `MusicBot.language` column may not exist
+ * in an older deployment, so a failed select falls through instead of failing
+ * the public endpoint.
+ */
+async function playerLocale(req: Request, botId: number): Promise<SupportedLocale> {
+  const prisma = req.app.locals.prisma;
+  if (prisma?.musicBot?.findUnique) {
+    try {
+      const row = await (prisma.musicBot.findUnique as any)({
+        where: { id: botId },
+        select: { language: true },
+      }) as { language?: string | null } | null;
+      if (isSupportedLocale(row?.language)) return row.language;
+    } catch {
+      // Column not migrated yet — fall through to the instance default.
+    }
+  }
+  if (prisma?.appSetting?.findUnique) {
+    try {
+      const row = await prisma.appSetting.findUnique({ where: { key: 'default_bot_language' } });
+      if (isSupportedLocale(row?.value)) return row.value;
+    } catch {
+      // Settings table unavailable — fall through to the request language.
+    }
+  }
+  return requestLocale(req);
+}
+
 export const widgetPublicRoutes: Router = Router();
 
 // GET /:token/data — JSON widget data
@@ -88,9 +139,16 @@ widgetPublicRoutes.get('/:token/data', async (req: Request, res: Response, next)
   try {
     const token = req.params.token as string;
     const data = await getWidgetData(token, req);
-    if (!data) return res.status(404).json({ error: 'Widget not found or server offline' });
+    if (!data) {
+      return res.status(404).json({
+        error: translate(widgetLocale(req), 'widget.error.not_found_or_offline'),
+      });
+    }
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'public, max-age=45');
+    // The JSON payload has no fixed labels, but report the negotiated locale
+    // so the response is honest about language-dependent caching.
+    res.setHeader('Content-Language', widgetLocale(req));
     res.json(data);
   } catch (err) { next(err); }
 });
@@ -100,11 +158,15 @@ widgetPublicRoutes.get('/:token/image.svg', async (req: Request, res: Response, 
   try {
     const token = req.params.token as string;
     const data = await getWidgetData(token, req);
-    if (!data) return res.status(404).send('Widget not found');
-    const svg = renderWidgetSvg(data);
+    if (!data) {
+      return res.status(404).send(translate(widgetLocale(req), 'widget.error.not_found'));
+    }
+    const locale = widgetLocale(req);
+    const svg = renderWidgetSvg(data, locale);
     res.setHeader('Content-Type', 'image/svg+xml');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'public, max-age=45');
+    res.setHeader('Content-Language', locale);
     res.send(svg);
   } catch (err) { next(err); }
 });
@@ -114,8 +176,11 @@ widgetPublicRoutes.get('/:token/image.png', async (req: Request, res: Response, 
   try {
     const token = req.params.token as string;
     const data = await getWidgetData(token, req);
-    if (!data) return res.status(404).send('Widget not found');
-    const svg = renderWidgetSvg(data);
+    if (!data) {
+      return res.status(404).send(translate(widgetLocale(req), 'widget.error.not_found'));
+    }
+    const locale = widgetLocale(req);
+    const svg = renderWidgetSvg(data, locale);
 
     let pngBuffer: Buffer;
     try {
@@ -126,12 +191,14 @@ widgetPublicRoutes.get('/:token/image.png', async (req: Request, res: Response, 
       // If @resvg/resvg-js is not available, fall back to SVG
       res.setHeader('Content-Type', 'image/svg+xml');
       res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Content-Language', locale);
       return res.send(svg);
     }
 
     res.setHeader('Content-Type', 'image/png');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'public, max-age=45');
+    res.setHeader('Content-Language', locale);
     res.send(pngBuffer);
   } catch (err) { next(err); }
 });
@@ -152,12 +219,18 @@ widgetPublicRoutes.get('/player/:botId/data', async (req: Request, res: Response
     const botId = parseInt(String(req.params.botId));
     const token = req.query.token as string;
     if (!token || token !== playerWidgetToken(botId)) {
-      return res.status(403).json({ error: 'Invalid token' });
+      return res.status(403).json({
+        error: translate(widgetLocale(req), 'widget.error.invalid_token'),
+      });
     }
 
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(botId);
-    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    if (!bot) {
+      return res.status(404).json({
+        error: translate(widgetLocale(req), 'widget.error.bot_not_found'),
+      });
+    }
 
     const nowPlaying = bot.nowPlaying;
     const progress = bot.playbackProgress;
@@ -165,6 +238,7 @@ widgetPublicRoutes.get('/player/:botId/data', async (req: Request, res: Response
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'public, max-age=10');
+    res.setHeader('Content-Language', widgetLocale(req));
     res.json({
       nowPlaying: nowPlaying ? { title: nowPlaying.title, artist: nowPlaying.artist, duration: nowPlaying.duration, source: nowPlaying.source } : null,
       progress: progress ? { position: progress.position, duration: progress.duration } : null,
@@ -181,19 +255,27 @@ widgetPublicRoutes.get('/player/:botId/bbcode', async (req: Request, res: Respon
     const botId = parseInt(String(req.params.botId));
     const token = req.query.token as string;
     if (!token || token !== playerWidgetToken(botId)) {
-      return res.status(403).json({ error: 'Invalid token' });
+      return res.status(403).json({
+        error: translate(widgetLocale(req), 'widget.error.invalid_token'),
+      });
     }
 
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(botId);
-    if (!bot) return res.status(404).send('Bot not found');
+    if (!bot) {
+      return res.status(404).send(translate(widgetLocale(req), 'widget.error.bot_not_found'));
+    }
 
     const nowPlaying = bot.nowPlaying;
     const progress = bot.playbackProgress;
     const upcoming = bot.queue.upcoming(5);
     const remaining = bot.queue.upcomingCount;
 
-    let bb = '[b]🎵 Now Playing[/b]\n';
+    // An explicit ?lang wins; otherwise use the bot's configured language so
+    // the channel description matches the bot rather than the embedder.
+    const locale = queryLocale(req) ?? await playerLocale(req, botId);
+
+    let bb = `[b]${translate(locale, 'widget.player.now_playing')}[/b]\n`;
     if (nowPlaying) {
       const artist = nowPlaying.artist ? ` — ${nowPlaying.artist}` : '';
       bb += `[color=#00aaff]${nowPlaying.title}${artist}[/color]\n`;
@@ -203,23 +285,24 @@ widgetPublicRoutes.get('/player/:botId/bbcode', async (req: Request, res: Respon
         bb += `${pos} / ${dur}\n`;
       }
     } else {
-      bb += '[i]Nothing playing[/i]\n';
+      bb += `[i]${translate(locale, 'widget.player.nothing_playing')}[/i]\n`;
     }
 
     if (upcoming.length > 0) {
-      bb += '\n[b]Up Next[/b]\n';
+      bb += `\n[b]${translate(locale, 'widget.player.up_next')}[/b]\n`;
       upcoming.forEach((item, i) => {
         const artist = item.artist ? ` — ${item.artist}` : '';
         bb += `${i + 1}. ${item.title}${artist}\n`;
       });
       if (remaining > upcoming.length) {
-        bb += `[i]... and ${remaining - upcoming.length} more[/i]\n`;
+        bb += `[i]${translate(locale, 'widget.player.and_more', { count: remaining - upcoming.length })}[/i]\n`;
       }
     }
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'public, max-age=10');
+    res.setHeader('Content-Language', locale);
     res.send(bb);
   } catch (err) { next(err); }
 });

@@ -42,7 +42,9 @@ radioStationRoutes.get('/browse', async (req: Request, res: Response, next) => {
     const country = typeof req.query.country === 'string' ? req.query.country : '';
     const limitRaw = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : undefined;
     if (!q.trim() && !tag.trim() && !country.trim()) {
-      throw new AppError(400, 'Provide a search query, tag, or country code');
+      throw new AppError(400, 'Provide a search query, tag, or country code', undefined, {
+        messageKey: 'errors.radio_search_requires_filter',
+      });
     }
     const stations = await radioBrowser.searchStations({
       name: q,
@@ -53,8 +55,10 @@ radioStationRoutes.get('/browse', async (req: Request, res: Response, next) => {
     res.json(stations);
   } catch (err) {
     if (err instanceof AppError) return next(err);
-    const message = err instanceof Error ? err.message : 'Radio Browser search failed';
-    next(new AppError(502, message));
+    if (err instanceof Error) return next(new AppError(502, err.message));
+    next(new AppError(502, 'Radio Browser search failed', undefined, {
+      messageKey: 'errors.radio_search_failed',
+    }));
   }
 });
 
@@ -77,11 +81,20 @@ radioStationRoutes.post('/', async (req: Request, res: Response, next) => {
     const prisma = req.app.locals.prisma;
     const configId = parseInt(req.params.configId as string);
     const { name, url, genre, imageUrl, stationuuid } = req.body;
-    if (!name || !url) throw new AppError(400, 'name and url are required');
+    if (!name || !url) {
+      throw new AppError(400, 'name and url are required', undefined, {
+        messageKey: 'errors.name_url_required',
+      });
+    }
 
     // C4: Validate radio station URL
     const urlCheck = await validateUrl(url, { allowedProtocols: ['http:', 'https:'] });
-    if (!urlCheck.valid) throw new AppError(400, `Invalid URL: ${urlCheck.error}`);
+    if (!urlCheck.valid) {
+      throw new AppError(400, `Invalid URL: ${urlCheck.error}`, undefined, {
+        messageKey: 'errors.invalid_url',
+        messageParams: { error: urlCheck.error },
+      });
+    }
 
     const station = await prisma.radioStation.create({
       data: {
@@ -108,22 +121,39 @@ radioStationRoutes.put('/:id', async (req: Request, res: Response, next) => {
     const configId = parseInt(req.params.configId as string);
     const where = { id, serverConfigId: configId };
     const existing = await prisma.radioStation.findFirst({ where });
-    if (!existing) throw new AppError(404, 'Station not found');
+    if (!existing) {
+      throw new AppError(404, 'Station not found', undefined, { messageKey: 'errors.station_not_found' });
+    }
 
     const { name, url, genre } = req.body;
     const data: { name?: string; url?: string; genre?: string | null } = {};
     if (name !== undefined) {
-      if (typeof name !== 'string' || !name.trim()) throw new AppError(400, 'name is required');
+      if (typeof name !== 'string' || !name.trim()) {
+        throw new AppError(400, 'name is required', undefined, { messageKey: 'errors.name_required' });
+      }
       data.name = name.trim();
     }
     if (url !== undefined) {
-      if (typeof url !== 'string') throw new AppError(400, 'url must be a string');
+      if (typeof url !== 'string') {
+        throw new AppError(400, 'url must be a string', undefined, {
+          messageKey: 'errors.url_string_required',
+        });
+      }
       const urlCheck = await validateUrl(url, { allowedProtocols: ['http:', 'https:'] });
-      if (!urlCheck.valid) throw new AppError(400, `Invalid URL: ${urlCheck.error}`);
+      if (!urlCheck.valid) {
+        throw new AppError(400, `Invalid URL: ${urlCheck.error}`, undefined, {
+          messageKey: 'errors.invalid_url',
+          messageParams: { error: urlCheck.error },
+        });
+      }
       data.url = url;
     }
     if (genre !== undefined) {
-      if (genre !== null && typeof genre !== 'string') throw new AppError(400, 'genre must be a string or null');
+      if (genre !== null && typeof genre !== 'string') {
+        throw new AppError(400, 'genre must be a string or null', undefined, {
+          messageKey: 'errors.genre_string_or_null',
+        });
+      }
       data.genre = genre || null;
     }
 

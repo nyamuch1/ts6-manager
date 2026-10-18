@@ -10,11 +10,11 @@ export const DEFAULT_AVATAR_FILE = fileURLToPath(new URL('../../assets/default-b
 export const botAvatarDataDir = () => process.env.DATA_DIR || fileURLToPath(new URL('../../data/', import.meta.url));
 
 export function avatarImageType(image: Buffer): { extension: 'png' | 'jpg' | 'gif'; mime: string } {
-  if (image.length > MAX_AVATAR_BYTES) throw new AppError(400, 'Avatar must be at most 200 KB');
+  if (image.length > MAX_AVATAR_BYTES) throw new AppError(400, 'Avatar must be at most 200 KB', undefined, { messageKey: 'errors.bot_avatar_too_large' });
   if (image.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return { extension: 'png', mime: 'image/png' };
   if (image[0] === 255 && image[1] === 216 && image[2] === 255) return { extension: 'jpg', mime: 'image/jpeg' };
   if (['GIF87a', 'GIF89a'].includes(image.subarray(0, 6).toString('ascii'))) return { extension: 'gif', mime: 'image/gif' };
-  throw new AppError(400, 'Avatar must be a PNG, JPEG or GIF image');
+  throw new AppError(400, 'Avatar must be a PNG, JPEG or GIF image', undefined, { messageKey: 'errors.avatar_type_invalid' });
 }
 
 /**
@@ -23,7 +23,7 @@ export function avatarImageType(image: Buffer): { extension: 'png' | 'jpg' | 'gi
  * leaves the previous avatar intact; callers remove whichever file lost.
  */
 export async function saveBotAvatar(botId: number, image: Buffer, dataDir = botAvatarDataDir()): Promise<{ avatarFile: string; avatarMd5: string }> {
-  if (!Number.isSafeInteger(botId) || botId <= 0) throw new AppError(400, 'Invalid bot ID');
+  if (!Number.isSafeInteger(botId) || botId <= 0) throw new AppError(400, 'Invalid bot ID', undefined, { messageKey: 'errors.bot_id_invalid' });
   const { extension } = avatarImageType(image);
   const avatarFile = `bot-avatars/${botId}.${randomUUID().replace(/-/g, '')}.${extension}`;
   await mkdir(path.join(dataDir, 'bot-avatars'), { recursive: true });
@@ -39,7 +39,7 @@ export async function saveBotAvatar(botId: number, image: Buffer, dataDir = botA
 export async function readBotAvatar(bot: { id: number; avatarMode?: string; avatarFile?: string | null }, dataDir = botAvatarDataDir()): Promise<Buffer | null> {
   if (!bot.avatarMode || bot.avatarMode === 'none') return null;
   if (bot.avatarMode === 'default') return readFile(DEFAULT_AVATAR_FILE);
-  if (!isBotAvatarFile(bot.id, bot.avatarFile)) throw new AppError(400, 'Invalid avatar file');
+  if (!isBotAvatarFile(bot.id, bot.avatarFile)) throw new AppError(400, 'Invalid avatar file', undefined, { messageKey: 'errors.avatar_file_invalid' });
   return readFile(path.join(dataDir, bot.avatarFile));
 }
 

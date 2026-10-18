@@ -14,7 +14,12 @@ import type { MusicCommandHandler } from './music-command-handler.js';
 import { decrypt, encrypt } from '../utils/crypto.js';
 import { sweepStreamTempFiles } from './streaming/video-download.js';
 import { mediaCacheFor } from './audio/media-cache.js';
-import { loadMaxVideoDuration, loadVideoStreamingSettings, loadYoutubeDirectStream } from '../utils/app-settings.js';
+import {
+  loadDefaultBotLanguage,
+  loadMaxVideoDuration,
+  loadVideoStreamingSettings,
+  loadYoutubeDirectStream,
+} from '../utils/app-settings.js';
 import { serializeCommandChannelIds } from './music-command-channels.js';
 import { reconnectAttemptBusy, type ReconnectAttemptState } from './reconnect-state.js';
 import { parseAutoStopEmptySeconds } from './streaming/lifecycle.js';
@@ -107,6 +112,8 @@ export class VoiceBotManager extends EventEmitter {
         serverHost: dbBot.serverConfig.host,
         serverPort: dbBot.voicePort ?? 9987,
         nickname: dbBot.nickname,
+        language: dbBot.language ?? null,
+        loadDefaultBotLanguage: () => loadDefaultBotLanguage(this.prisma),
         serverPassword: dbBot.serverPassword ?? undefined,
         defaultChannel: dbBot.defaultChannel ?? undefined,
         channelPassword: dbBot.channelPassword ?? undefined,
@@ -162,6 +169,7 @@ export class VoiceBotManager extends EventEmitter {
       {
         bot,
         start: (source, options) => this.startVideoStream(bot, source, options),
+        resolveLocale: () => bot.resolveChatLocale(),
         store: createVideoQueueStore(this.prisma, config.id),
         onChange: (state) => this.broadcast('music:bot:videoQueueChanged', { botId: config.id, state }),
       },
@@ -381,6 +389,7 @@ export class VoiceBotManager extends EventEmitter {
     serverPassword?: string;
     defaultChannel?: string;
     channelPassword?: string;
+    language?: 'en' | 'zh-CN' | null;
     commandChannelIds?: string[];
     virtualServerId?: number;
     voicePort?: number;
@@ -419,6 +428,7 @@ export class VoiceBotManager extends EventEmitter {
         serverPassword: data.serverPassword,
         defaultChannel: data.defaultChannel,
         channelPassword: data.channelPassword,
+        language: data.language ?? null,
         commandChannelIds: serializeCommandChannelIds(data.commandChannelIds ?? []),
         virtualServerId: data.virtualServerId ?? 1,
         voicePort: data.voicePort ?? 9987,
@@ -437,6 +447,8 @@ export class VoiceBotManager extends EventEmitter {
       serverHost: serverConfig.host,
       serverPort: dbBot.voicePort ?? 9987,
       nickname: dbBot.nickname,
+      language: dbBot.language ?? null,
+      loadDefaultBotLanguage: () => loadDefaultBotLanguage(this.prisma),
       serverPassword: dbBot.serverPassword ?? undefined,
       defaultChannel: dbBot.defaultChannel ?? undefined,
       channelPassword: dbBot.channelPassword ?? undefined,
@@ -661,12 +673,22 @@ export class VoiceBotManager extends EventEmitter {
 
   async homeBot(id: number): Promise<void> {
     const bot = this.bots.get(id);
-    if (!bot) throw new AppError(404, 'Music bot not found');
-    if (!['connected', 'playing', 'paused'].includes(bot.status)) throw new AppError(409, 'Bot is not connected');
+    if (!bot) throw new AppError(404, 'Music bot not found', undefined, {
+      messageKey: 'errors.music_bot_not_found',
+    });
+    if (!['connected', 'playing', 'paused'].includes(bot.status)) {
+      throw new AppError(409, 'Bot is not connected', undefined, {
+        messageKey: 'errors.bot_not_connected',
+      });
+    }
     this.clearReconnect(id);
     bot.automation?.suspendPresence();
     await bot.automation?.flush();
-    if (this.bots.get(id) !== bot) throw new AppError(404, 'Music bot not found');
+    if (this.bots.get(id) !== bot) {
+      throw new AppError(404, 'Music bot not found', undefined, {
+        messageKey: 'errors.music_bot_not_found',
+      });
+    }
     if (bot.manuallyStopped || bot.status === 'stopped' || bot.status === 'error') return;
     await bot.restart();
   }

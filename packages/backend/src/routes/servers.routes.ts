@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { requireRole } from '../middleware/rbac.js';
 import { AppError, TeamSpeakFloodError } from '../middleware/error-handler.js';
+import { requestLocale } from '../i18n/middleware.js';
 import { createWebQueryClient } from '../ts-client/webquery-client.js';
 import type { ConnectionPool } from '../ts-client/connection-pool.js';
 import { encrypt, decrypt } from '../utils/crypto.js';
@@ -138,7 +139,11 @@ serverRoutes.post('/', requireRole('admin'), async (req: Request, res: Response,
       name, host, webqueryPort, apiKey, useHttps, sshPort, sshUsername, sshPassword,
       metricsEnabled, metricsPort, metricsHost,
     } = req.body;
-    if (!name || !host || !apiKey) throw new AppError(400, 'Name, host, and API key are required');
+    if (!name || !host || !apiKey) {
+      throw new AppError(400, 'Name, host, and API key are required', undefined, {
+        messageKey: 'errors.name_host_api_key_required',
+      });
+    }
 
     const safeHost = sanitizeTsServerHost(host);
     const safeWebqueryPort = validateTsServerPort(webqueryPort, 10080);
@@ -199,7 +204,11 @@ serverRoutes.get('/:configId', async (req: Request, res: Response, next) => {
     const server = await prisma.tsServerConfig.findUnique({
       where: { id: parseInt(String(req.params.configId)) },
     });
-    if (!server) throw new AppError(404, 'Server config not found');
+    if (!server) {
+      throw new AppError(404, 'Server config not found', undefined, {
+        messageKey: 'errors.server_config_not_found',
+      });
+    }
 
     const payload: Record<string, unknown> = {
       id: server.id, name: server.name, host: server.host,
@@ -344,7 +353,11 @@ serverRoutes.delete('/:configId', requireRole('admin'), async (req: Request, res
 serverRoutes.post('/test-webquery', requireRole('admin'), async (req: Request, res: Response, next) => {
   try {
     const { host, webqueryPort, apiKey, useHttps } = req.body;
-    if (!host || !apiKey) throw new AppError(400, 'Host and API key are required');
+    if (!host || !apiKey) {
+      throw new AppError(400, 'Host and API key are required', undefined, {
+        messageKey: 'errors.host_api_key_required',
+      });
+    }
 
     const safeHost = await assertResolvableTsServerHost(host);
     const safePort = validateTsServerPort(webqueryPort, 10080);
@@ -353,7 +366,7 @@ serverRoutes.post('/test-webquery', requireRole('admin'), async (req: Request, r
     try {
       // Always probe default virtual server 1 — do not accept request-body sid
       // (would taint the WebQuery path / re-open CodeQL request-forgery).
-      const report = await client.diagnoseConnection();
+      const report = await client.diagnoseConnection({ locale: requestLocale(req) });
       // Always HTTP 200 so the UI can render partial stage results.
       res.json(report);
     } finally {
@@ -389,7 +402,11 @@ serverRoutes.post('/:configId/test', requireRole('admin'), async (req: Request, 
     const server = await prisma.tsServerConfig.findUnique({
       where: { id: configId },
     });
-    if (!server) throw new AppError(404, 'Server config not found');
+    if (!server) {
+      throw new AppError(404, 'Server config not found', undefined, {
+        messageKey: 'errors.server_config_not_found',
+      });
+    }
     if (server.isDemo) {
       res.json(buildFullSuccessReport('Demo mode'));
       return;
@@ -408,7 +425,7 @@ serverRoutes.post('/:configId/test', requireRole('admin'), async (req: Request, 
     const client = createWebQueryClient(server.host, server.webqueryPort, decrypt(server.apiKey), server.useHttps);
     try {
       // Default virtual server 1 only — selected-sid belongs on persisted config later.
-      const report = await client.diagnoseConnection();
+      const report = await client.diagnoseConnection({ locale: requestLocale(req) });
       res.json(report);
     } finally {
       client.destroy(); // Close the temporary TCP connection immediately
@@ -424,12 +441,21 @@ serverRoutes.post('/:configId/test-ssh', requireRole('admin'), async (req: Reque
     const server = await prisma.tsServerConfig.findUnique({
       where: { id: configId },
     });
-    if (!server) throw new AppError(404, 'Server config not found');
+    if (!server) {
+      throw new AppError(404, 'Server config not found', undefined, {
+        messageKey: 'errors.server_config_not_found',
+      });
+    }
     if (server.isDemo) {
-      throw new AppError(400, 'SSH is not available for demo servers');
+      throw new AppError(400, 'SSH is not available for demo servers', undefined, {
+        messageKey: 'errors.ssh_demo_unavailable',
+      });
     }
     if (!server.sshUsername || !server.sshPassword) {
-      throw new AppError(400, 'SSH credentials not configured');
+      throw new AppError(400, 'SSH credentials not configured', undefined, {
+        messageKey: 'errors.ssh_not_configured',
+        reason: 'ssh_required',
+      });
     }
 
     // Shared WebQuery flood cooldown means TeamSpeak is still blocking this manager

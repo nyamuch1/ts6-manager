@@ -68,6 +68,11 @@ if ! python3 "$ROOT/scripts/ci/check-docs-layout.py"; then
   fail=1
 fi
 
+echo "==> frontend i18n key parity"
+if ! python3 "$ROOT/scripts/ci/check-i18n.py"; then
+  fail=1
+fi
+
 echo "==> Obsolete top-level version: in docker-compose*.yml"
 mapfile -t compose_files < <(git ls-files 'docker-compose*.yml' | sort)
 if ((${#compose_files[@]} == 0)); then

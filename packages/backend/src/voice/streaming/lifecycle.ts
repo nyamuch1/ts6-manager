@@ -1,32 +1,70 @@
-import type { MediaStopReason, VideoSourceMode, VideoSourceModeRequest } from '@ts6/common';
+import type {
+  MediaStopDetailCode,
+  MediaStopReason,
+  VideoSourceMode,
+  VideoSourceModeRequest,
+} from '@ts6/common';
+import {
+  DEFAULT_LOCALE,
+  translate,
+  type MessageKey,
+  type SupportedLocale,
+} from '../../i18n/index.js';
 
 /**
  * Human-readable media lifecycle wording (stop reasons, countdowns).
  */
 
+type DurationUnit = 'second' | 'minute' | 'hour';
+
+const UNIT_KEY: Record<DurationUnit, { one: MessageKey; other: MessageKey }> = {
+  second: {
+    one: 'diagnostics.lifecycle.unit.second_one',
+    other: 'diagnostics.lifecycle.unit.second_other',
+  },
+  minute: {
+    one: 'diagnostics.lifecycle.unit.minute_one',
+    other: 'diagnostics.lifecycle.unit.minute_other',
+  },
+  hour: {
+    one: 'diagnostics.lifecycle.unit.hour_one',
+    other: 'diagnostics.lifecycle.unit.hour_other',
+  },
+};
+
+function durationPart(count: number, unit: DurationUnit, locale: SupportedLocale): string {
+  return translate(locale, 'diagnostics.lifecycle.duration', {
+    count,
+    unit: translate(locale, UNIT_KEY[unit][count === 1 ? 'one' : 'other']),
+  });
+}
+
 /** "5 minutes", "1 minute", "45 seconds", "1 minute 30 seconds". */
-export function describeDuration(totalSec: number): string {
+export function describeDuration(
+  totalSec: number,
+  locale: SupportedLocale = DEFAULT_LOCALE,
+): string {
   const sec = Math.max(0, Math.round(totalSec));
-  const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? '' : 's'}`;
-  if (sec < 60) return plural(sec, 'second');
+  if (sec < 60) return durationPart(sec, 'second', locale);
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
   const s = sec % 60;
   const parts: string[] = [];
-  if (h) parts.push(plural(h, 'hour'));
-  if (m) parts.push(plural(m, 'minute'));
-  if (s) parts.push(plural(s, 'second'));
-  return parts.join(' ');
+  if (h) parts.push(durationPart(h, 'hour', locale));
+  if (m) parts.push(durationPart(m, 'minute', locale));
+  if (s) parts.push(durationPart(s, 'second', locale));
+  // Chinese composes units without a space ("1分钟30秒"); English keeps one.
+  return parts.join(locale === 'zh-CN' ? '' : ' ');
 }
 
 /** Format an auto-stop announcement using whole minutes only when exact. */
-export function formatStopDuration(seconds: number): string {
+export function formatStopDuration(
+  seconds: number,
+  locale: SupportedLocale = DEFAULT_LOCALE,
+): string {
   const sec = Math.max(0, Math.round(seconds));
-  if (sec >= 60 && sec % 60 === 0) {
-    const minutes = sec / 60;
-    return `${minutes} minute${minutes === 1 ? '' : 's'}`;
-  }
-  return `${sec} second${sec === 1 ? '' : 's'}`;
+  if (sec >= 60 && sec % 60 === 0) return durationPart(sec / 60, 'minute', locale);
+  return durationPart(sec, 'second', locale);
 }
 
 export type AutoStopMedia = 'music' | 'radio' | 'video';
@@ -35,24 +73,70 @@ export function autoStopNotice(
   media: AutoStopMedia,
   reason: 'channel_empty' | 'no_viewers',
   seconds: number,
+  locale: SupportedLocale = DEFAULT_LOCALE,
 ): string {
-  const duration = formatStopDuration(seconds);
-  if (media === 'music') return `Stopped the music: the channel was empty for ${duration}.`;
-  if (media === 'radio') return `Stopped radio: the channel was empty for ${duration}.`;
-  if (reason === 'no_viewers') return `Stopped the stream: nobody watched for ${duration}.`;
-  return `Stopped the stream: the channel was empty for ${duration}.`;
+  const duration = formatStopDuration(seconds, locale);
+  if (media === 'music') {
+    return translate(locale, 'diagnostics.lifecycle.auto_stop_music', { duration });
+  }
+  if (media === 'radio') {
+    return translate(locale, 'diagnostics.lifecycle.auto_stop_radio', { duration });
+  }
+  if (reason === 'no_viewers') {
+    return translate(locale, 'diagnostics.lifecycle.auto_stop_stream_no_viewers', { duration });
+  }
+  return translate(locale, 'diagnostics.lifecycle.auto_stop_stream_channel_empty', { duration });
 }
 
-export function noViewerWarningNotice(): string {
-  return 'Nobody is watching. The stream stops in 1 minute.';
+export function noViewerWarningNotice(locale: SupportedLocale = DEFAULT_LOCALE): string {
+  return translate(locale, 'diagnostics.lifecycle.no_viewer_warning');
 }
 
-export function noViewersStopDetail(timeoutSec: number): string {
-  return `Stopped after ${describeDuration(timeoutSec)} with no viewers`;
+/** Stable fields a language-aware client can use to retranslate a stop detail. */
+export interface MediaStopDetailInfo {
+  detail: string;
+  detailCode: MediaStopDetailCode;
+  detailParams: Record<string, string | number>;
 }
 
-export function channelEmptyStopDetail(graceSec: number): string {
-  return `Stopped after the channel was empty for ${describeDuration(graceSec)}`;
+export function noViewersStopInfo(
+  timeoutSec: number,
+  locale: SupportedLocale = DEFAULT_LOCALE,
+): MediaStopDetailInfo {
+  return {
+    detail: translate(locale, 'diagnostics.lifecycle.stop_no_viewers', {
+      duration: describeDuration(timeoutSec, locale),
+    }),
+    detailCode: 'no_viewers',
+    detailParams: { seconds: Math.max(0, Math.round(timeoutSec)) },
+  };
+}
+
+export function channelEmptyStopInfo(
+  graceSec: number,
+  locale: SupportedLocale = DEFAULT_LOCALE,
+): MediaStopDetailInfo {
+  return {
+    detail: translate(locale, 'diagnostics.lifecycle.stop_channel_empty', {
+      duration: describeDuration(graceSec, locale),
+    }),
+    detailCode: 'channel_empty',
+    detailParams: { seconds: Math.max(0, Math.round(graceSec)) },
+  };
+}
+
+export function noViewersStopDetail(
+  timeoutSec: number,
+  locale: SupportedLocale = DEFAULT_LOCALE,
+): string {
+  return noViewersStopInfo(timeoutSec, locale).detail;
+}
+
+export function channelEmptyStopDetail(
+  graceSec: number,
+  locale: SupportedLocale = DEFAULT_LOCALE,
+): string {
+  return channelEmptyStopInfo(graceSec, locale).detail;
 }
 
 /**
@@ -105,33 +189,36 @@ const SOURCE_FAILURE =
  * Turn ffmpeg/sidecar stderr into a short operator-facing line (no pointer
  * addresses, no duplicated HTTP noise).
  */
-export function humanizeSourceError(raw: string): string {
+export function humanizeSourceError(
+  raw: string,
+  locale: SupportedLocale = DEFAULT_LOCALE,
+): string {
   const err = raw.trim();
-  if (!err) return 'Source became unreachable';
+  if (!err) return translate(locale, 'diagnostics.lifecycle.source_unreachable');
   // FairPlay / Widevine / PlayReady — ffmpeg cannot decrypt skd:// keys.
   if (/skd:\/\/|fairplay|widevine|playready/i.test(err)) {
-    return 'This channel uses DRM encryption and cannot be played here';
+    return translate(locale, 'diagnostics.lifecycle.drm');
   }
   // Plain HLS AES-128 uses key URIs too: a key that will not load is not DRM.
   if (/unable to open key file/i.test(err)) {
-    return 'Could not fetch the stream decryption key — the key URL may be expired or blocked';
+    return translate(locale, 'diagnostics.lifecycle.key_unavailable');
   }
   if (/matches no streams|stream map|empty segment/i.test(err)) {
-    return 'Playlist has no playable streams (variants failed or empty)';
+    return translate(locale, 'diagnostics.lifecycle.no_streams');
   }
   const codeMatch = err.match(/\bHTTP error\s+(\d{3})\b/i)
     ?? err.match(/\bServer returned\s+(\d{3})\b/i)
     ?? err.match(/\b([45]\d{2})\s+(?:Bad Request|Not Found|Forbidden|Unauthorized)\b/i);
   if (codeMatch) {
     const code = codeMatch[1];
-    if (code === '400') return 'Source returned 400 Bad Request — URL may be invalid or expired';
-    if (code === '401') return 'Source returned 401 Unauthorized — credentials or a token may be required';
-    if (code === '403') return 'Source returned 403 Forbidden — access may be blocked';
-    if (code === '404') return 'Source returned 404 Not Found — stream URL may be dead or moved';
-    return `Source returned HTTP ${code}`;
+    if (code === '400') return translate(locale, 'diagnostics.lifecycle.http_400');
+    if (code === '401') return translate(locale, 'diagnostics.lifecycle.http_401');
+    if (code === '403') return translate(locale, 'diagnostics.lifecycle.http_403');
+    if (code === '404') return translate(locale, 'diagnostics.lifecycle.http_404');
+    return translate(locale, 'diagnostics.lifecycle.http_other', { code });
   }
   if (/connection (refused|reset|timed out)|timed out|failed to resolve|name or service/i.test(err)) {
-    return 'Could not reach the media source (network or DNS failure)';
+    return translate(locale, 'diagnostics.lifecycle.network');
   }
   // Strip ffmpeg channel tags like `[https @ 0x…]` and `<source>` markers.
   const cleaned = err
@@ -140,8 +227,36 @@ export function humanizeSourceError(raw: string): string {
     .replace(/\s*;\s*/g, ' — ')
     .replace(/\s+/g, ' ')
     .trim();
-  if (!cleaned) return 'Source became unreachable';
+  if (!cleaned) return translate(locale, 'diagnostics.lifecycle.source_unreachable');
   return cleaned.length > 140 ? `${cleaned.slice(0, 137)}…` : cleaned;
+}
+
+export interface ClassifiedEncoderExit {
+  reason: MediaStopReason;
+  detail: string;
+  /** Stable machine code for clients that translate on a later language change. */
+  detailCode: MediaStopDetailCode;
+  detailParams?: Record<string, string | number>;
+}
+
+/**
+ * Attach the additive code fields without changing the legacy enumerable
+ * `{ reason, detail }` shape (existing deep-equality consumers keep working).
+ */
+function classifiedExit(
+  reason: MediaStopReason,
+  detail: string,
+  detailCode: MediaStopDetailCode,
+  detailParams?: Record<string, string | number>,
+): ClassifiedEncoderExit {
+  const result = { reason, detail } as ClassifiedEncoderExit;
+  Object.defineProperties(result, {
+    detailCode: { value: detailCode, enumerable: false },
+    ...(detailParams
+      ? { detailParams: { value: detailParams, enumerable: false } }
+      : {}),
+  });
+  return result;
 }
 
 /**
@@ -149,41 +264,80 @@ export function humanizeSourceError(raw: string): string {
  * stderr summary. A clean exit of a non-looping VOD/file source is its end;
  * a live source should never end, so its exit means the source went away.
  */
-export function classifyEncoderExit(opts: {
-  mode: VideoSourceMode;
-  loop: boolean;
-  exitError: string | null;
-}): { reason: MediaStopReason; detail: string } {
+export function classifyEncoderExit(
+  opts: {
+    mode: VideoSourceMode;
+    loop: boolean;
+    exitError: string | null;
+  },
+  locale: SupportedLocale = DEFAULT_LOCALE,
+): ClassifiedEncoderExit {
   const err = opts.exitError?.trim() || null;
   if (err && SOURCE_FAILURE.test(err)) {
-    return { reason: 'source_unreachable', detail: humanizeSourceError(err) };
+    const detail = humanizeSourceError(err, locale);
+    return classifiedExit('source_unreachable', detail, 'source_unreachable', { error: detail });
   }
   if (!err && opts.mode !== 'live' && !opts.loop) {
-    return { reason: 'source_ended', detail: 'Video reached its end' };
+    return classifiedExit(
+      'source_ended',
+      translate(locale, 'diagnostics.lifecycle.video_ended'),
+      'video_ended',
+    );
   }
   if (opts.mode === 'live') {
-    return {
-      reason: 'source_unreachable',
-      detail: err ? humanizeSourceError(err) : 'Live source ended',
-    };
+    if (err) {
+      const detail = humanizeSourceError(err, locale);
+      return classifiedExit('source_unreachable', detail, 'live_source_ended', { error: detail });
+    }
+    return classifiedExit(
+      'source_unreachable',
+      translate(locale, 'diagnostics.lifecycle.live_ended'),
+      'live_source_ended',
+    );
   }
-  return {
-    reason: 'encoder_failure',
-    detail: err ? `Encoder stopped: ${humanizeSourceError(err)}` : 'Encoder stopped unexpectedly',
-  };
+  if (err) {
+    const error = humanizeSourceError(err, locale);
+    return classifiedExit(
+      'encoder_failure',
+      translate(locale, 'diagnostics.lifecycle.encoder_stopped_with_error', { error }),
+      'encoder_stopped',
+      { error },
+    );
+  }
+  return classifiedExit(
+    'encoder_failure',
+    translate(locale, 'diagnostics.lifecycle.encoder_stopped'),
+    'encoder_stopped',
+  );
 }
 
 /** "Encoding below realtime (0.62x for 40 s) — …" or null. */
-export function belowRealtimeWarning(opts: {
-  speed: number | null;
-  belowSecs: number;
-  preset: string;
-  encoderLabel: string;
-  mode: VideoSourceMode | null;
-  rtpDrops: number;
-}): string {
-  const speed = opts.speed != null ? `${opts.speed.toFixed(2)}x` : 'unknown speed';
-  const drops = opts.rtpDrops > 0 ? `, ${opts.rtpDrops} packets dropped` : '';
-  return `Encoding below realtime (${speed} for ${Math.round(opts.belowSecs)} s${drops}) at ${opts.preset} with ${opts.encoderLabel}`
-    + `${opts.mode ? ` from a ${opts.mode} source` : ''}. The host cannot keep up — try a lower preset or a hardware encoder.`;
+export function belowRealtimeWarning(
+  opts: {
+    speed: number | null;
+    belowSecs: number;
+    preset: string;
+    encoderLabel: string;
+    mode: VideoSourceMode | null;
+    rtpDrops: number;
+  },
+  locale: SupportedLocale = DEFAULT_LOCALE,
+): string {
+  const speed = opts.speed != null
+    ? `${opts.speed.toFixed(2)}x`
+    : translate(locale, 'diagnostics.lifecycle.unknown_speed');
+  const drops = opts.rtpDrops > 0
+    ? translate(locale, 'diagnostics.lifecycle.rtp_drops', { count: opts.rtpDrops })
+    : '';
+  const mode = opts.mode
+    ? translate(locale, 'diagnostics.lifecycle.from_source', { mode: opts.mode })
+    : '';
+  return translate(locale, 'diagnostics.lifecycle.below_realtime', {
+    speed,
+    seconds: Math.round(opts.belowSecs),
+    drops,
+    preset: opts.preset,
+    encoder: opts.encoderLabel,
+    mode,
+  });
 }

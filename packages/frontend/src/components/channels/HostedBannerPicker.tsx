@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import type { HostedChannelBanner } from '@ts6/common';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,6 +26,8 @@ function suggestedPublicUrl(): string {
  * public link becomes the channel's banner image URL.
  */
 export function HostedBannerPicker({ value, onSelect }: { value: string; onSelect: (url: string) => void }) {
+  const { t } = useTranslation('admin');
+  const { t: tc } = useTranslation();
   const input = useRef<HTMLInputElement>(null);
   const valueRef = useRef(value);
   valueRef.current = value;
@@ -49,19 +52,19 @@ export function HostedBannerPicker({ value, onSelect }: { value: string; onSelec
       onSuccess: (settings) => {
         if (selected && settings.effective && valueRef.current === selected.url) onSelect(`${settings.effective}${selected.path}`);
         setEditingUrl(null);
-        toast.success(urlDraft.trim() ? 'Public URL saved' : 'Public URL cleared');
+        toast.success(urlDraft.trim() ? t('hostedBanner.publicUrlSaved') : t('hostedBanner.publicUrlCleared'));
       },
     });
   };
 
   return (
-    <section aria-label="Hosted banners" className="mt-2 space-y-2 rounded-md border p-2">
+    <section aria-label={t('hostedBanner.sectionLabel')} className="mt-2 space-y-2 rounded-md border p-2">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <p className="text-xs font-medium">Hosted banners</p>
-          <p className="text-[10px] text-muted-foreground">Or upload an image to this manager and click it to use it as the banner.</p>
+          <p className="text-xs font-medium">{t('hostedBanner.title')}</p>
+          <p className="text-[10px] text-muted-foreground">{t('hostedBanner.intro')}</p>
         </div>
-        <input ref={input} type="file" accept="image/png,image/jpeg,image/gif,image/webp" aria-label="Upload banner"
+        <input ref={input} type="file" accept="image/png,image/jpeg,image/gif,image/webp" aria-label={t('hostedBanner.uploadAria')}
           className="hidden" disabled={upload.isPending} onChange={(e) => {
             const file = e.target.files?.[0];
             e.target.value = '';
@@ -69,41 +72,45 @@ export function HostedBannerPicker({ value, onSelect }: { value: string; onSelec
             upload.mutate(file, {
               onSuccess: (banner) => {
                 if (banner.url) onSelect(banner.url);
-                toast.success(banner.url ? 'Banner uploaded and selected' : 'Banner uploaded');
+                toast.success(banner.url ? t('hostedBanner.uploadedSelected') : t('hostedBanner.uploaded'));
               },
             });
           }} />
         <Button type="button" size="sm" variant="outline" className="h-8 text-xs" disabled={upload.isPending || !data}
           onClick={() => input.current?.click()}>
           {upload.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1 h-3.5 w-3.5" />}
-          Upload
+          {t('hostedBanner.uploadButton')}
         </Button>
       </div>
 
-      {banners.isLoading && <p className="text-[10px] text-muted-foreground">Loading hosted banners…</p>}
-      {banners.error && <p role="alert" className="text-[10px] text-destructive">{apiErrorMessage(banners.error, 'Could not load hosted banners')}</p>}
+      {banners.isLoading && <p className="text-[10px] text-muted-foreground">{t('hostedBanner.loading')}</p>}
+      {banners.error && <p role="alert" className="text-[10px] text-destructive">{apiErrorMessage(banners.error, t('hostedBanner.loadFailed'))}</p>}
 
       {data && showUrlForm && (
         <div className="space-y-1">
-          <p className="text-xs font-medium">Public URL of this manager</p>
+          <p className="text-xs font-medium">{t('hostedBanner.publicUrlTitle')}</p>
           <p className="text-[10px] text-muted-foreground">
-            Where TeamSpeak clients reach this manager, so they can load uploaded images. This is not an image link.
-            {data.publicUrlSource === 'setting' && ' Save it empty to clear the saved address.'}
+            {data.publicUrlSource === 'setting' ? t('hostedBanner.publicUrlHelpWithClear') : t('hostedBanner.publicUrlHelp')}
           </p>
           <div className="flex gap-2">
-            <Input aria-label="Public URL" className="h-8 text-xs" value={urlDraft} placeholder="https://ts6.example.com"
+            <Input aria-label={t('hostedBanner.publicUrlAria')} className="h-8 text-xs" value={urlDraft} placeholder="https://ts6.example.com"
               onChange={(e) => setEditingUrl(e.target.value)} />
-            <Button type="button" size="sm" className="h-8 text-xs" disabled={savePublicUrl.isPending || (!urlDraft.trim() && data.publicUrlSource !== 'setting')} onClick={handleSaveUrl}>Save</Button>
-            {publicUrl && <Button type="button" size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setEditingUrl(null)}>Cancel</Button>}
+            <Button type="button" size="sm" className="h-8 text-xs" disabled={savePublicUrl.isPending || (!urlDraft.trim() && data.publicUrlSource !== 'setting')} onClick={handleSaveUrl}>{tc('action.save')}</Button>
+            {publicUrl && <Button type="button" size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setEditingUrl(null)}>{tc('action.cancel')}</Button>}
           </div>
-          {savePublicUrl.error && <p role="alert" className="text-[10px] text-destructive">{apiErrorMessage(savePublicUrl.error, 'Could not save public URL')}</p>}
+          {savePublicUrl.error && <p role="alert" className="text-[10px] text-destructive">{apiErrorMessage(savePublicUrl.error, t('hostedBanner.saveFailed'))}</p>}
         </div>
       )}
       {data && !showUrlForm && publicUrl && (
         <p className="text-[10px] text-muted-foreground">
-          Uploaded images are served from <span className="font-mono break-all">{publicUrl}</span>
-          {data.publicUrlSource === 'env' && ' (PUBLIC_URL)'}.{' '}
-          <button type="button" className="underline underline-offset-2" onClick={() => setEditingUrl(publicUrl)}>Change</button>
+          <Trans
+            i18nKey="admin:hostedBanner.servedFrom"
+            values={{ url: publicUrl, suffix: data.publicUrlSource === 'env' ? ' (PUBLIC_URL)' : '' }}
+            components={{
+              url: <span className="font-mono break-all" />,
+              change: <button type="button" className="underline underline-offset-2" onClick={() => setEditingUrl(publicUrl)} />,
+            }}
+          />
         </p>
       )}
 
@@ -114,15 +121,15 @@ export function HostedBannerPicker({ value, onSelect }: { value: string; onSelec
             return (
               <li key={banner.name} className="relative">
                 <button type="button" disabled={!banner.url} aria-pressed={selected}
-                  aria-label={selected ? 'Selected hosted banner' : 'Use this hosted banner'}
-                  title={banner.url ? 'Use this banner' : 'Save the public URL of this manager first'}
+                  aria-label={selected ? t('hostedBanner.selectedBanner') : t('hostedBanner.useBanner')}
+                  title={banner.url ? t('hostedBanner.useBannerTitle') : t('hostedBanner.saveUrlFirst')}
                   onClick={() => banner.url && onSelect(banner.url)}
                   className={cn('block w-full overflow-hidden rounded border bg-muted/40 disabled:cursor-not-allowed disabled:opacity-60',
                     selected ? 'ring-2 ring-primary' : 'hover:border-primary/60')}>
                   <img src={banner.path} alt="" loading="lazy" className="h-14 w-full object-cover" />
                   {selected && <Check className="absolute left-1 top-1 h-4 w-4 rounded-full bg-primary p-0.5 text-primary-foreground" />}
                 </button>
-                <Button type="button" size="icon" variant="ghost" aria-label="Delete hosted banner" title="Delete hosted banner"
+                <Button type="button" size="icon" variant="ghost" aria-label={t('hostedBanner.deleteBanner')} title={t('hostedBanner.deleteBanner')}
                   className="absolute right-0.5 top-0.5 h-6 w-6 bg-background/80 hover:bg-background"
                   onClick={() => { remove.reset(); setDeleteTarget(banner); }}>
                   <Trash2 className="h-3.5 w-3.5" />
@@ -133,18 +140,18 @@ export function HostedBannerPicker({ value, onSelect }: { value: string; onSelec
         </ul>
       )}
 
-      <p className="text-[10px] text-muted-foreground">PNG, JPEG, GIF or WebP, at most {maxMb} MB.</p>
-      {upload.error && <p role="alert" className="text-[10px] text-destructive">{apiErrorMessage(upload.error, 'Could not upload banner')}</p>}
+      <p className="text-[10px] text-muted-foreground">{t('hostedBanner.formatHint', { count: maxMb })}</p>
+      {upload.error && <p role="alert" className="text-[10px] text-destructive">{apiErrorMessage(upload.error, t('hostedBanner.uploadFailed'))}</p>}
 
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
-        title="Delete hosted banner"
-        description="Channels still using this banner will stop showing it."
-        confirmLabel="Delete"
+        title={t('hostedBanner.deleteBanner')}
+        description={t('hostedBanner.deleteDescription')}
+        confirmLabel={tc('action.delete')}
         destructive
         loading={remove.isPending}
-        error={remove.error ? apiErrorMessage(remove.error, 'Could not delete banner') : undefined}
+        error={remove.error ? apiErrorMessage(remove.error, t('hostedBanner.deleteFailed')) : undefined}
         onConfirm={() => {
           if (!deleteTarget) return;
           const target = deleteTarget;
@@ -152,7 +159,7 @@ export function HostedBannerPicker({ value, onSelect }: { value: string; onSelec
             onSuccess: () => {
               if (target.url && target.url === value) onSelect('');
               setDeleteTarget(null);
-              toast.success('Banner deleted');
+              toast.success(t('hostedBanner.deleted'));
             },
           });
         }}

@@ -64,6 +64,32 @@ describe('ts6-chat-format', () => {
     }
   });
 
+  it('formats bot chat in Simplified Chinese while keeping user data', () => {
+    const np = formatNowPlayingMessage({
+      title: 'Song',
+      artist: 'Artist',
+      paused: true,
+      upcoming: [{ title: 'Next', artist: 'A' }],
+      includeControls: true,
+    }, 'zh-CN');
+    assert.ok(np.includes('## 🎵 正在播放'));
+    assert.ok(np.includes('> ⏸ 已暂停'));
+    assert.ok(np.includes('### 接下来'));
+    assert.ok(np.includes('在频道聊天中输入'));
+    assert.ok(np.includes('**Song**'), 'track title stays as supplied');
+
+    const help = formatHelpMessage(
+      [{ usage: '!play <url>', blurb: 'Play URL' }],
+      [{ name: 'rules', description: null }],
+      null,
+      'zh-CN',
+    );
+    assert.ok(help.includes('## 音乐机器人命令'));
+    assert.ok(help.includes('### 内置命令'));
+    assert.ok(help.includes('自定义回复'));
+    assert.ok(help.includes('!play <url>'), 'usage syntax stays unchanged');
+  });
+
   it('formats queue with current marker', () => {
     const msg = formatQueueMessage(
       [

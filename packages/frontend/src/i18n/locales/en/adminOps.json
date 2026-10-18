@@ -1,0 +1,503 @@
+{
+  "logs": {
+    "title": "Server Logs",
+    "configFallback": "config {{id}}",
+    "connection": "Connection: {{name}}",
+    "fetched": "Fetched {{time}}",
+    "filterPlaceholder": "Filter this page…",
+    "filterLabel": "Filter this page",
+    "levelFilterLabel": "Level filter this page",
+    "pageSizeLabel": "Page size",
+    "sourceScopeLabel": "Log source scope",
+    "sourceVirtualServer": "Virtual server log",
+    "sourceInstance": "Instance log",
+    "filterHint": "Search and level filters apply to this page only. They do not fetch older history.",
+    "timezoneHint": "Timestamps are shown as TeamSpeak wrote them. WebQuery does not report whether the server log zone is UTC or local.",
+    "previous": "Previous",
+    "older": "Older",
+    "pageMeta": {
+      "newest": "Newest page",
+      "newestEnd": "Newest page · end of available cursor",
+      "older_one": "Older page {{count}}",
+      "older_other": "Older page {{count}}",
+      "olderEnd_one": "Older page {{count}} · end of available cursor",
+      "olderEnd_other": "Older page {{count}} · end of available cursor"
+    },
+    "countInstance": "{{filtered}} of {{total}} entries on this page · instance logfile",
+    "countVirtualServer": "{{filtered}} of {{total}} entries on this page · VS {{sid}}",
+    "lines_one": "{{count}} line",
+    "lines_other": "{{count}} lines",
+    "level": {
+      "all": "All levels (this page)",
+      "error": "Error (this page)",
+      "warning": "Warning (this page)",
+      "info": "Info (this page)",
+      "debug": "Debug (this page)",
+      "unknown": "Unknown (this page)"
+    },
+    "levelBadge": {
+      "error": "ERR",
+      "warning": "WAR",
+      "info": "INF",
+      "debug": "DEB",
+      "unknown": "UNK"
+    },
+    "scope": {
+      "instance": "Instance log (not scoped to the selected virtual server)",
+      "virtualServerNamed": "Virtual server log · SID {{sid}} · {{name}}",
+      "virtualServer": "Virtual server log · SID {{sid}}"
+    },
+    "empty": {
+      "noOlder": "No older log entries for this cursor. Refresh for the newest page if the log rotated.",
+      "instanceEmpty": "Instance log returned no entries. The TeamSpeak instance logfile may be empty, or instance logview is unavailable for this connection.",
+      "virtualServerEmpty": "No virtual server log entries on this page.",
+      "noMatches": "No matches on this page."
+    },
+    "errors": {
+      "loadFailed": "Could not load server logs from TeamSpeak.",
+      "logviewIo": "TeamSpeak could not read its logfile (permissions, lock, or rotation). Manager is connected — use Retry once after a few seconds, or check the TeamSpeak logs volume.",
+      "logviewIoBackground": "TeamSpeak could not read its logfile. The last successful page is still displayed — Retry once; do not leave this page auto-refreshing.",
+      "refreshFailed": "Log refresh failed. The last successful page is still displayed.",
+      "scopeMismatch": "Log scope response did not match the selected Instance / Virtual server mode. Refresh to reload.",
+      "starting": "TeamSpeak Query is still coming up after startup. Wait a moment and retry.",
+      "startingBackground": "TeamSpeak Query is still starting. Log data may be incomplete until it comes online."
+    },
+    "refresh": {
+      "idleNewest": "Newest log page up to date",
+      "idleOlder": "This log page loaded",
+      "refreshing": "Refreshing logs…",
+      "degraded": "Log updates interrupted"
+    }
+  },
+  "audit": {
+    "title": "Administrative Audit",
+    "description": "Manager-initiated admin actions only — separate from TeamSpeak client activity and Server Logs. Retention: {{days}} days or {{rows}} rows (whichever first). Records cannot be deleted from this UI.",
+    "live": "Live",
+    "liveTitle": "Newest page refreshes automatically",
+    "actorUser": "user #{{id}}",
+    "targetWithId": "{{type}} {{id}}",
+    "context": {
+      "connection": "conn {{id}}",
+      "sid": "sid {{id}}"
+    },
+    "event": {
+      "operation": "Operation {{id}}",
+      "result": "Result: {{result}}",
+      "duration": "Duration: {{duration}}",
+      "completed": "Completed: {{when}}"
+    },
+    "filter": {
+      "action": "Action",
+      "outcome": "Outcome",
+      "actorUserId": "Actor user ID",
+      "connectionId": "Connection ID",
+      "virtualServerId": "Virtual server ID",
+      "all": "All",
+      "any": "Any"
+    },
+    "table": {
+      "dateTime": "Date / time",
+      "action": "Action",
+      "actor": "Actor",
+      "target": "Target",
+      "context": "Context",
+      "outcome": "Outcome"
+    },
+    "empty": {
+      "title": "No audit events yet",
+      "description": "Kick, ban, connection, flow, user, and settings mutations that are instrumented will appear here."
+    },
+    "newer": "Newer",
+    "older": "Older",
+    "refresh": {
+      "idleLive": "Live audit history active",
+      "idleNewest": "Audit history up to date",
+      "idleOlder": "This audit page loaded",
+      "refreshing": "Refreshing audit…",
+      "degraded": "Audit updates interrupted"
+    },
+    "errors": {
+      "refreshFailed": "Audit refresh failed. The last successful page is still displayed.",
+      "loadFailed": "Failed to load audit history. Confirm you are signed in as an admin."
+    },
+    "actions": {
+      "client_kick": "Kick client",
+      "client_ban": "Ban client",
+      "client_move": "Move client",
+      "client_poke": "Poke client",
+      "client_message": "Message client",
+      "client_permission_add": "Add client permission",
+      "client_permission_delete": "Delete client permission",
+      "ban_create": "Add ban",
+      "ban_delete": "Delete ban",
+      "ban_delete_all": "Clear bans",
+      "channel_create": "Create channel",
+      "channel_update": "Edit channel",
+      "channel_delete": "Delete channel",
+      "channel_move": "Move channel",
+      "channel_permission_add": "Add channel permission",
+      "channel_permission_delete": "Delete channel permission",
+      "server_group_create": "Create server group",
+      "server_group_update": "Rename server group",
+      "server_group_delete": "Delete server group",
+      "server_group_copy": "Copy server group",
+      "server_group_member_add": "Add server group member",
+      "server_group_member_remove": "Remove server group member",
+      "server_group_permission_add": "Add server group permission",
+      "server_group_permission_delete": "Delete server group permission",
+      "channel_group_create": "Create channel group",
+      "channel_group_update": "Rename channel group",
+      "channel_group_delete": "Delete channel group",
+      "channel_group_assign": "Assign channel group",
+      "channel_group_permission_add": "Add channel group permission",
+      "channel_group_permission_delete": "Delete channel group permission",
+      "privilege_key_create": "Create privilege key",
+      "privilege_key_delete": "Delete privilege key",
+      "virtual_server_edit": "Edit virtual server",
+      "virtual_server_start": "Start virtual server",
+      "virtual_server_stop": "Stop virtual server",
+      "connection_create": "Create connection",
+      "connection_update": "Update connection",
+      "connection_credentials_changed": "Change connection credentials",
+      "connection_delete": "Delete connection",
+      "flow_create": "Create flow",
+      "flow_update": "Update flow",
+      "flow_delete": "Delete flow",
+      "flow_enable": "Enable flow",
+      "flow_disable": "Disable flow",
+      "user_create": "Create user",
+      "user_update": "Update user",
+      "user_delete": "Delete user",
+      "settings_yt_cookies_changed": "Update yt-dlp cookies",
+      "settings_yt_cookies_removed": "Remove yt-dlp cookies",
+      "settings_limits_update": "Update app limits",
+      "settings_video_streaming_update": "Update video streaming defaults",
+      "settings_iptv_network_update": "Update allowed local IPTV hosts",
+      "media_music_start": "Start music",
+      "media_music_stop": "Stop music",
+      "media_video_start": "Start video stream",
+      "media_video_stop": "Stop video stream",
+      "media_video_source_change": "Change stream source",
+      "media_video_queue_add": "Queue a video",
+      "media_video_queue_change": "Change the video queue",
+      "media_video_skip": "Skip to a queued video",
+      "media_session_switch": "Switch media (replace what was playing)",
+      "listener_remote_queue_add": "Listener remote: add library song",
+      "listener_remote_issue": "Issue listener remote link",
+      "listener_remote_request": "Listener remote: request link",
+      "listener_remote_revoke": "Revoke listener remote access",
+      "listener_remote_auth_failed": "Listener remote: refused access (total for 5 minutes)",
+      "listener_remote_rate_limited": "Listener remote: rate limited (total for 5 minutes)",
+      "listener_remote_denied": "Listener remote: permission denied",
+      "listener_remote_capacity": "Listener remote: queue full",
+      "music_bot_avatar_update": "Update bot avatar",
+      "music_bot_automation_update": "Update bot automation",
+      "channel_banner_upload": "Upload channel banner",
+      "channel_banner_delete": "Delete channel banner",
+      "server_icon_upload": "Upload server icon",
+      "server_icon_delete": "Delete server icon",
+      "settings_public_url_update": "Update public URL"
+    },
+    "outcomes": {
+      "pending": "pending",
+      "success": "success",
+      "failure": "failure",
+      "partial": "partial",
+      "unknown": "unknown"
+    },
+    "results": {
+      "ok": "OK",
+      "ts_error": "TeamSpeak error",
+      "timeout": "Timeout",
+      "network_error": "Network error",
+      "engine_reload_failed": "Engine reload failed",
+      "pool_refresh_failed": "Pool refresh failed",
+      "not_found": "Not found",
+      "validation_failed": "Validation failed",
+      "storage_failed": "Storage failed",
+      "invalid_access": "Invalid or expired access",
+      "permission_denied": "Permission denied",
+      "rate_limited": "Rate limited",
+      "queue_full": "Queue full",
+      "invalid_request": "Invalid request",
+      "cancelled": "Cancelled",
+      "unavailable": "Unavailable",
+      "unknown": "Unknown"
+    },
+    "targets": {
+      "client": "Client",
+      "ban": "Ban",
+      "channel": "Channel",
+      "server_group": "Server group",
+      "channel_group": "Channel group",
+      "privilege_key": "Privilege key",
+      "virtual_server": "Virtual server",
+      "connection": "Connection",
+      "listener_remote_refusals": "Refusals",
+      "flow": "Flow",
+      "user": "User",
+      "settings": "Settings",
+      "music_bot": "Music bot",
+      "channel_banner": "Channel banner",
+      "server_icon": "Server icon"
+    }
+  },
+  "journal": {
+    "title": "Activity Journal",
+    "description": "Opt-in TeamSpeak join/leave history for this connection and virtual server. Identity fields are allow-listed (no IPs or chat). Retention: {{days}}d / {{perSid}} per connection-SID / {{global}} global.",
+    "selectDescription": "Select a connection and virtual server to view the activity journal.",
+    "loadFailedTitle": "Could not load journal history",
+    "historyError": "Could not load activity journal history.",
+    "historyRefreshError": "History refresh failed. The last successful page is still displayed.",
+    "statusError": "Could not refresh capture status.",
+    "live": "Live",
+    "liveTitle": "History refreshes while capturing",
+    "captureFor": "Capture for config {{config}} / SID {{sid}}",
+    "status": "Status:",
+    "gaps": "Gaps: {{count}} dropped",
+    "captureStatus": {
+      "unknown": "Unknown",
+      "disabled": "Disabled",
+      "connecting": "Connecting",
+      "capturing": "Capturing",
+      "interrupted": "Interrupted",
+      "persistenceError": "Persistence error",
+      "reconnecting": "Interrupted — reconnecting",
+      "stale": "{{status}} (stale)"
+    },
+    "classification": {
+      "knownBot": "Known bot",
+      "query": "Query",
+      "voice": "Voice",
+      "unknown": "Unknown"
+    },
+    "filters": {
+      "allEvents": "All events",
+      "joins": "Joins",
+      "leaves": "Leaves",
+      "allClassifications": "All classifications"
+    },
+    "table": {
+      "dateTime": "Date / time",
+      "event": "Event",
+      "user": "User",
+      "type": "Type",
+      "identity": "Identity"
+    },
+    "empty": {
+      "unknown": "No journal entries on this page. Capture status is not known yet.",
+      "enabled": "No journal entries yet for this context.",
+      "disabled": "Capture is disabled. Enable capture to record joins and leaves."
+    },
+    "identity": {
+      "databaseId": "dbid {{id}}",
+      "via": "via {{value}}",
+      "clientId": "clid {{id}}"
+    },
+    "newer": "Newer",
+    "older": "Older",
+    "refresh": {
+      "idleLive": "Live journal history active",
+      "idleConnecting": "Capture connecting…",
+      "idleInterruptedReconnecting": "Capture interrupted — reconnecting…",
+      "idleInterrupted": "Capture interrupted",
+      "idleUpToDate": "Journal history up to date",
+      "idleOlder": "This journal page loaded",
+      "refreshing": "Refreshing journal…",
+      "degraded": "Journal updates interrupted"
+    }
+  },
+  "mediaDiagnostics": {
+    "title": "Media diagnostics",
+    "description": "Check media tools, audio encoding, and sidecar health.",
+    "copyReport": "Copy diagnostic report",
+    "checking": "Checking media tools…",
+    "lastChecked": "Last checked: {{time}}",
+    "clipboardUnavailable": "Clipboard is not available",
+    "copied": "Diagnostic report copied",
+    "copyFailed": "Could not copy the diagnostic report",
+    "notChecked": "Not checked. Use Refresh when this browser is online.",
+    "runFailed": "Could not run media diagnostics. Use Refresh to retry.",
+    "stale": "This report is stale. Use Refresh to probe again.",
+    "toolsTitle": "Tools and smoke tests",
+    "sidecarTitle": "Sidecar",
+    "mode": "Mode: {{mode}}",
+    "version": "Version: {{version}}",
+    "health": "Health: {{health}}",
+    "ports": "Ports: {{video}} video / {{audio}} audio",
+    "notReportedByHealth": "not reported by GET /health",
+    "notReported": "not reported",
+    "encodersTitle": "Encoders",
+    "encoder": {
+      "summary": "{{codec}} · {{kind}}",
+      "withDetail": "{{summary}} — {{detail}}",
+      "hardware": "hardware",
+      "software": "software",
+      "decodes": "Decodes",
+      "no": "No"
+    },
+    "av1Decoding": "AV1 decoding",
+    "warningsTitle": "Warnings and failures",
+    "none": "None.",
+    "executable": "Executable: {{path}}",
+    "status": {
+      "green": "Green",
+      "warning": "Warning",
+      "failed": "Failed",
+      "notChecked": "Not checked"
+    },
+    "overall": {
+      "green": "Green",
+      "warning": "Warning",
+      "failed": "Failed"
+    },
+    "report": {
+      "title": "TS6 Manager media diagnostics",
+      "checked": "Checked: {{time}}",
+      "overall": "Overall: {{overall}}",
+      "checks": "Checks:",
+      "sidecar": "Sidecar ({{mode}}): [{{status}}] {{message}}",
+      "version": "  version: {{version}}",
+      "health": "  health: {{health}}",
+      "videoPort": "  video port: {{port}}",
+      "audioPort": "  audio port: {{port}}",
+      "encoders": "Encoders: [{{status}}] {{message}}",
+      "notLoaded": "- not loaded",
+      "warnings": "Warnings:",
+      "none": "- none",
+      "checkLine": "- [{{status}}] {{label}} — {{message}}",
+      "checkLineVersion": "- [{{status}}] {{label}} — {{message}} ({{version}})",
+      "executable": "  executable: {{path}}",
+      "encoderItem": "- {{id}} ({{codec}}, {{kind}}): {{state}}",
+      "available": "available",
+      "unavailable": "unavailable",
+      "unavailableDetail": "unavailable — {{detail}}",
+      "av1": "AV1 decoding: {{message}}",
+      "av1Item": "- {{hwaccel}}: {{state}}",
+      "decodesAv1": "decodes AV1",
+      "doesNotDecodeAv1": "does not decode AV1",
+      "doesNotDecodeAv1Detail": "does not decode AV1 — {{detail}}"
+    }
+  },
+  "runtimeMedia": {
+    "title": "Runtime / media",
+    "staleMarker": "· stale",
+    "notChecked": "Not checked. Use Refresh to probe yt-dlp, ffmpeg, ffprobe, and the media sidecar.",
+    "runFailed": "Could not run runtime diagnostics. Use Refresh to retry.",
+    "refreshLabel": "Refresh runtime media diagnostics",
+    "stagesLabel": "Runtime media diagnostic stages",
+    "stage": {
+      "sidecar": "Sidecar"
+    },
+    "overall": {
+      "notChecked": "Not checked",
+      "ready": "Ready",
+      "partial": "Partial",
+      "unavailable": "Unavailable"
+    },
+    "updateHintYtDlp": "Bundled yt-dlp does not self-update at runtime — pull or rebuild the TS6 Manager image to refresh it.",
+    "updateHintSidecar": "Video and IPTV streaming need a reachable media sidecar (Docker SIDECAR_URL or a local binary)."
+  },
+  "connectionDiagnostics": {
+    "stagesLabel": "WebQuery diagnostic stages",
+    "stage": {
+      "reachability": "Reachability",
+      "authentication": "Authentication",
+      "permissions": "Read permissions",
+      "virtual_server": "Virtual server"
+    },
+    "partial": "Partial: {{message}}",
+    "failed": "Connection diagnostics failed"
+  },
+  "guidance": {
+    "diagnosticReadDoesNotAuthorizeWrites": "Confirms management read access only — not write authorization for kicks, bans, file changes, or settings.",
+    "diagnosticSuccessWithVersion": "WebQuery read stages OK ({{version}}) — write actions still need their own permissions",
+    "diagnosticSuccessWithoutVersion": "WebQuery read stages succeeded — write actions still need their own permissions",
+    "deleteConfirm": "Are you sure you want to delete \"{{name}}\" ({{path}})? This cannot be undone. Browsing this folder does not confirm permission to create or delete files."
+  },
+  "files": {
+    "browse": {
+      "sshRequired": "File browsing requires SSH access because the TeamSpeak WebQuery HTTP API does not support file transfer commands. Configure SSH credentials (username and password) in server settings.",
+      "sshDisconnected": "SSH to TeamSpeak is temporarily disconnected (often after Query flood protection on startup). Wait a moment and retry — credentials are usually fine.",
+      "sshFailed": "Could not connect to TeamSpeak via SSH. Check the SSH credentials and port in server settings.",
+      "permissionDenied": "The Query identity lacks permission to list files in this channel. WebQuery read success does not grant file-transfer access.",
+      "failed": "Failed to load files. Ensure SSH credentials are configured in server settings."
+    },
+    "write": {
+      "create": {
+        "sshRequired": "Cannot create directories: SSH is required for file changes (WebQuery HTTP does not support ft* commands).",
+        "sshDisconnected": "Cannot create directories: SSH is temporarily disconnected. Wait for reconnect and retry.",
+        "sshFailed": "Cannot create directories: SSH connection failed. Check SSH credentials and port in server settings.",
+        "permissionDenied": "Insufficient TeamSpeak permission to create directories. Listing this folder does not authorize writes — grant the Query identity the required file-transfer permissions.",
+        "failed": "Failed to create directory"
+      },
+      "delete": {
+        "sshRequired": "Cannot delete files: SSH is required for file changes (WebQuery HTTP does not support ft* commands).",
+        "sshDisconnected": "Cannot delete files: SSH is temporarily disconnected. Wait for reconnect and retry.",
+        "sshFailed": "Cannot delete files: SSH connection failed. Check SSH credentials and port in server settings.",
+        "permissionDenied": "Insufficient TeamSpeak permission to delete files. Listing this folder does not authorize writes — grant the Query identity the required file-transfer permissions.",
+        "failed": "Failed to delete file"
+      }
+    }
+  },
+  "errors": {
+    "sentence": "{{title}}. {{message}}",
+    "connection": {
+      "logviewTitle": "TeamSpeak log file unavailable",
+      "sshTitle": "SSH reconnecting",
+      "startingTitle": "TeamSpeak is still starting",
+      "failedTitle": "Connection failed"
+    },
+    "reasons": {
+      "stream_already_running": {
+        "title": "A video is already streaming"
+      },
+      "stream_not_running": {
+        "title": "No active stream",
+        "action": "Start a video first."
+      },
+      "stream_starting": {
+        "title": "The stream is still starting"
+      },
+      "stream_stopping": {
+        "title": "The stream is stopping"
+      },
+      "sidecar_unavailable": {
+        "title": "Media sidecar unavailable",
+        "action": "Check that the sidecar is running, then retry."
+      },
+      "sidecar_timeout": {
+        "title": "Media sidecar timed out"
+      },
+      "request_timeout": {
+        "title": "The request timed out"
+      },
+      "source_invalid": {
+        "title": "Invalid source"
+      },
+      "source_not_found": {
+        "title": "File not found"
+      },
+      "source_refused": {
+        "title": "This source cannot be used"
+      },
+      "source_timeout": {
+        "title": "The source timed out"
+      },
+      "source_unavailable": {
+        "title": "The source could not be played"
+      },
+      "bot_not_connected": {
+        "title": "Bot is not connected",
+        "action": "Start the bot, then try again."
+      },
+      "bot_already_started": {
+        "title": "This bot is already started"
+      },
+      "unexpected_error": {
+        "title": "Something went wrong",
+        "action": "Try again. If it keeps happening, check the server logs."
+      }
+    }
+  }
+}

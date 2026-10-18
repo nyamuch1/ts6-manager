@@ -24,3 +24,9 @@ export const METRIC_HEALTH_LABEL: Record<Exclude<MetricHealth, 'normal'>, string
   elevated: 'Elevated',
   high: 'High',
 };
+
+/** `dashboard` translation keys for the same bands; UI should prefer these over the English labels. */
+export const METRIC_HEALTH_LABEL_KEY: Record<Exclude<MetricHealth, 'normal'>, string> = {
+  elevated: 'health.elevated',
+  high: 'health.high',
+};

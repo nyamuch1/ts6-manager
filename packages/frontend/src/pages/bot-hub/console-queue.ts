@@ -4,6 +4,7 @@
  * play-now routes take absolute queue indexes.
  */
 
+import type { TFunction } from 'i18next';
 import type { PlaybackState, QueueItemInfo, VideoQueueItemInfo } from '@ts6/common';
 
 /** Tracks after the playing one (the whole queue before anything has played). */
@@ -65,8 +66,11 @@ export function activeLane(input: {
 }
 
 /** Second line of a queued video: `Live`, or its host when the title is not already that. */
-export function videoRowDetail(item: Pick<VideoQueueItemInfo, 'title' | 'source' | 'sourceMode'>): string | undefined {
-  if (item.sourceMode === 'live') return 'Live';
+export function videoRowDetail(
+  item: Pick<VideoQueueItemInfo, 'title' | 'source' | 'sourceMode'>,
+  t?: TFunction<'bots'>,
+): string | undefined {
+  if (item.sourceMode === 'live') return t ? t('consoleQueue.live') : 'Live';
   if (!/^https?:\/\//i.test(item.source)) return undefined;
   try {
     const host = new URL(item.source).hostname;

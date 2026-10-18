@@ -1,4 +1,6 @@
-export function formatLocalTime(value: Date | number, locales?: Intl.LocalesArgument): string {
+import { currentLocale } from '../i18n';
+
+export function formatLocalTime(value: Date | number, locales: Intl.LocalesArgument = currentLocale()): string {
   return new Intl.DateTimeFormat(locales, {
     hour: '2-digit',
     minute: '2-digit',
@@ -6,11 +8,14 @@ export function formatLocalTime(value: Date | number, locales?: Intl.LocalesArgu
   }).format(value);
 }
 
-export function formatLocalDateTime(value: Date | number | string, locales?: Intl.LocalesArgument): string {
+export function formatLocalDateTime(
+  value: Date | number | string,
+  locales: Intl.LocalesArgument = currentLocale(),
+): string {
   const date = value instanceof Date ? value : new Date(value);
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString(locales);
 }
 
-export function formatNumber(value: number, locales?: Intl.LocalesArgument): string {
+export function formatNumber(value: number, locales: Intl.LocalesArgument = currentLocale()): string {
   return Number.isFinite(value) ? value.toLocaleString(locales) : '—';
 }

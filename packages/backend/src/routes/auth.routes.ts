@@ -21,15 +21,19 @@ const meRateLimiter = rateLimit({
 authRoutes.post('/login', async (req: Request, res: Response, next) => {
   try {
     const { username, password } = req.body;
-    if (!username || !password) throw new AppError(400, 'Username and password required');
+    if (!username || !password) {
+      throw new AppError(400, 'Username and password required', undefined, {
+        messageKey: 'errors.username_password_login_required',
+      });
+    }
 
     const prisma = req.app.locals.prisma;
     const user = await prisma.user.findUnique({ where: { username } });
 
-    if (!user || !user.enabled) throw new AppError(401, 'Invalid credentials');
+    if (!user || !user.enabled) throw new AppError(401, 'Invalid credentials', undefined, { messageKey: 'errors.invalid_credentials' });
 
     const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) throw new AppError(401, 'Invalid credentials');
+    if (!valid) throw new AppError(401, 'Invalid credentials', undefined, { messageKey: 'errors.invalid_credentials' });
 
     const payload = { id: user.id, username: user.username, role: user.role };
     const accessToken = jwt.sign(payload, config.jwtSecret, { expiresIn: config.jwtAccessExpiry } as jwt.SignOptions);
@@ -64,7 +68,11 @@ authRoutes.post('/login', async (req: Request, res: Response, next) => {
 authRoutes.post('/refresh', async (req: Request, res: Response, next) => {
   try {
     const { refreshToken } = req.body;
-    if (!refreshToken) throw new AppError(400, 'Refresh token required');
+    if (!refreshToken) {
+      throw new AppError(400, 'Refresh token required', undefined, {
+        messageKey: 'errors.refresh_token_required',
+      });
+    }
 
     const prisma = req.app.locals.prisma;
     const stored = await prisma.refreshToken.findUnique({
@@ -82,12 +90,12 @@ authRoutes.post('/refresh', async (req: Request, res: Response, next) => {
         console.warn(`[SECURITY] Refresh token reuse detected for user ${replaced.userId}. Revoking all tokens.`);
         await prisma.refreshToken.deleteMany({ where: { userId: replaced.userId } });
       }
-      throw new AppError(401, 'Invalid refresh token');
+      throw new AppError(401, 'Invalid refresh token', undefined, { messageKey: 'errors.invalid_refresh_token' });
     }
 
     if (stored.expiresAt < new Date() || !stored.user.enabled) {
       await prisma.refreshToken.delete({ where: { id: stored.id } });
-      throw new AppError(401, 'Invalid refresh token');
+      throw new AppError(401, 'Invalid refresh token', undefined, { messageKey: 'errors.invalid_refresh_token' });
     }
 
     // Rotate: mark old token as replaced, create new one in same family
@@ -101,7 +109,7 @@ authRoutes.post('/refresh', async (req: Request, res: Response, next) => {
       data: { replacedBy: newRefreshToken },
     });
     if (marked.count === 0) {
-      throw new AppError(401, 'Invalid refresh token');
+      throw new AppError(401, 'Invalid refresh token', undefined, { messageKey: 'errors.invalid_refresh_token' });
     }
 
     await prisma.refreshToken.create({
@@ -133,7 +141,7 @@ authRoutes.get('/me', meRateLimiter, authMiddleware, async (req: Request, res: R
   try {
     const prisma = req.app.locals.prisma;
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
-    if (!user) throw new AppError(404, 'User not found');
+    if (!user) throw new AppError(404, 'User not found', undefined, { messageKey: 'errors.user_not_found' });
 
     res.json({
       user: {
@@ -149,17 +157,25 @@ authRoutes.get('/me', meRateLimiter, authMiddleware, async (req: Request, res: R
 authRoutes.put('/password', authMiddleware, async (req: Request, res: Response, next) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    if (!currentPassword || !newPassword) throw new AppError(400, 'Both passwords required');
+    if (!currentPassword || !newPassword) {
+      throw new AppError(400, 'Both passwords required', undefined, {
+        messageKey: 'errors.both_passwords_required',
+      });
+    }
 
     const pwError = validatePassword(newPassword);
     if (pwError) throw new AppError(400, pwError);
 
     const prisma = req.app.locals.prisma;
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
-    if (!user) throw new AppError(404, 'User not found');
+    if (!user) throw new AppError(404, 'User not found', undefined, { messageKey: 'errors.user_not_found' });
 
     const valid = await bcrypt.compare(currentPassword, user.passwordHash);
-    if (!valid) throw new AppError(401, 'Current password is incorrect');
+    if (!valid) {
+      throw new AppError(401, 'Current password is incorrect', undefined, {
+        messageKey: 'errors.current_password_incorrect',
+      });
+    }
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
     await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });

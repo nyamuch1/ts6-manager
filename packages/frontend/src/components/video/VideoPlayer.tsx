@@ -4,13 +4,24 @@
  */
 
 import { useRef, useEffect, useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Volume2, VolumeX } from 'lucide-react';
 import { musicBotsApi } from '@/api/music.api';
 import {
   PREVIEW_ICE_TIMEOUT_MS,
   offerAdvertisesLoopbackOnly,
-  previewIceErrorMessage,
 } from '@/lib/preview-webrtc';
+
+/** ICE failure guidance; the shared preview helper is outside this namespace. */
+function iceErrorMessage(
+  kind: 'failed' | 'timeout' | 'loopback-mismatch',
+  t: TFunction<'media'>,
+): string {
+  if (kind === 'loopback-mismatch') return t('videoPlayer.iceLoopbackMismatch');
+  const hint = t('videoPlayer.iceBaseHint');
+  return t(kind === 'timeout' ? 'videoPlayer.iceTimeout' : 'videoPlayer.iceFailed', { hint });
+}
 
 interface VideoPlayerProps {
   botId: number;
@@ -21,6 +32,7 @@ interface VideoPlayerProps {
 }
 
 export function VideoPlayer({ botId, streaming, idleDetail, className }: VideoPlayerProps) {
+  const { t } = useTranslation('media');
   const videoRef = useRef<HTMLVideoElement>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const iceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -87,7 +99,7 @@ export function VideoPlayer({ botId, streaming, idleDetail, className }: VideoPl
         clearIceTimer();
         setConnected(false);
         setError(
-          previewIceErrorMessage(loopbackOnlyOffer ? 'loopback-mismatch' : kind),
+          iceErrorMessage(loopbackOnlyOffer ? 'loopback-mismatch' : kind, t),
         );
         pc.close();
         if (pcRef.current === pc) pcRef.current = null;
@@ -152,10 +164,10 @@ export function VideoPlayer({ botId, streaming, idleDetail, className }: VideoPl
         await sendIce(candidate);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to connect');
+      setError(err.message || t('videoPlayer.connectFailed'));
       cleanup();
     }
-  }, [botId, cleanup, clearIceTimer]);
+  }, [botId, cleanup, clearIceTimer, t]);
 
   useEffect(() => {
     if (streaming) {
@@ -173,7 +185,7 @@ export function VideoPlayer({ botId, streaming, idleDetail, className }: VideoPl
   if (!streaming) {
     return (
       <div className={`flex flex-col items-center justify-center gap-1 bg-black/50 rounded-lg aspect-video max-w-xl px-4 text-center ${className ?? ''}`}>
-        <p className="text-muted-foreground text-sm">No active video stream</p>
+        <p className="text-muted-foreground text-sm">{t('videoPlayer.noActiveStream')}</p>
         {idleDetail && (
           <p className="text-xs text-destructive/90 line-clamp-3">{idleDetail}</p>
         )}
@@ -192,7 +204,7 @@ export function VideoPlayer({ botId, streaming, idleDetail, className }: VideoPl
       />
       {!connected && !error && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70">
-          <p className="text-white text-sm animate-pulse">Connecting to stream...</p>
+          <p className="text-white text-sm animate-pulse">{t('videoPlayer.connecting')}</p>
         </div>
       )}
       {error && (
@@ -202,7 +214,7 @@ export function VideoPlayer({ botId, streaming, idleDetail, className }: VideoPl
             onClick={connect}
             className="text-xs text-blue-400 hover:text-blue-300 underline"
           >
-            Retry
+            {t('videoPlayer.retry')}
           </button>
         </div>
       )}
@@ -210,13 +222,13 @@ export function VideoPlayer({ botId, streaming, idleDetail, className }: VideoPl
         <>
           <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-black/60 px-2 py-1 rounded text-xs">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-            <span className="text-white">LIVE</span>
+            <span className="text-white">{t('videoPlayer.live')}</span>
           </div>
           <button
             type="button"
             onClick={() => setMuted((m) => !m)}
             className="absolute bottom-2 right-2 rounded bg-black/60 p-1.5 text-white hover:bg-black/80"
-            title={muted ? 'Unmute preview' : 'Mute preview'}
+            title={t(muted ? 'videoPlayer.unmutePreview' : 'videoPlayer.mutePreview')}
           >
             {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
           </button>

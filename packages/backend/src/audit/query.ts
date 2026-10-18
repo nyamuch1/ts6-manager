@@ -34,7 +34,7 @@ function decodeCursor(cursor: string): { t: Date; id: string } {
     if (Number.isNaN(t.getTime())) throw new Error('bad cursor date');
     return { t, id: raw.id };
   } catch {
-    throw new AppError(400, 'Invalid cursor');
+    throw new AppError(400, 'Invalid cursor', undefined, { messageKey: 'errors.audit_cursor_invalid' });
   }
 }
 
@@ -95,13 +95,13 @@ export async function listAuditEvents(
 
   if (params.action) {
     if (!(ADMIN_AUDIT_ACTIONS as readonly string[]).includes(params.action)) {
-      throw new AppError(400, 'Invalid action filter');
+      throw new AppError(400, 'Invalid action filter', undefined, { messageKey: 'errors.audit_action_filter_invalid' });
     }
     where.action = params.action;
   }
   if (params.outcome) {
     if (!(ADMIN_AUDIT_OUTCOMES as readonly string[]).includes(params.outcome)) {
-      throw new AppError(400, 'Invalid outcome filter');
+      throw new AppError(400, 'Invalid outcome filter', undefined, { messageKey: 'errors.audit_outcome_filter_invalid' });
     }
     where.outcome = params.outcome;
   }
@@ -118,12 +118,12 @@ export async function listAuditEvents(
     where.createdAt = {};
     if (params.from) {
       const from = new Date(params.from);
-      if (Number.isNaN(from.getTime())) throw new AppError(400, 'Invalid from date');
+      if (Number.isNaN(from.getTime())) throw new AppError(400, 'Invalid from date', undefined, { messageKey: 'errors.audit_from_invalid' });
       where.createdAt.gte = from;
     }
     if (params.to) {
       const to = new Date(params.to);
-      if (Number.isNaN(to.getTime())) throw new AppError(400, 'Invalid to date');
+      if (Number.isNaN(to.getTime())) throw new AppError(400, 'Invalid to date', undefined, { messageKey: 'errors.audit_to_invalid' });
       where.createdAt.lte = to;
     }
   }

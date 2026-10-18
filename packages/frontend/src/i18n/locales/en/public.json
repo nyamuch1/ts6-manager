@@ -1,0 +1,128 @@
+{
+  "widget": {
+    "pageTitle": "TS Server Widget",
+    "loading": "Loading...",
+    "unavailable": "Widget not available",
+    "online": "ONLINE",
+    "users": "{{online}} / {{max}} users",
+    "uptime": "{{uptime}} uptime",
+    "join": "Click to join server",
+    "away": "[away]",
+    "muted": "[muted]",
+    "githubTitle": "View ts6-manager on GitHub",
+    "githubLabel": "Open ts6-manager on GitHub"
+  },
+  "widgetManager": {
+    "backToList": "Back to widget list",
+    "titles": {
+      "list": "Server Widgets",
+      "create": "Create Widget",
+      "edit": "Edit Widget",
+      "embed": "Embed Code"
+    },
+    "new": "New Widget",
+    "loading": "Loading...",
+    "empty": "No widgets yet. Create one to embed your server status on external sites.",
+    "serverLine": "Server: {{server}} | VS {{virtualServerId}}",
+    "actions": {
+      "embed": "Embed",
+      "preview": "Preview",
+      "svg": "SVG",
+      "edit": "Edit",
+      "delete": "Delete"
+    },
+    "name": "Name",
+    "namePlaceholder": "My Server Widget",
+    "server": "Server",
+    "selectServer": "Select server",
+    "virtualServerId": "Virtual Server ID",
+    "theme": "Theme",
+    "showChannelTree": "Show Channel Tree",
+    "showClients": "Show Clients",
+    "hideEmptyChannels": "Hide Empty Channels",
+    "maxChannelDepth": "Max Channel Depth: {{depth}}",
+    "cancel": "Cancel",
+    "create": "Create",
+    "save": "Save",
+    "regenerateToken": "Regenerate Token",
+    "tabs": {
+      "iframe": "iFrame",
+      "image": "Image URLs",
+      "bbcode": "BBCode"
+    },
+    "embed": {
+      "iframeHint": "Paste this into your website HTML:",
+      "copyIframe": "Copy iframe embed code",
+      "svgHint": "SVG (scalable, best quality):",
+      "copySvg": "Copy SVG image URL",
+      "pngHint": "PNG (for forums / signatures):",
+      "copyPng": "Copy PNG image URL",
+      "imgHint": "HTML img tag:",
+      "copyImg": "Copy HTML img tag",
+      "bbcodeHint": "Forum BBCode (uses PNG):",
+      "copyBbcode": "Copy forum BBCode"
+    },
+    "themes": {
+      "dark": "Dark",
+      "light": "Light",
+      "transparent": "Transparent",
+      "neon": "Neon / Cyberpunk",
+      "military": "Military / OD Green",
+      "minimal": "Minimal / Clean"
+    }
+  },
+  "remote": {
+    "pageTitle": "Listener remote",
+    "opening": "Opening your remote…",
+    "needLink": "Type !remote in the bot's channel. The bot sends a private link to this page.",
+    "status": {
+      "playing": "Playing",
+      "paused": "Paused",
+      "connected": "Connected"
+    },
+    "nowPlaying": {
+      "heading": "Now playing",
+      "loading": "Loading the remote…",
+      "nothing": "Nothing is playing.",
+      "progress": "Playback progress",
+      "live": "Live"
+    },
+    "upNext": {
+      "heading": "Up next",
+      "headingWithCount": "Up next ({{number}})",
+      "listLabel": "Up next",
+      "loading": "Loading the queue…",
+      "nothing": "Nothing is queued.",
+      "showing": "Showing {{shown}} of {{total}}."
+    },
+    "library": {
+      "heading": "Library",
+      "search": "Search songs",
+      "searching": "Searching the library…",
+      "songs": "Songs",
+      "noMore": "No more songs.",
+      "none": "No songs found.",
+      "previous": "Previous page",
+      "next": "Next page",
+      "added": "Added {{title}} to the queue.",
+      "add": "Add {{title}} to the queue"
+    },
+    "url": {
+      "label": "Media URL",
+      "hint": "Paste a link to add a song that is not in the library.",
+      "adding": "Adding…",
+      "request": "Request URL",
+      "added": "Added the link to the queue."
+    },
+    "errors": {
+      "unavailable": "Listener remote is unavailable.",
+      "invalidAccess": "Remote access is invalid or expired",
+      "nothingPlaying": "Nothing is playing",
+      "invalidRequest": "Invalid listener request.",
+      "pasteUrl": "Paste a media URL.",
+      "urlTooLong": "That URL is too long.",
+      "httpUrl": "Paste an http or https URL.",
+      "urlNotAllowed": "This media URL is not allowed."
+    }
+  }
+}

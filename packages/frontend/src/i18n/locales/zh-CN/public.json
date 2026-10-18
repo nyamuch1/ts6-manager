@@ -1,0 +1,128 @@
+{
+  "widget": {
+    "pageTitle": "TS 服务器小组件",
+    "loading": "加载中…",
+    "unavailable": "小组件不可用",
+    "online": "在线",
+    "users": "{{online}} / {{max}} 用户",
+    "uptime": "已运行 {{uptime}}",
+    "join": "点击加入服务器",
+    "away": "[离开]",
+    "muted": "[已静音]",
+    "githubTitle": "在 GitHub 上查看 ts6-manager",
+    "githubLabel": "在 GitHub 上打开 ts6-manager"
+  },
+  "widgetManager": {
+    "backToList": "返回小组件列表",
+    "titles": {
+      "list": "服务器小组件",
+      "create": "创建小组件",
+      "edit": "编辑小组件",
+      "embed": "嵌入代码"
+    },
+    "new": "新建小组件",
+    "loading": "加载中…",
+    "empty": "尚无小组件。创建一个，将服务器状态嵌入外部网站。",
+    "serverLine": "服务器：{{server}} | VS {{virtualServerId}}",
+    "actions": {
+      "embed": "嵌入",
+      "preview": "预览",
+      "svg": "SVG",
+      "edit": "编辑",
+      "delete": "删除"
+    },
+    "name": "名称",
+    "namePlaceholder": "我的服务器小组件",
+    "server": "服务器",
+    "selectServer": "选择服务器",
+    "virtualServerId": "虚拟服务器 ID",
+    "theme": "主题",
+    "showChannelTree": "显示频道树",
+    "showClients": "显示客户端",
+    "hideEmptyChannels": "隐藏空频道",
+    "maxChannelDepth": "最大频道深度：{{depth}}",
+    "cancel": "取消",
+    "create": "创建",
+    "save": "保存",
+    "regenerateToken": "重新生成令牌",
+    "tabs": {
+      "iframe": "iFrame",
+      "image": "图片 URL",
+      "bbcode": "BBCode"
+    },
+    "embed": {
+      "iframeHint": "将此代码粘贴到你的网站 HTML 中：",
+      "copyIframe": "复制 iframe 嵌入代码",
+      "svgHint": "SVG（可缩放，最佳质量）：",
+      "copySvg": "复制 SVG 图片 URL",
+      "pngHint": "PNG（用于论坛 / 签名）：",
+      "copyPng": "复制 PNG 图片 URL",
+      "imgHint": "HTML img 标签：",
+      "copyImg": "复制 HTML img 标签",
+      "bbcodeHint": "论坛 BBCode（使用 PNG）：",
+      "copyBbcode": "复制论坛 BBCode"
+    },
+    "themes": {
+      "dark": "深色",
+      "light": "浅色",
+      "transparent": "透明",
+      "neon": "霓虹 / 赛博朋克",
+      "military": "军旅 / 橄榄绿",
+      "minimal": "极简 / 清爽"
+    }
+  },
+  "remote": {
+    "pageTitle": "听众遥控",
+    "opening": "正在打开你的遥控…",
+    "needLink": "在机器人所在频道输入 !remote。机器人会将私密链接发送到此页面。",
+    "status": {
+      "playing": "播放中",
+      "paused": "已暂停",
+      "connected": "已连接"
+    },
+    "nowPlaying": {
+      "heading": "正在播放",
+      "loading": "正在加载遥控…",
+      "nothing": "当前没有正在播放的内容。",
+      "progress": "播放进度",
+      "live": "直播"
+    },
+    "upNext": {
+      "heading": "接下来播放",
+      "headingWithCount": "接下来播放（{{number}}）",
+      "listLabel": "接下来播放",
+      "loading": "正在加载队列…",
+      "nothing": "队列为空。",
+      "showing": "显示 {{shown}} / {{total}}。"
+    },
+    "library": {
+      "heading": "媒体库",
+      "search": "搜索歌曲",
+      "searching": "正在搜索媒体库…",
+      "songs": "歌曲",
+      "noMore": "没有更多歌曲。",
+      "none": "未找到歌曲。",
+      "previous": "上一页",
+      "next": "下一页",
+      "added": "已将 {{title}} 添加到队列。",
+      "add": "将 {{title}} 添加到队列"
+    },
+    "url": {
+      "label": "媒体 URL",
+      "hint": "粘贴链接，添加媒体库中没有的歌曲。",
+      "adding": "正在添加…",
+      "request": "请求 URL",
+      "added": "已将链接添加到队列。"
+    },
+    "errors": {
+      "unavailable": "听众遥控不可用。",
+      "invalidAccess": "遥控访问无效或已过期",
+      "nothingPlaying": "没有正在播放的内容",
+      "invalidRequest": "无效的听众请求。",
+      "pasteUrl": "请粘贴媒体 URL。",
+      "urlTooLong": "该 URL 过长。",
+      "httpUrl": "请粘贴 http 或 https URL。",
+      "urlNotAllowed": "不允许使用此媒体 URL。"
+    }
+  }
+}

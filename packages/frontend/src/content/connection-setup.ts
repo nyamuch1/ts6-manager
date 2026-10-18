@@ -1,4 +1,5 @@
-import { TS6_SERVER_DOCS } from './teamspeak-docs';
+import type { TFunction } from 'i18next';
+import { TS6_SERVER_DOCS, type SetupDocLink } from './teamspeak-docs';
 
 export type DeploymentScenarioId =
   | 'same-host'
@@ -14,159 +15,298 @@ export interface DeploymentScenario {
   hostPlaceholder: string;
   hostHint: string;
   notes?: string;
-  docs?: readonly { label: string; url: string }[];
+  docs?: readonly SetupDocLink[];
 }
 
-export const DEPLOYMENT_SCENARIOS: DeploymentScenario[] = [
+type DocLabelKey =
+  | 'portsNetworking'
+  | 'httpQuery'
+  | 'quickstart'
+  | 'dockerNetworking'
+  | 'dockerCompose'
+  | 'officialDocker'
+  | 'portsFirewall'
+  | 'securityBestPractices'
+  | 'querySecurity'
+  | 'queryAuthentication'
+  | 'sshQuerySetup'
+  | 'queryOverview'
+  | 'sshQueryEnable'
+  | 'setServeradminPassword'
+  | 'httpQueryTs6'
+  | 'portsDockerSetup'
+  | 'firewallSecurity'
+  | 'httpsWebquery'
+  | 'ts6ServerDocs';
+
+interface DocDefinition {
+  labelKey: DocLabelKey;
+  url: string;
+}
+
+const doc = (labelKey: DocLabelKey, url: string): DocDefinition => ({ labelKey, url });
+
+function localizeDocs(t: TFunction, docs?: readonly DocDefinition[]): SetupDocLink[] | undefined {
+  return docs?.map((entry) => ({
+    label: t(`content:docLinks.${entry.labelKey}`),
+    url: entry.url,
+  }));
+}
+
+interface DeploymentScenarioDefinition {
+  id: DeploymentScenarioId;
+  hostPlaceholder: string;
+  hasNotes?: boolean;
+  docs?: readonly DocDefinition[];
+}
+
+const DEPLOYMENT_SCENARIO_DEFINITIONS: readonly DeploymentScenarioDefinition[] = [
   {
     id: 'same-host',
-    label: 'TS on same machine (bare metal)',
-    description: 'TeamSpeak and ts6-manager run on the same host.',
     hostPlaceholder: '127.0.0.1',
-    hostHint: 'Use 127.0.0.1 or your LAN IP if the manager cannot reach localhost.',
     docs: [
-      { label: 'Ports & networking', url: TS6_SERVER_DOCS.portsNetworking },
-      { label: 'Enable HTTP WebQuery', url: TS6_SERVER_DOCS.httpQuery },
+      doc('portsNetworking', TS6_SERVER_DOCS.portsNetworking),
+      doc('httpQuery', TS6_SERVER_DOCS.httpQuery),
     ],
   },
   {
     id: 'ts-docker-host-manager',
-    label: 'TS in Docker, manager on host',
-    description: 'TeamSpeak runs in a container; ts6-manager runs on the host or elsewhere outside that container network.',
     hostPlaceholder: 'teamspeak',
-    hostHint: 'Use the container name, published host port mapping target, or host.docker.internal from inside Docker.',
     docs: [
-      { label: 'Docker quick start', url: TS6_SERVER_DOCS.quickstart },
-      { label: 'Docker networking & ports', url: TS6_SERVER_DOCS.portsNetworking },
+      doc('quickstart', TS6_SERVER_DOCS.quickstart),
+      doc('dockerNetworking', TS6_SERVER_DOCS.portsNetworking),
     ],
   },
   {
     id: 'both-docker',
-    label: 'Both in Docker (separate stacks)',
-    description: 'TeamSpeak and ts6-manager each run in Docker with separate compose stacks.',
     hostPlaceholder: 'teamspeak',
-    hostHint: 'Attach the ts6-manager backend to the TeamSpeak external Docker network and use the TS service/container name as host.',
-    notes: 'In docker-compose, add the TS network to the backend service (see README Coolify section).',
+    hasNotes: true,
     docs: [
-      { label: 'Docker Compose example', url: TS6_SERVER_DOCS.portsNetworking },
-      { label: 'Official TS6 Docker image', url: TS6_SERVER_DOCS.githubDocker },
+      doc('dockerCompose', TS6_SERVER_DOCS.portsNetworking),
+      doc('officialDocker', TS6_SERVER_DOCS.githubDocker),
     ],
   },
   {
     id: 'remote-ts',
-    label: 'TS on a remote server',
-    description: 'TeamSpeak runs on another machine reachable over the network.',
     hostPlaceholder: 'ts.example.com',
-    hostHint: 'Use the hostname or public IP. Ensure firewalls allow WebQuery (default 10080) and SSH (default 10022) from the manager.',
     docs: [
-      { label: 'Ports & firewall', url: TS6_SERVER_DOCS.portsNetworking },
-      { label: 'Security best practices', url: TS6_SERVER_DOCS.security },
+      doc('portsFirewall', TS6_SERVER_DOCS.portsNetworking),
+      doc('securityBestPractices', TS6_SERVER_DOCS.security),
     ],
   },
   {
     id: 'manager-docker-remote-ts',
-    label: 'Manager in Docker, TS remote',
-    description: 'ts6-manager runs in Docker; TeamSpeak is on a remote host or VPS.',
     hostPlaceholder: 'ts.example.com',
-    hostHint: 'Use the remote TS hostname or IP. No special Docker networking is required on the manager side.',
     docs: [
-      { label: 'Ports & networking', url: TS6_SERVER_DOCS.portsNetworking },
-      { label: 'Enable HTTP WebQuery', url: TS6_SERVER_DOCS.httpQuery },
+      doc('portsNetworking', TS6_SERVER_DOCS.portsNetworking),
+      doc('httpQuery', TS6_SERVER_DOCS.httpQuery),
     ],
   },
 ];
 
-export const FIELD_HELP = {
-  name: 'A friendly label shown in the header server selector.',
-  host: 'Hostname or IP address where the TeamSpeak server is reachable from the ts6-manager backend.',
-  webqueryPort: 'WebQuery HTTP port on the TS server (default 10080). This is the primary API used by the manager.',
-  apiKey: 'Required authenticated WebQuery key. On beta13+ Docker, provision with TSSERVER_QUERY_ADMIN_API_KEY; keep it stable. Alternatively use apikeyadd with lifetime=0. Stored encrypted.',
-  useHttps: 'Enable if WebQuery is served over HTTPS instead of plain HTTP.',
-  sshPort: 'SSH ServerQuery port (default 10022). Used for file browser, bot events, and music bot chat commands.',
-  sshUsername: 'ServerQuery SSH username (commonly serveradmin).',
-  sshPassword: 'ServerQuery SSH password. Stored encrypted; leave blank when editing to keep the existing password.',
-  metricsEnabled: 'Opt-in scrape of the TeamSpeak native Prometheus metrics listener for richer dashboard capacity/traffic data. Keep the metrics port private — it is unauthenticated. TeamSpeak defaults to localhost-only bind (`TSSERVER_METRICS_IP`); set a reachability address (for example `0.0.0.0` on a private Docker network) so the manager backend can scrape it.',
-  metricsPort: 'TeamSpeak metrics HTTP port (default 9187). Separate from WebQuery; does not use HTTPS or the API key.',
-  metricsHost: 'Optional host override when the metrics listener binds a different address than WebQuery. Leave blank to use the WebQuery host. Use this when metrics listen on another hostname/IP than Query.',
-} as const;
+/** Resolves deployment scenarios in the active language. */
+export function getDeploymentScenarios(t: TFunction): DeploymentScenario[] {
+  return DEPLOYMENT_SCENARIO_DEFINITIONS.map((definition) => {
+    const notes = definition.hasNotes
+      ? t(`content:scenarios.${definition.id}.notes`)
+      : undefined;
+    return {
+      id: definition.id,
+      label: t(`content:scenarios.${definition.id}.label`),
+      description: t(`content:scenarios.${definition.id}.description`),
+      hostPlaceholder: definition.hostPlaceholder,
+      hostHint: t(`content:scenarios.${definition.id}.hostHint`),
+      ...(notes ? { notes } : {}),
+      docs: localizeDocs(t, definition.docs),
+    };
+  });
+}
 
-export const FEATURE_MATRIX = [
-  { feature: 'Dashboard, channels, clients, permissions', transport: 'WebQuery' },
-  { feature: 'Virtual servers, instance settings', transport: 'WebQuery' },
-  { feature: 'Bot flow WebQuery actions', transport: 'WebQuery' },
-  { feature: 'File browser', transport: 'SSH' },
-  { feature: 'Bot flow event triggers (join, message, etc.)', transport: 'SSH' },
-  { feature: 'Music bot !commands in channel chat', transport: 'SSH' },
+export const FIELD_HELP_FIELDS = [
+  'name',
+  'host',
+  'webqueryPort',
+  'apiKey',
+  'useHttps',
+  'sshPort',
+  'sshUsername',
+  'sshPassword',
+  'metricsEnabled',
+  'metricsPort',
+  'metricsHost',
 ] as const;
 
-export const TS_PREP_STEPS = [
+export type FieldHelpField = (typeof FIELD_HELP_FIELDS)[number];
+
+export interface FieldHelpEntry {
+  id: FieldHelpField;
+  label: string;
+  help: string;
+}
+
+/** Resolves the form field reference in the active language. */
+export function getFieldHelp(t: TFunction): Record<FieldHelpField, FieldHelpEntry> {
+  return Object.fromEntries(
+    FIELD_HELP_FIELDS.map((field) => [
+      field,
+      {
+        id: field,
+        label: t(`content:fieldHelp.${field}.referenceLabel`),
+        help: t(`content:fieldHelp.${field}.help`),
+      },
+    ]),
+  ) as Record<FieldHelpField, FieldHelpEntry>;
+}
+
+export type FeatureTransport = 'WebQuery' | 'SSH';
+
+export interface FeatureMatrixRow {
+  feature: string;
+  transport: FeatureTransport;
+}
+
+const FEATURE_MATRIX_DEFINITIONS: ReadonlyArray<{
+  key: string;
+  transport: FeatureTransport;
+}> = [
+  { key: 'dashboard', transport: 'WebQuery' },
+  { key: 'virtualServers', transport: 'WebQuery' },
+  { key: 'botFlowActions', transport: 'WebQuery' },
+  { key: 'fileBrowser', transport: 'SSH' },
+  { key: 'botEventTriggers', transport: 'SSH' },
+  { key: 'musicCommands', transport: 'SSH' },
+];
+
+/** Resolves the feature/transport matrix in the active language. */
+export function getFeatureMatrix(t: TFunction): FeatureMatrixRow[] {
+  return FEATURE_MATRIX_DEFINITIONS.map((row) => ({
+    feature: t(`content:featureMatrix.${row.key}`),
+    transport: row.transport,
+  }));
+}
+
+export type TsPrepStepId =
+  | 'webquery-port'
+  | 'guest-query'
+  | 'bootstrap-api-key'
+  | 'api-key'
+  | 'ssh'
+  | 'firewall';
+
+export interface TsPrepStep {
+  id: TsPrepStepId;
+  title: string;
+  body: string;
+  code?: string;
+  docs?: readonly SetupDocLink[];
+}
+
+interface TsPrepStepDefinition {
+  id: TsPrepStepId;
+  code?: string;
+  docs?: readonly DocDefinition[];
+}
+
+const TS_PREP_STEP_DEFINITIONS: readonly TsPrepStepDefinition[] = [
   {
     id: 'webquery-port',
-    title: 'Enable WebQuery HTTP',
-    body: 'In your TeamSpeak server configuration, ensure WebQuery HTTP is enabled (not telnet/raw query). Default port is 10080.',
     docs: [
-      { label: 'Enable HTTP WebQuery (TS6 docs)', url: TS6_SERVER_DOCS.httpQuery },
-      { label: 'Ports & Docker setup', url: TS6_SERVER_DOCS.portsNetworking },
+      doc('httpQueryTs6', TS6_SERVER_DOCS.httpQuery),
+      doc('portsDockerSetup', TS6_SERVER_DOCS.portsNetworking),
     ],
   },
   {
     id: 'guest-query',
-    docs: [{ label: 'Query security', url: TS6_SERVER_DOCS.security }],
-    title: 'Beta13: explicitly disable guest Query for administration',
-    body: 'Beta13 enables guest Query by default. TS6 Manager uses authenticated WebQuery and optional authenticated SSH, so it does not need guest access. Leave guest access enabled only when you intentionally want to expose Guest Server Query permissions.',
+    docs: [doc('querySecurity', TS6_SERVER_DOCS.security)],
     code: 'TSSERVER_QUERY_HTTP_ALLOW_GUEST=0\nTSSERVER_QUERY_SSH_ALLOW_GUEST=0',
   },
   {
     id: 'bootstrap-api-key',
-    docs: [{ label: 'Query authentication', url: TS6_SERVER_DOCS.authentication }],
-    title: 'Beta13+ Docker: provision a stable admin key',
-    body: 'Set this on the TeamSpeak container for deterministic serveradmin management access. Keep it stable: changing it replaces the built-in serveradmin management key. The previously encrypted key saved in TS6 Manager will stop authenticating; update the connection’s API key. Never share this value or put it in logs.',
+    docs: [doc('queryAuthentication', TS6_SERVER_DOCS.authentication)],
     code: 'TSSERVER_QUERY_ADMIN_API_KEY=<secure-stable-key>',
   },
   {
     id: 'api-key',
-    title: 'Alternative: create a key manually (also for older servers)',
-    body: 'Connect via SSH ServerQuery, select your virtual server (use 1), then create a non-expiring key with lifetime=0. Example:',
     code: 'use 1\napikeyadd scope=manage lifetime=0 ip=0.0.0.0/0',
     docs: [
-      { label: 'SSH ServerQuery setup', url: TS6_SERVER_DOCS.sshQuery },
-      { label: 'Query authentication', url: TS6_SERVER_DOCS.authentication },
-      { label: 'Server Query overview', url: TS6_SERVER_DOCS.queryOverview },
+      doc('sshQuerySetup', TS6_SERVER_DOCS.sshQuery),
+      doc('queryAuthentication', TS6_SERVER_DOCS.authentication),
+      doc('queryOverview', TS6_SERVER_DOCS.queryOverview),
     ],
   },
   {
     id: 'ssh',
-    title: 'Enable SSH ServerQuery (optional)',
-    body: 'For file browser, bot event triggers, and music bot chat commands, enable SSH access on port 10022 (default) and note the serveradmin credentials.',
     docs: [
-      { label: 'Enable SSH ServerQuery (TS6 docs)', url: TS6_SERVER_DOCS.sshQuery },
-      { label: 'Set serveradmin password', url: TS6_SERVER_DOCS.authentication },
+      doc('sshQueryEnable', TS6_SERVER_DOCS.sshQuery),
+      doc('setServeradminPassword', TS6_SERVER_DOCS.authentication),
     ],
   },
   {
     id: 'firewall',
-    title: 'Open firewall ports',
-    body: 'Allow the ts6-manager backend to reach WebQuery (10080) and, if used, SSH (10022).',
     docs: [
-      { label: 'Ports & networking', url: TS6_SERVER_DOCS.portsNetworking },
-      { label: 'Firewall & security', url: TS6_SERVER_DOCS.security },
+      doc('portsNetworking', TS6_SERVER_DOCS.portsNetworking),
+      doc('firewallSecurity', TS6_SERVER_DOCS.security),
     ],
   },
-] as const;
+];
 
-export function getTsPrepStep(id: (typeof TS_PREP_STEPS)[number]['id']) {
-  return TS_PREP_STEPS.find((step) => step.id === id)!;
+function localizePrepStep(t: TFunction, definition: TsPrepStepDefinition): TsPrepStep {
+  const docs = localizeDocs(t, definition.docs);
+  return {
+    id: definition.id,
+    title: t(`content:prepSteps.${definition.id}.title`),
+    body: t(`content:prepSteps.${definition.id}.body`),
+    ...(definition.code ? { code: definition.code } : {}),
+    ...(docs ? { docs } : {}),
+  };
 }
 
-export const CHECKLIST_ITEMS = [
-  { id: 'webquery-enabled', label: 'WebQuery enabled on TS server', manual: true },
-  { id: 'api-key-created', label: 'API key created', manual: true },
-  { id: 'connection-added', label: 'Connection added in manager', manual: false },
-  { id: 'webquery-tested', label: 'WebQuery test passed', manual: false },
-  { id: 'ssh-configured', label: 'SSH credentials configured (optional)', manual: false },
+/** Resolves all TeamSpeak preparation steps in the active language. */
+export function getTsPrepSteps(t: TFunction): TsPrepStep[] {
+  return TS_PREP_STEP_DEFINITIONS.map((definition) => localizePrepStep(t, definition));
+}
+
+/** Resolves one TeamSpeak preparation step in the active language. */
+export function getTsPrepStep(t: TFunction, id: TsPrepStepId): TsPrepStep {
+  const definition = TS_PREP_STEP_DEFINITIONS.find((step) => step.id === id);
+  if (!definition) {
+    throw new Error(`Unknown TeamSpeak prep step: ${id}`);
+  }
+  return localizePrepStep(t, definition);
+}
+
+export const CHECKLIST_ITEM_IDS = [
+  'webquery-enabled',
+  'api-key-created',
+  'connection-added',
+  'webquery-tested',
+  'ssh-configured',
 ] as const;
 
-export type ChecklistItemId = (typeof CHECKLIST_ITEMS)[number]['id'];
+export type ChecklistItemId = (typeof CHECKLIST_ITEM_IDS)[number];
+
+export interface ChecklistItem {
+  id: ChecklistItemId;
+  label: string;
+  manual: boolean;
+}
+
+const CHECKLIST_MANUAL_BY_ID: Record<ChecklistItemId, boolean> = {
+  'webquery-enabled': true,
+  'api-key-created': true,
+  'connection-added': false,
+  'webquery-tested': false,
+  'ssh-configured': false,
+};
+
+/** Resolves the setup checklist in the active language. */
+export function getChecklistItems(t: TFunction): ChecklistItem[] {
+  return CHECKLIST_ITEM_IDS.map((id) => ({
+    id,
+    label: t(`content:checklist.${id}`),
+    manual: CHECKLIST_MANUAL_BY_ID[id],
+  }));
+}
 
 export const CHECKLIST_STORAGE_KEY = 'ts6-connection-setup-checklist';
 export const NUDGE_DISMISS_STORAGE_KEY = 'ts6-connection-nudge-dismissed';

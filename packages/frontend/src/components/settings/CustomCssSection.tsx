@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { FileUp, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -22,6 +23,7 @@ function formatBytes(n: number): string {
 }
 
 export function CustomCssSection({ forceAdvancedOpen = false }: { forceAdvancedOpen?: boolean }) {
+  const { t } = useTranslation();
   const customCssText = useUiStore((s) => s.customCssText);
   const customCssEnabled = useUiStore((s) => s.customCssEnabled);
   const setCustomCssText = useUiStore((s) => s.setCustomCssText);
@@ -56,7 +58,10 @@ export function CustomCssSection({ forceAdvancedOpen = false }: { forceAdvancedO
   const handleDraftChange = (value: string) => {
     setDraft(value);
     if (!isCustomCssWithinLimit(value)) {
-      setDraftError(`Custom CSS must be ${limitLabel} or smaller (UTF-8). Current size: ${formatBytes(utf8ByteLength(value))}.`);
+      setDraftError(t('settings:customCss.sizeError', {
+        limit: limitLabel,
+        size: formatBytes(utf8ByteLength(value)),
+      }));
     } else {
       setDraftError(null);
     }
@@ -64,50 +69,56 @@ export function CustomCssSection({ forceAdvancedOpen = false }: { forceAdvancedO
 
   const handleSave = () => {
     if (!isCustomCssWithinLimit(draft)) {
-      setDraftError(`Custom CSS must be ${limitLabel} or smaller (UTF-8). Current size: ${formatBytes(utf8ByteLength(draft))}.`);
-      toast.error(`Custom CSS exceeds the ${limitLabel} limit`);
+      setDraftError(t('settings:customCss.sizeError', {
+        limit: limitLabel,
+        size: formatBytes(utf8ByteLength(draft)),
+      }));
+      toast.error(t('settings:customCss.exceedsLimit', { limit: limitLabel }));
       return;
     }
     const result = setCustomCssText(draft);
     if (!result.ok) {
-      setDraftError(`Custom CSS must be ${limitLabel} or smaller (UTF-8).`);
-      toast.error(`Custom CSS exceeds the ${limitLabel} limit`);
+      setDraftError(t('settings:customCss.sizeErrorShort', { limit: limitLabel }));
+      toast.error(t('settings:customCss.exceedsLimit', { limit: limitLabel }));
       return;
     }
     setDraftError(null);
-    toast.success(customCssEnabled ? 'Custom CSS saved and applied' : 'Custom CSS saved');
+    toast.success(customCssEnabled ? t('settings:customCss.savedAndApplied') : t('settings:customCss.saved'));
   };
 
   const handleEnableChange = (next: boolean) => {
     if (next && safeUi) {
-      toast.error('Safe UI mode is active. Reload without ?safe-ui=1 before enabling custom CSS.');
+      toast.error(t('settings:customCss.safeUiEnableBlocked'));
       return;
     }
     if (next && customCssText.length === 0) {
-      toast.error('Save some CSS before enabling');
+      toast.error(t('settings:customCss.saveBeforeEnable'));
       return;
     }
     setCustomCssEnabled(next);
-    toast.success(next ? 'Custom CSS enabled' : 'Custom CSS disabled (text kept)');
+    toast.success(next ? t('settings:customCss.enabled') : t('settings:customCss.disabled'));
   };
 
   const handleImport = async (file: File | undefined) => {
     if (!file) return;
     if (!file.name.toLowerCase().endsWith('.css') && file.type !== 'text/css') {
-      toast.error('Choose a local .css file');
+      toast.error(t('settings:customCss.chooseCssFile'));
       return;
     }
     try {
       const text = await file.text();
       if (!isCustomCssWithinLimit(text)) {
-        setDraftError(`Imported file is ${formatBytes(utf8ByteLength(text))}; limit is ${limitLabel}.`);
-        toast.error(`Imported CSS exceeds the ${limitLabel} limit`);
+        setDraftError(t('settings:customCss.importedTooLarge', {
+          size: formatBytes(utf8ByteLength(text)),
+          limit: limitLabel,
+        }));
+        toast.error(t('settings:customCss.importedExceeds', { limit: limitLabel }));
         return;
       }
       handleDraftChange(text);
-      toast.success('Imported into the editor draft — Save to commit');
+      toast.success(t('settings:customCss.importedDraft'));
     } catch {
-      toast.error('Could not read that file');
+      toast.error(t('settings:customCss.readFailed'));
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
@@ -118,7 +129,7 @@ export function CustomCssSection({ forceAdvancedOpen = false }: { forceAdvancedO
     setDraft('');
     setDraftError(null);
     setResetOpen(false);
-    toast.success('Custom CSS cleared');
+    toast.success(t('settings:customCss.cleared'));
   };
 
   return (
@@ -132,7 +143,7 @@ export function CustomCssSection({ forceAdvancedOpen = false }: { forceAdvancedO
       >
         <AccordionItem value="custom-css" className="border-0">
           <AccordionTrigger className="text-sm font-medium hover:no-underline">
-            Advanced — Custom CSS
+            {t('settings:customCss.advancedTitle')}
           </AccordionTrigger>
           <AccordionContent className="space-y-4 pb-4">
             {safeUi && (
@@ -142,11 +153,12 @@ export function CustomCssSection({ forceAdvancedOpen = false }: { forceAdvancedO
               >
                 <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                 <div className="space-y-1">
-                  <p className="font-medium">Safe UI mode is active for this page load</p>
+                  <p className="font-medium">{t('settings:customCss.safeUiTitle')}</p>
                   <p className="text-warning/90">
-                    Stored custom CSS is not applied. Disable or Reset below, then reload without{' '}
-                    <span className="font-mono-data">?safe-ui=1</span> to use custom CSS again.
-                    Safe mode does not erase your saved CSS.
+                    <Trans
+                      i18nKey="settings:customCss.safeUiDescription"
+                      components={{ code: <span className="font-mono-data" /> }}
+                    />
                   </p>
                 </div>
               </div>
@@ -154,18 +166,20 @@ export function CustomCssSection({ forceAdvancedOpen = false }: { forceAdvancedO
 
             <div className="space-y-2 text-xs text-muted-foreground">
               <p>
-                Custom CSS is stored only in this browser. It is injected after application styles
-                when enabled, and only inside the signed-in management UI.
+                {t('settings:customCss.description1')}
               </p>
               <p>
-                Custom CSS can hide controls, override accessibility, and cause the browser to
-                request external resources via constructs such as <span className="font-mono-data">@import</span>{' '}
-                and <span className="font-mono-data">url(...)</span>. There is no sanitizer — treat
-                pasted/imported CSS as trusted local customization.
+                <Trans
+                  i18nKey="settings:customCss.description2"
+                  components={{ code: <span className="font-mono-data" /> }}
+                />
               </p>
               <p>
-                Before enabling, copy a recovery URL you can type if the UI becomes unusable:{' '}
-                <span className="break-all font-mono-data text-foreground">{SAFE_UI_RECOVERY_PATH}</span>
+                <Trans
+                  i18nKey="settings:customCss.recoveryHint"
+                  values={{ path: SAFE_UI_RECOVERY_PATH }}
+                  components={{ code: <span className="break-all font-mono-data text-foreground" /> }}
+                />
               </p>
             </div>
 
@@ -176,25 +190,27 @@ export function CustomCssSection({ forceAdvancedOpen = false }: { forceAdvancedO
                   checked={customCssEnabled}
                   disabled={!customCssEnabled && (safeUi || customCssText.length === 0)}
                   onCheckedChange={handleEnableChange}
-                  aria-label="Enable custom CSS"
+                  aria-label={t('settings:customCss.enableAria')}
                 />
                 <Label htmlFor={enableId} className="text-sm font-medium">
-                  Enable custom CSS
+                  {t('settings:customCss.enable')}
                 </Label>
               </div>
               <span className="text-[11px] text-muted-foreground">
-                {formatBytes(draftBytes)} / {limitLabel}
-                {draftDirty ? ' · unsaved draft' : ''}
+                {t(draftDirty ? 'settings:customCss.sizeDirty' : 'settings:customCss.size', {
+                  size: formatBytes(draftBytes),
+                  limit: limitLabel,
+                })}
               </span>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="custom-css-editor" className="text-xs">
-                CSS editor
+                {t('settings:customCss.editorLabel')}
               </Label>
               <Textarea
                 id="custom-css-editor"
-                aria-label="Custom CSS editor"
+                aria-label={t('settings:customCss.editorAria')}
                 spellCheck={false}
                 className="min-h-[10rem] font-mono text-xs leading-relaxed"
                 value={draft}
@@ -205,13 +221,13 @@ export function CustomCssSection({ forceAdvancedOpen = false }: { forceAdvancedO
                 <p role="alert" className="text-xs text-destructive">{draftError}</p>
               )}
               <p className="text-[11px] text-muted-foreground">
-                Typing and importing update the draft only. Save commits; Enable applies the saved text.
+                {t('settings:customCss.editorHint')}
               </p>
             </div>
 
             <div className="flex flex-wrap gap-2">
               <Button type="button" size="sm" onClick={handleSave} disabled={!draftDirty && !draftError}>
-                Save CSS
+                {t('settings:customCss.saveCss')}
               </Button>
               <input
                 ref={fileInputRef}
@@ -228,7 +244,7 @@ export function CustomCssSection({ forceAdvancedOpen = false }: { forceAdvancedO
                 onClick={() => fileInputRef.current?.click()}
               >
                 <FileUp className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-                Import .css
+                {t('settings:customCss.importCss')}
               </Button>
               <Button
                 type="button"
@@ -237,7 +253,7 @@ export function CustomCssSection({ forceAdvancedOpen = false }: { forceAdvancedO
                 disabled={!customCssEnabled}
                 onClick={() => handleEnableChange(false)}
               >
-                Disable
+                {t('settings:customCss.disable')}
               </Button>
               <Button
                 type="button"
@@ -247,7 +263,7 @@ export function CustomCssSection({ forceAdvancedOpen = false }: { forceAdvancedO
                 disabled={customCssText.length === 0 && !customCssEnabled && draft.length === 0}
                 onClick={() => setResetOpen(true)}
               >
-                Reset
+                {t('settings:customCss.reset')}
               </Button>
             </div>
           </AccordionContent>
@@ -257,9 +273,9 @@ export function CustomCssSection({ forceAdvancedOpen = false }: { forceAdvancedO
       <ConfirmDialog
         open={resetOpen}
         onOpenChange={setResetOpen}
-        title="Reset custom CSS?"
-        description="This disables custom CSS and permanently clears the saved text in this browser. Base theme, accent, background, and motion preferences are kept."
-        confirmLabel="Reset custom CSS"
+        title={t('settings:customCss.resetTitle')}
+        description={t('settings:customCss.resetDescription')}
+        confirmLabel={t('settings:customCss.resetConfirm')}
         onConfirm={handleResetConfirm}
         destructive
       />

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useChannelGroups } from '@/hooks/use-groups';
 import { useServerStore } from '@/stores/server.store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,22 +11,24 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { ShieldCheck } from 'lucide-react';
 
 export default function ChannelGroups() {
+  const { t } = useTranslation('admin');
+  const { t: tc } = useTranslation();
   const { selectedConfigId, selectedSid } = useServerStore();
   const { data, isLoading, error, refetch, isFetching } = useChannelGroups();
 
-  if (!selectedConfigId || !selectedSid) return <NoServerSelectedState pageTitle="Channel Groups" icon={ShieldCheck} />;
+  if (!selectedConfigId || !selectedSid) return <NoServerSelectedState pageTitle={t('channelGroups.title')} icon={ShieldCheck} />;
   if (isLoading) return <PageLoader />;
   if (error) {
     return (
       <div className="space-y-4">
         <EmptyState
           icon={ShieldCheck}
-          title="Connection failed"
-          description={(error as any)?.response?.data?.error || (error as any)?.message || 'Could not load channel groups from the TeamSpeak server.'}
+          title={t('connectionFailed')}
+          description={(error as any)?.response?.data?.error || (error as any)?.message || t('channelGroups.loadFailed')}
         />
         <div className="flex justify-center">
           <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
-            {isFetching ? 'Retrying…' : 'Retry'}
+            {isFetching ? t('retrying') : tc('action.retry')}
           </Button>
         </div>
       </div>
@@ -36,10 +39,10 @@ export default function ChannelGroups() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-xl font-semibold">Channel Groups</h1>
+      <h1 className="text-xl font-semibold">{t('channelGroups.title')}</h1>
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Groups ({groups.length})</CardTitle>
+          <CardTitle className="text-sm font-medium text-muted-foreground">{t('channelGroups.groupsCount', { count: groups.length })}</CardTitle>
         </CardHeader>
         <CardContent>
           <ScrollArea className="h-[min(500px,calc(100dvh-13rem))] min-h-72">
@@ -51,8 +54,8 @@ export default function ChannelGroups() {
                     <span className="text-sm font-medium">{g.name}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className="text-[10px] font-mono-data">CGID: {g.cgid}</Badge>
-                    <Badge variant="outline" className="text-[10px] font-mono-data">Type: {g.type}</Badge>
+                    <Badge variant="secondary" className="text-[10px] font-mono-data">{t('channelGroups.cgid', { id: g.cgid })}</Badge>
+                    <Badge variant="outline" className="text-[10px] font-mono-data">{t('channelGroups.type', { type: g.type })}</Badge>
                   </div>
                 </div>
               ))}

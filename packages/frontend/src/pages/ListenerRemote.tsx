@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Music, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { LanguageMenu } from '@/components/shared/LanguageMenu';
 import { remoteLaunchToken } from '@/lib/listener-remote-launch';
 import {
   REMOTE_POLL_MS,
@@ -30,8 +32,6 @@ import {
 
 type Phase = RemotePhase;
 
-const STATUS_LABEL: Record<string, string> = { playing: 'Playing', paused: 'Paused', connected: 'Connected' };
-
 function initialPhase(): Phase {
   if (remoteSession()) return { kind: 'ready', nonce: 0 };
   if (remoteLaunchToken()) return { kind: 'opening' };
@@ -39,11 +39,15 @@ function initialPhase(): Phase {
 }
 
 export default function ListenerRemote() {
+  const { t } = useTranslation('public');
   const [phase, setPhase] = useState<Phase>(initialPhase);
   const [generation, setGeneration] = useState(0);
 
   useEffect(() => {
-    document.title = 'Listener remote';
+    document.title = t('remote.pageTitle');
+  }, [t]);
+
+  useEffect(() => {
     const robots = document.createElement('meta');
     robots.name = 'robots';
     robots.content = 'noindex';
@@ -105,17 +109,21 @@ function StatusNote({ children }: { readonly children: string }) {
 }
 
 function Gate({ phase }: { readonly phase: Exclude<Phase, { kind: 'ready' }> }) {
+  const { t } = useTranslation('public');
   return (
     <div className="space-y-3">
-      <h1 className="text-lg font-semibold">Listener remote</h1>
-      {phase.kind === 'opening' && <StatusNote>Opening your remote…</StatusNote>}
+      <header className="flex items-start justify-between gap-3">
+        <h1 className="text-lg font-semibold">{t('remote.pageTitle')}</h1>
+        <LanguageMenu />
+      </header>
+      {phase.kind === 'opening' && <StatusNote>{t('remote.opening')}</StatusNote>}
       {phase.kind === 'need-link' && (
-        <p className="text-sm text-muted-foreground">Type !remote in the bot's channel. The bot sends a private link to this page.</p>
+        <p className="text-sm text-muted-foreground">{t('remote.needLink')}</p>
       )}
       {phase.kind === 'ended' && (
         <>
           <p role="alert" className="text-sm text-destructive">{phase.message}</p>
-          <p className="text-sm text-muted-foreground">Type !remote in the bot's channel. The bot sends a private link to this page.</p>
+          <p className="text-sm text-muted-foreground">{t('remote.needLink')}</p>
         </>
       )}
     </div>
@@ -123,6 +131,7 @@ function Gate({ phase }: { readonly phase: Exclude<Phase, { kind: 'ready' }> }) 
 }
 
 function RemoteController({ onEnded }: { readonly onEnded: (message: string) => void }) {
+  const { t } = useTranslation('public');
   const [state, setState] = useState<RemoteState | null>(null);
   const [stateError, setStateError] = useState<string | null>(null);
   const [loadingState, setLoadingState] = useState(true);
@@ -133,7 +142,7 @@ function RemoteController({ onEnded }: { readonly onEnded: (message: string) => 
     const visible = document.visibilityState === 'visible';
     if (!force && !shouldPollRemote(visible, lastPoll.current, Date.now())) return;
     if (!remoteSession()) {
-      onEnded('Remote access is invalid or expired');
+      onEnded(t('remote.errors.invalidAccess'));
       return;
     }
     lastPoll.current = Date.now();
@@ -180,14 +189,21 @@ function RemoteController({ onEnded }: { readonly onEnded: (message: string) => 
     <div className="space-y-4 lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-start lg:gap-x-8 lg:gap-y-6 lg:space-y-0">
       <header className="flex items-start justify-between gap-3 lg:col-span-2">
         <div className="min-w-0">
-          <p className="text-xs text-muted-foreground">Listener remote</p>
-          <h1 className="truncate text-lg font-semibold lg:text-2xl">{state?.bot.name ?? 'Listener remote'}</h1>
+          <p className="text-xs text-muted-foreground">{t('remote.pageTitle')}</p>
+          <h1 className="truncate text-lg font-semibold lg:text-2xl">{state?.bot.name ?? t('remote.pageTitle')}</h1>
         </div>
-        {state && (
-          <Badge variant={state.bot.status === 'playing' ? 'default' : 'secondary'} className="shrink-0">
-            {STATUS_LABEL[state.bot.status] ?? 'Connected'}
-          </Badge>
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          <LanguageMenu />
+          {state && (
+            <Badge variant={state.bot.status === 'playing' ? 'default' : 'secondary'} className="shrink-0">
+              {state.bot.status === 'playing'
+                ? t('remote.status.playing')
+                : state.bot.status === 'paused'
+                  ? t('remote.status.paused')
+                  : t('remote.status.connected')}
+            </Badge>
+          )}
+        </div>
       </header>
 
       <div className="min-w-0 space-y-4 lg:sticky lg:top-6">
@@ -209,12 +225,13 @@ function NowPlaying({ state, loading, error }: {
   readonly loading: boolean;
   readonly error: string | null;
 }) {
+  const { t } = useTranslation('public');
   const track = state?.nowPlaying ?? null;
   const summary = playbackSummary(track, state?.bot.status ?? 'connected');
   return (
     <Card>
       <CardContent className="space-y-3 p-4">
-        <h2 id="now-playing" className="text-base font-semibold">Now playing</h2>
+        <h2 id="now-playing" className="text-base font-semibold">{t('remote.nowPlaying.heading')}</h2>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <NowPlayingBody state={state} loading={loading} error={error} track={track} summary={summary} />
       </CardContent>
@@ -229,9 +246,10 @@ function NowPlayingBody({ state, loading, error, track, summary }: {
   readonly track: RemoteState['nowPlaying'];
   readonly summary: ReturnType<typeof playbackSummary>;
 }) {
-  if (loading && !state) return <StatusNote>Loading the remote…</StatusNote>;
+  const { t } = useTranslation('public');
+  if (loading && !state) return <StatusNote>{t('remote.nowPlaying.loading')}</StatusNote>;
   if (!track) {
-    if (state || !error) return <p className="text-sm text-muted-foreground">Nothing is playing.</p>;
+    if (state || !error) return <p className="text-sm text-muted-foreground">{t('remote.nowPlaying.nothing')}</p>;
     return null;
   }
   return (
@@ -247,28 +265,31 @@ function NowPlayingBody({ state, loading, error, track, summary }: {
       </div>
       <progress
         className={`h-1.5 w-full ${summary.playing ? 'animate-pulse accent-primary' : ''}`}
-        aria-label="Playback progress"
+        aria-label={t('remote.nowPlaying.progress')}
         aria-valuetext={summary.label}
       />
       <div className="flex justify-between font-mono text-xs tabular-nums text-muted-foreground">
         <span>{summary.state}</span>
-        <span>{summary.length ?? 'Live'}</span>
+        <span>{summary.length ?? t('remote.nowPlaying.live')}</span>
       </div>
     </div>
   );
 }
 
 function UpNext({ state, loading }: { readonly state: RemoteState | null; readonly loading: boolean }) {
+  const { t } = useTranslation('public');
   const items = state?.upNext ?? [];
   const count = state?.upNextCount ?? items.length;
   return (
     <Card>
       <CardContent className="p-4">
         <section aria-labelledby="up-next" className="space-y-2">
-          <h2 id="up-next" className="text-base font-semibold">Up next{state ? ` (${count})` : ''}</h2>
+          <h2 id="up-next" className="text-base font-semibold">
+            {state ? t('remote.upNext.headingWithCount', { number: count }) : t('remote.upNext.heading')}
+          </h2>
           <UpNextItems state={state} loading={loading} items={items} />
           {state && count > items.length && (
-            <p className="text-xs text-muted-foreground">Showing {items.length} of {count}.</p>
+            <p className="text-xs text-muted-foreground">{t('remote.upNext.showing', { shown: items.length, total: count })}</p>
           )}
         </section>
       </CardContent>
@@ -281,13 +302,14 @@ function UpNextItems({ state, loading, items }: {
   readonly loading: boolean;
   readonly items: RemoteState['upNext'];
 }) {
+  const { t } = useTranslation('public');
   if (!state) {
     if (!loading) return null;
-    return <StatusNote>Loading the queue…</StatusNote>;
+    return <StatusNote>{t('remote.upNext.loading')}</StatusNote>;
   }
-  if (items.length === 0) return <p className="text-sm text-muted-foreground">Nothing is queued.</p>;
+  if (items.length === 0) return <p className="text-sm text-muted-foreground">{t('remote.upNext.nothing')}</p>;
   return (
-    <ol aria-label="Up next" className="max-h-64 space-y-1.5 overflow-y-auto lg:max-h-[45dvh]">
+    <ol aria-label={t('remote.upNext.listLabel')} className="max-h-64 space-y-1.5 overflow-y-auto lg:max-h-[45dvh]">
       {items.map((item) => (
         <li key={item.id} className="flex items-center gap-2 rounded-md border bg-card p-2">
           <div className="min-w-0 flex-1">
@@ -306,6 +328,7 @@ function Library({ canAdd, expire, refresh }: {
   readonly expire: (error: unknown) => boolean;
   readonly refresh: () => Promise<void>;
 }) {
+  const { t } = useTranslation('public');
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
@@ -348,7 +371,7 @@ function Library({ canAdd, expire, refresh }: {
     void enqueueRemoteMutation(() => queueRemoteSong(song.id)).then(
       async () => {
         if (!remoteSession()) return;
-        setNotice(`Added ${song.title} to the queue.`);
+        setNotice(t('remote.library.added', { title: song.title }));
         await refresh();
       },
       (err: unknown) => { if (!expire(err)) setError(remoteErrorMessage(err)); },
@@ -360,15 +383,15 @@ function Library({ canAdd, expire, refresh }: {
     <Card>
       <CardContent className="p-4">
         <section aria-labelledby="library" className="space-y-3">
-          <h2 id="library" className="text-base font-semibold">Library</h2>
+          <h2 id="library" className="text-base font-semibold">{t('remote.library.heading')}</h2>
           <form role="search" onSubmit={(event) => event.preventDefault()}>
             <Input
               id="remote-search"
               value={search}
               maxLength={200}
               enterKeyHint="search"
-              placeholder="Search songs"
-              aria-label="Search songs"
+              placeholder={t('remote.library.search')}
+              aria-label={t('remote.library.search')}
               className="h-11"
               onChange={(event) => setSearch(event.target.value)}
             />
@@ -380,12 +403,12 @@ function Library({ canAdd, expire, refresh }: {
             <div className="flex gap-2">
               {page > 1 && (
                 <Button type="button" variant="outline" className="h-11 flex-1" disabled={loading} onClick={() => setPage((n) => n - 1)}>
-                  Previous page
+                  {t('remote.library.previous')}
                 </Button>
               )}
               {songs.length >= 25 && (
                 <Button type="button" variant="outline" className="h-11 flex-1" disabled={loading} onClick={() => setPage((n) => n + 1)}>
-                  Next page
+                  {t('remote.library.next')}
                 </Button>
               )}
             </div>
@@ -405,13 +428,14 @@ function LibrarySongs({ songs, page, loading, library, canAdd, busy, add }: {
   readonly busy: boolean;
   readonly add: (song: RemoteSong) => void;
 }) {
-  if (loading && !library) return <StatusNote>Searching the library…</StatusNote>;
+  const { t } = useTranslation('public');
+  if (loading && !library) return <StatusNote>{t('remote.library.searching')}</StatusNote>;
   if (songs.length === 0) {
-    const empty = page > 1 ? 'No more songs.' : 'No songs found.';
+    const empty = page > 1 ? t('remote.library.noMore') : t('remote.library.none');
     return <p className="text-sm text-muted-foreground">{empty}</p>;
   }
   return (
-    <ul aria-label="Songs" className="space-y-1.5">
+    <ul aria-label={t('remote.library.songs')} className="space-y-1.5">
       {songs.map((song) => (
         <li key={song.id} className="flex items-center gap-2 rounded-md border bg-card p-2">
           <div className="min-w-0 flex-1">
@@ -421,7 +445,7 @@ function LibrarySongs({ songs, page, loading, library, canAdd, busy, add }: {
           <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">{formatTrackLength(song.duration) ?? ''}</span>
           {canAdd && (
             <Button type="button" variant="outline" size="icon" className="h-11 w-11" disabled={busy}
-              aria-label={`Add ${song.title} to the queue`} onClick={() => add(song)}>
+              aria-label={t('remote.library.add', { title: song.title })} onClick={() => add(song)}>
               <Plus aria-hidden="true" />
             </Button>
           )}
@@ -435,6 +459,7 @@ function UrlRequest({ expire, refresh }: {
   readonly expire: (error: unknown) => boolean;
   readonly refresh: () => Promise<void>;
 }) {
+  const { t } = useTranslation('public');
   const [url, setUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -453,7 +478,7 @@ function UrlRequest({ expire, refresh }: {
       async () => {
         if (!remoteSession()) return;
         setUrl('');
-        setNotice('Added the link to the queue.');
+        setNotice(t('remote.url.added'));
         await refresh();
       },
       (err: unknown) => { if (!expire(err)) setError(remoteErrorMessage(err)); },
@@ -464,8 +489,8 @@ function UrlRequest({ expire, refresh }: {
     <Card>
       <CardContent className="p-4">
         <form className="space-y-2" onSubmit={(event) => { event.preventDefault(); submit(); }}>
-          <Label htmlFor="remote-url" className="text-base font-semibold">Media URL</Label>
-          <p className="text-sm text-muted-foreground">Paste a link to add a song that is not in the library.</p>
+          <Label htmlFor="remote-url" className="text-base font-semibold">{t('remote.url.label')}</Label>
+          <p className="text-sm text-muted-foreground">{t('remote.url.hint')}</p>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
               id="remote-url"
@@ -483,7 +508,7 @@ function UrlRequest({ expire, refresh }: {
               onChange={(event) => setUrl(event.target.value)}
             />
             <Button type="submit" className="h-11 w-full sm:w-auto" disabled={busy || url.trim().length === 0}>
-              {busy ? 'Adding…' : 'Request URL'}
+              {busy ? t('remote.url.adding') : t('remote.url.request')}
             </Button>
           </div>
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}

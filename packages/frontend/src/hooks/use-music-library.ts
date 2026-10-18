@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { musicLibraryApi } from '../api/music.api';
+import i18n from '../i18n';
 
 export function useSongs(configId: number | null) {
   return useQuery({
@@ -71,7 +72,7 @@ function useDownloadJob(single: boolean) {
       const current = new AbortController();
       controller.current = current;
       const { signal } = current;
-      setProgress('Preparing download…');
+      setProgress(i18n.t('media:library.preparing'));
       try {
         const { jobId } = await musicLibraryApi.startDownload(configId, urls ?? [url!], signal);
         for (;;) {
@@ -79,12 +80,15 @@ function useDownloadJob(single: boolean) {
           const job = await musicLibraryApi.downloadStatus(configId, jobId, signal);
           const details = [job.percentage != null ? `${Math.round(job.percentage)}%` : '',
             job.speed != null ? `${(job.speed / 1024).toFixed(0)} KiB/s` : '',
-            job.eta != null ? `ETA ${Math.ceil(job.eta)}s` : ''].filter(Boolean).join(' · ');
-          setProgress(`${job.status === 'processing' ? 'Processing…' : 'Downloading'} ${job.currentItem}/${job.totalItems}${details ? ` · ${details}` : ''}`);
+            job.eta != null ? i18n.t('media:library.eta', { seconds: Math.ceil(job.eta) }) : ''].filter(Boolean).join(' · ');
+          const stateLabel = job.status === 'processing'
+            ? i18n.t('media:library.processing')
+            : i18n.t('media:library.downloading');
+          setProgress(`${stateLabel} ${job.currentItem}/${job.totalItems}${details ? ` · ${details}` : ''}`);
           if (job.status === 'done' || job.status === 'error') {
-            if (job.status === 'error') setProgress(job.error || 'Download failed');
+            if (job.status === 'error') setProgress(job.error || i18n.t('media:library.downloadFailed'));
             else setProgress(null);
-            if (single && job.status === 'error') throw new Error(job.error || 'Download failed');
+            if (single && job.status === 'error') throw new Error(job.error || i18n.t('media:library.downloadFailed'));
             return single ? job.results[0] : job;
           }
           await new Promise<void>((resolve, reject) => {
@@ -94,7 +98,7 @@ function useDownloadJob(single: boolean) {
           });
         }
       } catch (error) {
-        if (!signal.aborted) setProgress(error instanceof Error ? error.message : 'Download failed');
+        if (!signal.aborted) setProgress(error instanceof Error ? error.message : i18n.t('media:library.downloadFailed'));
         throw error;
       }
     },

@@ -1,10 +1,11 @@
 import type { VoiceBot } from '../voice-bot.js';
 import type { CommandContext } from './context.js';
 import {
-  MEDIA_UNAVAILABLE, PUBLIC_MUSIC_REQUEST_SELECT, markMusicRequestUnavailable,
+  PUBLIC_MUSIC_REQUEST_SELECT, markMusicRequestUnavailable,
   isUnavailableMusicRequestError, musicRequestListWhere, pruneMusicRequests, replayReference,
 } from '../music-request-history.js';
 import { beginChatMediaRequest, enqueueMediaItem } from './queue.js';
+import { translateChat } from '../bot-locale.js';
 
 // Metadata is untrusted and must not add chat markup, links, or extra lines.
 function historyText(value: string, limit: number): string {
@@ -16,7 +17,10 @@ function historyText(value: string, limit: number): string {
 export async function handleHistory(
   context: CommandContext, botId: number, bot: VoiceBot, userClid: number, args: string,
 ): Promise<void> {
-  if (args) { await context.reply(bot, userClid, 'Usage: !history'); return; }
+  if (args) {
+    await context.reply(bot, userClid, translateChat(context.locale, 'bot.history.usage'));
+    return;
+  }
   const serverConfigId = bot.currentConfig.serverConfigId;
   const virtualServerId = context.virtualServerIdForBot(botId);
   await pruneMusicRequests(context.prisma, serverConfigId, 0);
@@ -27,18 +31,19 @@ export async function handleHistory(
   });
   if (context.voiceBotManager.getBot(botId) !== bot || bot.currentConfig.serverConfigId !== serverConfigId
     || context.virtualServerIdForBot(botId) !== virtualServerId) return;
+  const unavailableSuffix = translateChat(context.locale, 'bot.history.unavailable_suffix');
   await context.reply(bot, userClid, rows.length
-    ? ['Recent requests:', ...rows.map(row =>
-      `#${row.id} ${historyText(row.title, 70)} — ${historyText(row.source, 20)} — ${row.requestedAt.toISOString().slice(0, 16).replace('T', ' ')} UTC${row.status === 'unavailable' ? ' (unavailable)' : ''}`),
-    'Use !again <id>, or !again for the latest request.'].join('\n')
-    : 'No request history for this bot yet.');
+    ? [translateChat(context.locale, 'bot.history.recent_heading'), ...rows.map(row =>
+      `#${row.id} ${historyText(row.title, 70)} — ${historyText(row.source, 20)} — ${row.requestedAt.toISOString().slice(0, 16).replace('T', ' ')} UTC${row.status === 'unavailable' ? unavailableSuffix : ''}`),
+    translateChat(context.locale, 'bot.history.hint')].join('\n')
+    : translateChat(context.locale, 'bot.history.none'));
 }
 
 export async function handleAgain(
   context: CommandContext, botId: number, bot: VoiceBot, userClid: number, args: string,
 ): Promise<void> {
   if (args && (!/^[1-9]\d*$/.test(args) || !Number.isSafeInteger(Number(args)))) {
-    await context.reply(bot, userClid, 'Usage: !again [id]'); return;
+    await context.reply(bot, userClid, translateChat(context.locale, 'bot.again.usage')); return;
   }
   const serverConfigId = bot.currentConfig.serverConfigId;
   const virtualServerId = context.virtualServerIdForBot(botId);
@@ -49,19 +54,23 @@ export async function handleAgain(
   const config = await context.prisma.musicBot.findUnique({ where: { id: botId }, select: { serverConfigId: true, virtualServerId: true } });
   if (!isCurrent()) return;
   if (config?.serverConfigId !== serverConfigId || config?.virtualServerId !== virtualServerId) {
-    await context.reply(bot, userClid, 'Bot config not found.'); return;
+    await context.reply(bot, userClid, translateChat(context.locale, 'bot.config_not_found')); return;
   }
   const row = await context.prisma.musicRequest.findFirst({
     where: { ...musicRequestListWhere(serverConfigId, botId), ...(args ? { id: Number(args) } : {}) },
     orderBy: [{ requestedAt: 'desc' }, { id: 'desc' }],
   });
   if (!isCurrent()) return;
-  if (!row) { await context.reply(bot, userClid, 'Request not found. Use !history to list requests.'); return; }
+  if (!row) {
+    await context.reply(bot, userClid, translateChat(context.locale, 'bot.again.request_not_found')); return;
+  }
   const ref = await replayReference(row);
   if (!isCurrent()) return;
   if (!ref.ok) {
     await markMusicRequestUnavailable(context.prisma, row.id);
-    if (isCurrent()) await context.reply(bot, userClid, MEDIA_UNAVAILABLE);
+    if (isCurrent()) {
+      await context.reply(bot, userClid, translateChat(context.locale, 'bot.media.unavailable'));
+    }
     return;
   }
   try {
@@ -75,11 +84,23 @@ export async function handleAgain(
       ? { id: `history_${row.id}`, title: row.title, artist: row.artist ?? undefined, duration: row.duration ?? undefined, source: 'local' as const, filePath: ref.filePath }
       : { id: `history_${row.id}`, title: row.title, artist: row.artist ?? undefined, source: 'radio' as const, filePath: '', streamUrl: ref.url };
     const queued = await enqueueMediaItem(context, bot, item, isCurrent);
-    if (queued !== null && isCurrent()) await context.reply(bot, userClid, `${queued ? 'Queued' : 'Now playing'}: ${historyText(row.title, 70)}`);
+    if (queued !== null && isCurrent()) {
+      await context.reply(
+        bot,
+        userClid,
+        translateChat(
+          context.locale,
+          queued ? 'bot.history.queued' : 'bot.history.now_playing',
+          { title: historyText(row.title, 70) },
+        ),
+      );
+    }
   } catch (error) {
     if (!isCurrent()) return;
     if (!isUnavailableMusicRequestError(error)) throw error;
     await markMusicRequestUnavailable(context.prisma, row.id);
-    if (isCurrent()) await context.reply(bot, userClid, MEDIA_UNAVAILABLE);
+    if (isCurrent()) {
+      await context.reply(bot, userClid, translateChat(context.locale, 'bot.media.unavailable'));
+    }
   }
 }

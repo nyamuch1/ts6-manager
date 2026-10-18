@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
   ADMIN_AUDIT_ACTIONS,
@@ -179,29 +180,36 @@ function formatDurationMs(startedIso: string, completedIso: string | null): stri
   return `${Math.round(ms / 1000)}s`;
 }
 
+function actionLabelKey(action: string): string {
+  return `audit.actions.${action.replace(/\./g, '_')}`;
+}
+
 function EventRow({ event }: { event: AdminAuditEventDto }) {
-  const label = ACTION_LABELS[event.action] ?? event.action;
-  const actor = event.actorUsername ?? `user #${event.actorUserId}`;
+  const { t } = useTranslation('adminOps');
+  const label = t(actionLabelKey(event.action), { defaultValue: ACTION_LABELS[event.action] ?? event.action });
+  const actor = event.actorUsername ?? t('audit.actorUser', { id: event.actorUserId });
   const targetType = event.targetType
-    ? (TARGET_TYPE_LABELS[event.targetType] ?? event.targetType)
+    ? t(`audit.targets.${event.targetType}`, { defaultValue: TARGET_TYPE_LABELS[event.targetType] ?? event.targetType })
     : null;
   const target = targetType
-    ? `${targetType}${event.targetId ? ` ${event.targetId}` : ''}`
+    ? (event.targetId ? t('audit.targetWithId', { type: targetType, id: event.targetId }) : targetType)
     : '—';
   const contextBits = [
-    event.connectionId != null ? `conn ${event.connectionId}` : null,
-    event.virtualServerId != null ? `sid ${event.virtualServerId}` : null,
+    event.connectionId != null ? t('audit.context.connection', { id: event.connectionId }) : null,
+    event.virtualServerId != null ? t('audit.context.sid', { id: event.virtualServerId }) : null,
   ].filter(Boolean);
   const context = contextBits.join(' · ') || '—';
   const resultLabel = event.resultCode
-    ? (RESULT_CODE_LABELS[event.resultCode] ?? event.resultCode)
+    ? t(`audit.results.${event.resultCode}`, {
+      defaultValue: RESULT_CODE_LABELS[event.resultCode] ?? event.resultCode,
+    })
     : null;
   const duration = formatDurationMs(event.createdAt, event.completedAt);
   const title = [
-    `Operation ${event.operationId}`,
-    resultLabel ? `Result: ${resultLabel}` : null,
-    duration ? `Duration: ${duration}` : null,
-    event.completedAt ? `Completed: ${formatWhen(event.completedAt)}` : null,
+    t('audit.event.operation', { id: event.operationId }),
+    resultLabel ? t('audit.event.result', { result: resultLabel }) : null,
+    duration ? t('audit.event.duration', { duration }) : null,
+    event.completedAt ? t('audit.event.completed', { when: formatWhen(event.completedAt) }) : null,
   ].filter(Boolean).join(' · ');
 
   return (
@@ -233,7 +241,7 @@ function EventRow({ event }: { event: AdminAuditEventDto }) {
       </p>
       <div className="min-w-0 space-y-0.5">
         <p className={cn('text-xs font-medium uppercase tracking-wide', outcomeClass(event.outcome))}>
-          {event.outcome}
+          {t(`audit.outcomes.${event.outcome}`, { defaultValue: event.outcome })}
         </p>
         {resultLabel && (
           <p className="text-[10px] text-muted-foreground truncate" title={resultLabel}>
@@ -246,6 +254,7 @@ function EventRow({ event }: { event: AdminAuditEventDto }) {
 }
 
 export default function AuditHistory() {
+  const { t } = useTranslation('adminOps');
   const [action, setAction] = useState<string>('');
   const [outcome, setOutcome] = useState<string>('');
   const [actorUserId, setActorUserId] = useState('');
@@ -297,8 +306,8 @@ export default function AuditHistory() {
     ? apiErrorMessage(
       error,
       data
-        ? 'Audit refresh failed. The last successful page is still displayed.'
-        : 'Failed to load audit history. Confirm you are signed in as an admin.',
+        ? t('audit.errors.refreshFailed')
+        : t('audit.errors.loadFailed'),
     )
     : null;
   // Treat a failed poll as non-live even when React Query keeps prior rows.
@@ -306,10 +315,10 @@ export default function AuditHistory() {
     isFetching,
     hasError: !!backgroundError,
     livePolling: historyLive && status !== 'error',
-    idleLiveLabel: 'Live audit history active',
-    idleStaticLabel: onNewestPage ? 'Audit history up to date' : 'This audit page loaded',
-    refreshingLabel: 'Refreshing audit…',
-    degradedLabel: 'Audit updates interrupted',
+    idleLiveLabel: t('audit.refresh.idleLive'),
+    idleStaticLabel: onNewestPage ? t('audit.refresh.idleNewest') : t('audit.refresh.idleOlder'),
+    refreshingLabel: t('audit.refresh.refreshing'),
+    degradedLabel: t('audit.refresh.degraded'),
   });
 
   const resetPages = () => setPageState({ scopeKey: filterScopeKey, cursorStack: [null] });
@@ -323,12 +332,13 @@ export default function AuditHistory() {
         <div className="space-y-1">
           <h1 className="flex items-center gap-2 text-xl font-semibold">
             <ClipboardList className="h-5 w-5 text-primary" />
-            Administrative Audit
+            {t('audit.title')}
           </h1>
           <p className="text-sm text-muted-foreground max-w-2xl">
-            Manager-initiated admin actions only — separate from TeamSpeak client activity and Server Logs.
-            Retention: {data?.retention.maxAgeDays ?? 30} days or {data?.retention.maxRows?.toLocaleString() ?? '100,000'} rows
-            (whichever first). Records cannot be deleted from this UI.
+            {t('audit.description', {
+              days: data?.retention.maxAgeDays ?? 30,
+              rows: data?.retention.maxRows?.toLocaleString() ?? '100,000',
+            })}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -340,8 +350,8 @@ export default function AuditHistory() {
             degradedLabel={refreshPresentation.degradedLabel}
           />
           {refreshPresentation.showLiveBadge && (
-            <span className="text-xs font-medium text-emerald-600" title="Newest page refreshes automatically" data-testid="audit-live-badge">
-              Live
+            <span className="text-xs font-medium text-emerald-600" title={t('audit.liveTitle')} data-testid="audit-live-badge">
+              {t('audit.live')}
             </span>
           )}
           <Button
@@ -352,7 +362,7 @@ export default function AuditHistory() {
             aria-busy={isFetching}
           >
             <RefreshCw className={cn('h-4 w-4 mr-1', isFetching && 'animate-spin')} />
-            Refresh
+            {t('common:action.refresh')}
           </Button>
         </div>
       </div>
@@ -367,59 +377,63 @@ export default function AuditHistory() {
 
       <div className="flex shrink-0 flex-wrap items-end gap-3 rounded-lg border border-border bg-card p-3">
         <label className="space-y-1 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1"><Filter className="h-3 w-3" /> Action</span>
+          <span className="flex items-center gap-1"><Filter className="h-3 w-3" /> {t('audit.filter.action')}</span>
           <select
             className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
             value={action}
             onChange={(e) => { setAction(e.target.value); resetPages(); }}
           >
-            <option value="">All</option>
+            <option value="">{t('audit.filter.all')}</option>
             {ADMIN_AUDIT_ACTIONS.map((a) => (
-              <option key={a} value={a}>{ACTION_LABELS[a] ?? a}</option>
+              <option key={a} value={a}>
+                {t(actionLabelKey(a), { defaultValue: ACTION_LABELS[a] ?? a })}
+              </option>
             ))}
           </select>
         </label>
         <label className="space-y-1 text-xs text-muted-foreground">
-          <span>Outcome</span>
+          <span>{t('audit.filter.outcome')}</span>
           <select
             className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
             value={outcome}
             onChange={(e) => { setOutcome(e.target.value); resetPages(); }}
           >
-            <option value="">All</option>
+            <option value="">{t('audit.filter.all')}</option>
             {ADMIN_AUDIT_OUTCOMES.map((o) => (
-              <option key={o} value={o}>{o}</option>
+              <option key={o} value={o}>
+                {t(`audit.outcomes.${o}`, { defaultValue: o })}
+              </option>
             ))}
           </select>
         </label>
         <label className="space-y-1 text-xs text-muted-foreground">
-          <span>Actor user ID</span>
+          <span>{t('audit.filter.actorUserId')}</span>
           <Input
             className="h-9 w-28"
             inputMode="numeric"
             value={actorUserId}
             onChange={(e) => { setActorUserId(e.target.value.replace(/\D/g, '')); resetPages(); }}
-            placeholder="Any"
+            placeholder={t('audit.filter.any')}
           />
         </label>
         <label className="space-y-1 text-xs text-muted-foreground">
-          <span>Connection ID</span>
+          <span>{t('audit.filter.connectionId')}</span>
           <Input
             className="h-9 w-28"
             inputMode="numeric"
             value={connectionId}
             onChange={(e) => { setConnectionId(e.target.value.replace(/\D/g, '')); resetPages(); }}
-            placeholder="Any"
+            placeholder={t('audit.filter.any')}
           />
         </label>
         <label className="space-y-1 text-xs text-muted-foreground">
-          <span>Virtual server ID</span>
+          <span>{t('audit.filter.virtualServerId')}</span>
           <Input
             className="h-9 w-28"
             inputMode="numeric"
             value={virtualServerId}
             onChange={(e) => { setVirtualServerId(e.target.value.replace(/\D/g, '')); resetPages(); }}
-            placeholder="Any"
+            placeholder={t('audit.filter.any')}
           />
         </label>
       </div>
@@ -431,15 +445,15 @@ export default function AuditHistory() {
           <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-sm text-destructive">
             <p>{backgroundError}</p>
             <Button size="sm" variant="outline" onClick={retryRefresh} disabled={isFetching}>
-              {isFetching ? 'Retrying…' : 'Retry'}
+              {isFetching ? t('common:refresh.retrying') : t('common:action.retry')}
             </Button>
           </div>
         ) : !data?.items.length ? (
           <div className="flex flex-1 items-center justify-center">
             <EmptyState
               icon={ClipboardList}
-              title="No audit events yet"
-              description="Kick, ban, connection, flow, user, and settings mutations that are instrumented will appear here."
+              title={t('audit.empty.title')}
+              description={t('audit.empty.description')}
             />
           </div>
         ) : (
@@ -452,12 +466,12 @@ export default function AuditHistory() {
                 )}
                 role="row"
               >
-                <span>Date / time</span>
-                <span>Action</span>
-                <span>Actor</span>
-                <span>Target</span>
-                <span>Context</span>
-                <span>Outcome</span>
+                <span>{t('audit.table.dateTime')}</span>
+                <span>{t('audit.table.action')}</span>
+                <span>{t('audit.table.actor')}</span>
+                <span>{t('audit.table.target')}</span>
+                <span>{t('audit.table.context')}</span>
+                <span>{t('audit.table.outcome')}</span>
               </div>
               {data.items.map((event) => (
                 <EventRow key={event.id} event={event} />
@@ -478,7 +492,7 @@ export default function AuditHistory() {
             cursorStack: prev.scopeKey === filterScopeKey ? prev.cursorStack.slice(0, -1) : [null],
           }))}
         >
-          Newer
+          {t('audit.newer')}
         </Button>
         <Button
           type="button"
@@ -496,7 +510,7 @@ export default function AuditHistory() {
             }
           }}
         >
-          Older
+          {t('audit.older')}
         </Button>
       </div>
     </div>

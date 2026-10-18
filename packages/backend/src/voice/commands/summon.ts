@@ -3,6 +3,7 @@ import type { CommandContext } from './context.js';
 import { checkMediaCommand } from './media-access.js';
 import { isBotSummonable } from './channel-ownership.js';
 import { hereActionKey, claimHereAction, shouldSpeakHereList } from './dedupe.js';
+import { resolveChatLocale, translateChat } from '../bot-locale.js';
 
 /** List connected summon candidates on a configured server and virtual server. */
 export async function listSummonableBots(
@@ -39,19 +40,18 @@ export function formatHereBotList(
 ): string {
   const hereIds = opts?.hereIds;
   const idleIds = opts?.idleIds;
+  const alreadyHereTag = translateChat(context.locale, 'bot.here.tag_already_here');
+  const busyTag = translateChat(context.locale, 'bot.here.tag_busy');
   const lines = bots.map((b) => {
     let tag = '';
-    if (hereIds?.has(b.id)) tag = ' (already here)';
-    else if (idleIds && !idleIds.has(b.id) && !opts?.busy) tag = ' (busy)';
+    if (hereIds?.has(b.id)) tag = alreadyHereTag;
+    else if (idleIds && !idleIds.has(b.id) && !opts?.busy) tag = busyTag;
     return `[${b.id}] ${b.name}${tag}`;
   });
   if (opts?.busy) {
-    return (
-      `All music bots are busy with other users:\n${lines.join('\n')}\n` +
-      `Use !here <id> to move a specific bot (may leave their channel).`
-    );
+    return translateChat(context.locale, 'bot.here.all_busy', { lines: lines.join('\n') });
   }
-  return `Available bots:\n${lines.join('\n')}\nUse: !here <id>`;
+  return translateChat(context.locale, 'bot.here.available', { lines: lines.join('\n') });
 }
 
 /**
@@ -129,7 +129,7 @@ export async function summonBotToChannel(
   userClid: number,
 ): Promise<void> {
   if (!channelId || channelId <= 0) {
-    await context.reply(replyBot, userClid, 'Could not determine this channel.');
+    await context.reply(replyBot, userClid, translateChat(context.locale, 'bot.here.unknown_channel'));
     return;
   }
 
@@ -137,7 +137,10 @@ export async function summonBotToChannel(
     await context.reply(
       replyBot,
       userClid,
-      `${target.name} [#${target.id}] is already here.`,
+      translateChat(context.locale, 'bot.here.already_here', {
+        name: target.name,
+        id: target.id,
+      }),
     );
     return;
   }
@@ -146,7 +149,10 @@ export async function summonBotToChannel(
     await context.reply(
       replyBot,
       userClid,
-      `Could not move ${target.name} [#${target.id}]: bot is not fully connected.`,
+      translateChat(context.locale, 'bot.here.not_connected', {
+        name: target.name,
+        id: target.id,
+      }),
     );
     return;
   }
@@ -158,7 +164,10 @@ export async function summonBotToChannel(
   await context.reply(
     replyBot,
     userClid,
-    `${target.name} [#${target.id}] is joining.`,
+    translateChat(context.locale, 'bot.here.joining', {
+      name: target.name,
+      id: target.id,
+    }),
   );
 
   try {
@@ -167,7 +176,10 @@ export async function summonBotToChannel(
       await context.reply(
         replyBot,
         userClid,
-        `Could not move ${target.name} [#${target.id}]: move did not apply.`,
+        translateChat(context.locale, 'bot.here.move_not_applied', {
+          name: target.name,
+          id: target.id,
+        }),
       );
       return;
     }
@@ -180,7 +192,11 @@ export async function summonBotToChannel(
     await context.reply(
       replyBot,
       userClid,
-      `Could not move ${target.name} [#${target.id}]: ${err.message}`,
+      translateChat(context.locale, 'bot.here.move_failed', {
+        name: target.name,
+        id: target.id,
+        error: err.message,
+      }),
     );
   }
 }
@@ -222,9 +238,7 @@ export async function handleHere(
     const softKey = hereActionKey(serverConfigId, virtualServerId, 0, userClid, `unknown:${args}`);
     if (!claimHereAction(softKey)) return;
     try {
-      bot.sendChannelMessage(
-        'Could not determine this channel yet. Wait a second and try !here again.',
-      );
+      bot.sendChannelMessage(translateChat(context.locale, 'bot.here.unknown_channel_retry'));
     } catch (err: any) {
       console.warn(`[MusicCmd] !here unknown-channel notice failed: ${err.message}`);
     }
@@ -242,7 +256,7 @@ export async function handleHere(
 
   const candidates = await context.listSummonableBots(serverConfigId, virtualServerId);
   if (candidates.length === 0) {
-    await context.reply(bot, userClid, 'No music bots are available right now.');
+    await context.reply(bot, userClid, translateChat(context.locale, 'bot.here.none_available'));
     return;
   }
 
@@ -281,7 +295,7 @@ export async function handleHere(
 
   const targetId = parseInt(args, 10);
   if (isNaN(targetId) || String(targetId) !== args.trim()) {
-    await context.reply(bot, userClid, 'Usage: !here [id] — Use !here to list bots.');
+    await context.reply(bot, userClid, translateChat(context.locale, 'bot.here.usage'));
     return;
   }
 
@@ -290,7 +304,7 @@ export async function handleHere(
     await context.reply(
       bot,
       userClid,
-      `Bot #${targetId} is not available. Use !here to list bots.`,
+      translateChat(context.locale, 'bot.here.not_available', { id: targetId }),
     );
     return;
   }
@@ -334,7 +348,7 @@ export async function handleHereCrossChannel(
 
   const candidates = await context.listSummonableBots(configId, sid);
   if (candidates.length === 0) {
-    const noneMsg = 'No music bots are available right now.';
+    const noneMsg = translateChat(context.locale, 'bot.here.none_available');
     if (context.eventBridge) {
       const ok = await context.eventBridge.sendChannelText(
         configId,
@@ -357,6 +371,8 @@ export async function handleHereCrossChannel(
   }
 
   const replyBot = candidates[0].bot;
+  // The replying bot may not share the instance default language.
+  context.locale = await resolveChatLocale(context.prisma, replyBot.currentConfig.language);
   if (!await checkMediaCommand(context, replyBot, userClid, 'here', args, data.invokeruid)) return;
   // Route replies through a summonable bot while tagging the command channel.
   context.activeReplyChannel.set(`${replyBot.currentConfig.id}:${userClid}`, channelId);
@@ -396,7 +412,7 @@ export async function handleHereCrossChannel(
 
     const targetId = parseInt(args, 10);
     if (isNaN(targetId) || String(targetId) !== args.trim()) {
-      await context.reply(replyBot, userClid, 'Usage: !here [id] — Use !here to list bots.');
+      await context.reply(replyBot, userClid, translateChat(context.locale, 'bot.here.usage'));
       return;
     }
 
@@ -405,7 +421,7 @@ export async function handleHereCrossChannel(
       await context.reply(
         replyBot,
         userClid,
-        `Bot #${targetId} is not available. Use !here to list bots.`,
+        translateChat(context.locale, 'bot.here.not_available', { id: targetId }),
       );
       return;
     }

@@ -3,7 +3,7 @@
  * Read success (browse, list, diagnostic permissions stage) never implies write authorization.
  */
 
-import { apiErrorMessage } from './api-error';
+import { adminOpsText, apiErrorMessage } from './api-error';
 
 export type FileActionKind = 'browse' | 'create' | 'delete';
 
@@ -47,6 +47,15 @@ export function classifyActionPrerequisite(error: unknown): ActionPrerequisiteKi
   if (reason === 'ts_ssh_disconnected' || text.includes('ssh not connected') || text.includes('ssh is not connected')) {
     return 'ssh_failed';
   }
+  // Structured SSH-required reasons (backend); text matching stays for older servers.
+  if (
+    reason === 'ssh_required'
+    || reason === 'ts_ssh_required'
+    || reason === 'ssh_credentials_missing'
+    || reason === 'ts_ssh_not_configured'
+  ) {
+    return 'ssh_required';
+  }
   if (
     text.includes('ssh credentials not configured')
     || text.includes('webquery http does not support')
@@ -65,41 +74,78 @@ export function fileBrowseErrorMessage(error: unknown): string {
   const reason = String(err?.response?.data?.reason || '');
   switch (classifyActionPrerequisite(error)) {
     case 'ssh_required':
-      return 'File browsing requires SSH access because the TeamSpeak WebQuery HTTP API does not support file transfer commands. Configure SSH credentials (username and password) in server settings.';
+      return adminOpsText(
+        'files.browse.sshRequired',
+        'File browsing requires SSH access because the TeamSpeak WebQuery HTTP API does not support file transfer commands. Configure SSH credentials (username and password) in server settings.',
+      );
     case 'ssh_failed':
       if (reason === 'ts_ssh_disconnected') {
-        return 'SSH to TeamSpeak is temporarily disconnected (often after Query flood protection on startup). Wait a moment and retry — credentials are usually fine.';
+        return adminOpsText(
+          'files.browse.sshDisconnected',
+          'SSH to TeamSpeak is temporarily disconnected (often after Query flood protection on startup). Wait a moment and retry — credentials are usually fine.',
+        );
       }
-      return 'Could not connect to TeamSpeak via SSH. Check the SSH credentials and port in server settings.';
+      return adminOpsText(
+        'files.browse.sshFailed',
+        'Could not connect to TeamSpeak via SSH. Check the SSH credentials and port in server settings.',
+      );
     case 'permission_denied':
-      return 'The Query identity lacks permission to list files in this channel. WebQuery read success does not grant file-transfer access.';
+      return adminOpsText(
+        'files.browse.permissionDenied',
+        'The Query identity lacks permission to list files in this channel. WebQuery read success does not grant file-transfer access.',
+      );
     default:
-      return apiErrorMessage(error, 'Failed to load files. Ensure SSH credentials are configured in server settings.');
+      return apiErrorMessage(
+        error,
+        adminOpsText(
+          'files.browse.failed',
+          'Failed to load files. Ensure SSH credentials are configured in server settings.',
+        ),
+      );
   }
 }
 
 /** Human-readable errors for mkdir / delete — never treat browse success as write auth. */
 export function fileWriteErrorMessage(error: unknown, action: 'create' | 'delete'): string {
-  const verb = action === 'create' ? 'create directories' : 'delete files';
   const err = error as { response?: { data?: Record<string, unknown> } };
   const reason = String(err?.response?.data?.reason || '');
+  const fallbacks = action === 'create'
+    ? {
+      sshRequired: 'Cannot create directories: SSH is required for file changes (WebQuery HTTP does not support ft* commands).',
+      sshDisconnected: 'Cannot create directories: SSH is temporarily disconnected. Wait for reconnect and retry.',
+      sshFailed: 'Cannot create directories: SSH connection failed. Check SSH credentials and port in server settings.',
+      permissionDenied: 'Insufficient TeamSpeak permission to create directories. Listing this folder does not authorize writes — grant the Query identity the required file-transfer permissions.',
+      failed: 'Failed to create directory',
+    }
+    : {
+      sshRequired: 'Cannot delete files: SSH is required for file changes (WebQuery HTTP does not support ft* commands).',
+      sshDisconnected: 'Cannot delete files: SSH is temporarily disconnected. Wait for reconnect and retry.',
+      sshFailed: 'Cannot delete files: SSH connection failed. Check SSH credentials and port in server settings.',
+      permissionDenied: 'Insufficient TeamSpeak permission to delete files. Listing this folder does not authorize writes — grant the Query identity the required file-transfer permissions.',
+      failed: 'Failed to delete file',
+    };
+  const keyPrefix = `files.write.${action}`;
   switch (classifyActionPrerequisite(error)) {
     case 'ssh_required':
-      return `Cannot ${verb}: SSH is required for file changes (WebQuery HTTP does not support ft* commands).`;
+      return adminOpsText(`${keyPrefix}.sshRequired`, fallbacks.sshRequired);
     case 'ssh_failed':
       if (reason === 'ts_ssh_disconnected') {
-        return `Cannot ${verb}: SSH is temporarily disconnected. Wait for reconnect and retry.`;
+        return adminOpsText(`${keyPrefix}.sshDisconnected`, fallbacks.sshDisconnected);
       }
-      return `Cannot ${verb}: SSH connection failed. Check SSH credentials and port in server settings.`;
+      return adminOpsText(`${keyPrefix}.sshFailed`, fallbacks.sshFailed);
     case 'permission_denied':
-      return `Insufficient TeamSpeak permission to ${verb}. Listing this folder does not authorize writes — grant the Query identity the required file-transfer permissions.`;
+      return adminOpsText(`${keyPrefix}.permissionDenied`, fallbacks.permissionDenied);
     default:
-      return apiErrorMessage(error, action === 'create' ? 'Failed to create directory' : 'Failed to delete file');
+      return apiErrorMessage(error, adminOpsText(`${keyPrefix}.failed`, fallbacks.failed));
   }
 }
 
 export function fileDeleteConfirmDescription(entryName: string, fullPath: string): string {
-  return `Are you sure you want to delete "${entryName}" (${fullPath})? This cannot be undone. ${FILE_WRITE_READ_DOES_NOT_AUTHORIZE}`;
+  return adminOpsText(
+    'guidance.deleteConfirm',
+    `Are you sure you want to delete "${entryName}" (${fullPath})? This cannot be undone. ${FILE_WRITE_READ_DOES_NOT_AUTHORIZE}`,
+    { name: entryName, path: fullPath },
+  );
 }
 
 /**
@@ -108,8 +154,15 @@ export function fileDeleteConfirmDescription(entryName: string, fullPath: string
  */
 export function diagnosticSuccessToastMessage(version?: string): string {
   return version
-    ? `WebQuery read stages OK (${version}) — write actions still need their own permissions`
-    : 'WebQuery read stages succeeded — write actions still need their own permissions';
+    ? adminOpsText(
+      'guidance.diagnosticSuccessWithVersion',
+      `WebQuery read stages OK (${version}) — write actions still need their own permissions`,
+      { version },
+    )
+    : adminOpsText(
+      'guidance.diagnosticSuccessWithoutVersion',
+      'WebQuery read stages succeeded — write actions still need their own permissions',
+    );
 }
 
 export function claimsWriteAuthorization(message: string): boolean {

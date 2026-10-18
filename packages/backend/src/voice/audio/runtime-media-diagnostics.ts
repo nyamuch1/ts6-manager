@@ -20,6 +20,11 @@ import type {
 } from '@ts6/common';
 import { checkSidecarVersion } from '../streaming/sidecar-version.js';
 import { mediaEgressEnabled, mediaEgressProblem } from '../egress/media-egress.js';
+import {
+  DEFAULT_LOCALE,
+  translate,
+  type SupportedLocale,
+} from '../../i18n/index.js';
 
 const require = createRequire(import.meta.url);
 const backendPkg = require('../../../package.json') as { version?: string };
@@ -56,6 +61,8 @@ export interface DiagnoseRuntimeMediaOptions {
   ) => Promise<CommandProbeResult>;
   /** Injected for tests — PATH / absolute binary existence. */
   binaryExists?: (command: string, env: NodeJS.ProcessEnv) => boolean;
+  /** Response language for diagnostic prose (default English). */
+  locale?: SupportedLocale;
 }
 
 /** The fields of the sidecar's GET /health this module reads. */
@@ -90,6 +97,7 @@ export function probeCommandVersion(
   command: string,
   args: string[],
   timeoutMs: number,
+  locale: SupportedLocale = DEFAULT_LOCALE,
 ): Promise<CommandProbeResult> {
   return new Promise((resolve) => {
     let settled = false;
@@ -116,7 +124,7 @@ export function probeCommandVersion(
       finish({
         ok: false,
         code: 'error',
-        message: sanitizeSnippet(err?.message || 'Failed to start probe'),
+        message: sanitizeSnippet(err?.message || translate(locale, 'diagnostics.runtime.failed_to_start')),
       });
       return;
     }
@@ -142,14 +150,16 @@ export function probeCommandVersion(
         finish({
           ok: false,
           code: 'binary_missing',
-          message: `${command} was not found on PATH`,
+          message: translate(locale, 'diagnostics.runtime.binary_missing', { command }),
         });
         return;
       }
       finish({
         ok: false,
         code: 'error',
-        message: sanitizeSnippet(err.message || 'Probe failed to start'),
+        message: sanitizeSnippet(
+          err.message || translate(locale, 'diagnostics.runtime.probe_failed_to_start'),
+        ),
       });
     });
 
@@ -158,7 +168,7 @@ export function probeCommandVersion(
         finish({
           ok: false,
           code: 'timeout',
-          message: `${command} did not respond within ${timeoutMs}ms`,
+          message: translate(locale, 'diagnostics.runtime.probe_timeout', { command, timeoutMs }),
         });
         return;
       }
@@ -170,7 +180,11 @@ export function probeCommandVersion(
         ok: false,
         code: 'nonzero_exit',
         message: sanitizeSnippet(
-          versionFromOutput(stdout, stderr) || `${command} exited with code ${exitCode ?? 'unknown'}`,
+          versionFromOutput(stdout, stderr)
+            || translate(locale, 'diagnostics.runtime.probe_exit_code', {
+              command,
+              exitCode: exitCode ?? 'unknown',
+            }),
         ),
       });
     });
@@ -208,12 +222,13 @@ function stageFromCommand(
   label: string,
   result: CommandProbeResult,
   missingHint: string,
+  locale: SupportedLocale,
 ): RuntimeMediaStageResult {
   if (result.ok) {
     return {
       id,
       status: 'ok',
-      message: `${label} available`,
+      message: translate(locale, 'diagnostics.runtime.available', { label }),
       version: result.version,
       code: 'ok',
     };
@@ -310,10 +325,16 @@ function sidecarReachableFields(
   reachable: string,
   backendVersion: string | undefined,
   health: SidecarHealthProbe,
+  locale: SupportedLocale,
 ): Pick<RuntimeMediaStageResult, 'message' | 'version' | 'code'> {
   const check = checkSidecarVersion(backendVersion, health.version);
   return {
-    message: check.note ? `${reachable}, but ${check.note}` : reachable,
+    message: check.note
+      ? translate(locale, 'diagnostics.runtime.reachable_mismatch', {
+          reachable,
+          note: check.note,
+        })
+      : reachable,
     version: check.label,
     code: check.state === 'mismatch' ? 'version_mismatch' : 'ok',
   };
@@ -326,9 +347,11 @@ async function probeSidecarStage(
     binaryExists: NonNullable<DiagnoseRuntimeMediaOptions['binaryExists']>;
     backendVersion: string | undefined;
     remainingMs: () => number;
+    locale: SupportedLocale;
   },
 ): Promise<{ stage: RuntimeMediaStageResult; mode: RuntimeMediaSidecarMode }> {
   const { mode, baseUrl, binaryPath } = resolveSidecarMode(options.env);
+  const { locale } = options;
   const budget = Math.max(0, Math.min(options.sidecarTimeoutMs, options.remainingMs()));
 
   if (budget <= 0) {
@@ -337,7 +360,7 @@ async function probeSidecarStage(
       stage: {
         id: 'sidecar',
         status: 'fail',
-        message: 'Skipped — overall diagnostic deadline reached',
+        message: translate(locale, 'diagnostics.runtime.skipped_deadline'),
         code: 'timeout',
       },
     };
@@ -351,7 +374,12 @@ async function probeSidecarStage(
         stage: {
           id: 'sidecar',
           status: 'ok',
-          ...sidecarReachableFields('Sidecar health endpoint reachable', options.backendVersion, health),
+          ...sidecarReachableFields(
+            translate(locale, 'diagnostics.runtime.sidecar_reachable'),
+            options.backendVersion,
+            health,
+            locale,
+          ),
         },
       };
     } catch (err: any) {
@@ -362,8 +390,8 @@ async function probeSidecarStage(
           id: 'sidecar',
           status: 'fail',
           message: timedOut
-            ? `Sidecar at configured URL did not respond within ${budget}ms`
-            : 'Sidecar health check failed — verify SIDECAR_URL and that the sidecar container is running',
+            ? translate(locale, 'diagnostics.runtime.sidecar_url_timeout', { budget })
+            : translate(locale, 'diagnostics.runtime.sidecar_health_failed'),
           code: timedOut ? 'timeout' : 'sidecar_unreachable',
         },
       };
@@ -377,7 +405,7 @@ async function probeSidecarStage(
       stage: {
         id: 'sidecar',
         status: 'fail',
-        message: 'Sidecar binary was not found — set SIDECAR_BINARY_PATH or use SIDECAR_URL in Docker',
+        message: translate(locale, 'diagnostics.runtime.sidecar_binary_missing'),
         code: 'binary_missing',
       },
     };
@@ -390,7 +418,7 @@ async function probeSidecarStage(
       stage: {
         id: 'sidecar',
         status: 'skipped',
-        message: 'Sidecar binary present — listening state not checked (deadline reached)',
+        message: translate(locale, 'diagnostics.runtime.sidecar_binary_deadline'),
         code: 'not_listening',
       },
     };
@@ -403,7 +431,12 @@ async function probeSidecarStage(
       stage: {
         id: 'sidecar',
         status: 'ok',
-        ...sidecarReachableFields('Local sidecar is listening', options.backendVersion, health),
+        ...sidecarReachableFields(
+          translate(locale, 'diagnostics.runtime.sidecar_local_listening'),
+          options.backendVersion,
+          health,
+          locale,
+        ),
       },
     };
   } catch {
@@ -412,7 +445,7 @@ async function probeSidecarStage(
       stage: {
         id: 'sidecar',
         status: 'skipped',
-        message: 'Sidecar binary present — not listening yet (starts when video streaming begins)',
+        message: translate(locale, 'diagnostics.runtime.sidecar_not_listening'),
         code: 'not_listening',
       },
     };
@@ -430,7 +463,9 @@ export async function diagnoseRuntimeMedia(
   const stageTimeoutMs = options.stageTimeoutMs ?? DEFAULT_STAGE_TIMEOUT_MS;
   const sidecarTimeoutMs = options.sidecarTimeoutMs ?? DEFAULT_SIDECAR_TIMEOUT_MS;
   const env = options.env ?? process.env;
-  const probeCommand = options.probeCommand ?? probeCommandVersion;
+  const locale = options.locale ?? DEFAULT_LOCALE;
+  const probeCommand = options.probeCommand
+    ?? ((command, args, timeoutMs) => probeCommandVersion(command, args, timeoutMs, locale));
   const probeSidecarHealth = options.probeSidecarHealth ?? defaultProbeSidecarHealth;
   const binaryExists = options.binaryExists ?? binaryExistsOnPath;
 
@@ -452,13 +487,13 @@ export async function diagnoseRuntimeMedia(
       stages.push({
         id,
         status: 'fail',
-        message: 'Skipped — overall diagnostic deadline reached',
+        message: translate(locale, 'diagnostics.runtime.skipped_deadline'),
         code: 'timeout',
       });
       return;
     }
     const result = await probeCommand(command, args, budget);
-    stages.push(stageFromCommand(id, label, result, missingHint));
+    stages.push(stageFromCommand(id, label, result, missingHint, locale));
   };
 
   let ytDlpCommand: string | undefined;
@@ -467,7 +502,7 @@ export async function diagnoseRuntimeMedia(
   } catch {
     stages.push({
       id: 'yt-dlp', status: 'fail', code: 'misconfigured',
-      message: 'YT_DLP_PATH must be an absolute path to a trusted yt-dlp executable',
+      message: translate(locale, 'diagnostics.runtime.yt_dlp_path_invalid'),
     });
   }
   if (ytDlpCommand) {
@@ -476,7 +511,7 @@ export async function diagnoseRuntimeMedia(
       ytDlpCommand,
       ['--ignore-config', '--version'],
       'yt-dlp',
-      'yt-dlp was not found — pull or rebuild the TS6 Manager image to restore the bundled extractor',
+      translate(locale, 'diagnostics.runtime.yt_dlp_missing'),
     );
   }
   const ytDlpStage = stages.find((stage) => stage.id === 'yt-dlp');
@@ -484,27 +519,29 @@ export async function diagnoseRuntimeMedia(
     // An emergency setting, so it is shown as a failure until switched back on.
     ytDlpStage.status = 'fail';
     ytDlpStage.code = 'egress_disabled';
-    ytDlpStage.message = 'Media download protection is switched off (MEDIA_EGRESS_PROXY=off): downloads are not checked at connection time and only YouTube links are accepted';
+    ytDlpStage.message = translate(locale, 'diagnostics.runtime.egress_disabled');
   }
   const egressProblem = mediaEgressProblem(env);
   if (ytDlpStage?.status === 'ok' && egressProblem) {
     ytDlpStage.status = 'fail';
     ytDlpStage.code = 'egress_misconfigured';
-    ytDlpStage.message = `Media downloads are unavailable: ${egressProblem}`;
+    ytDlpStage.message = translate(locale, 'diagnostics.runtime.egress_unavailable', {
+      problem: egressProblem,
+    });
   }
   await runBinary(
     'ffmpeg',
     'ffmpeg',
     ['-version'],
     'ffmpeg',
-    'ffmpeg was not found — audio/video decode requires ffmpeg on the backend PATH',
+    translate(locale, 'diagnostics.runtime.ffmpeg_missing'),
   );
   await runBinary(
     'ffprobe',
     'ffprobe',
     ['-version'],
     'ffprobe',
-    'ffprobe was not found — media duration/metadata probes require ffprobe',
+    translate(locale, 'diagnostics.runtime.ffprobe_missing'),
   );
 
   const sidecar = await probeSidecarStage({
@@ -514,6 +551,7 @@ export async function diagnoseRuntimeMedia(
     backendVersion: options.backendVersion ?? backendPkg.version,
     sidecarTimeoutMs,
     remainingMs,
+    locale,
   });
   stages.push(sidecar.stage);
 

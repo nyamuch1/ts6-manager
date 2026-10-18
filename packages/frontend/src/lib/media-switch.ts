@@ -6,6 +6,7 @@
  */
 
 import type { MediaSessionConflictBody, MediaSessionInfo } from '@ts6/common';
+import i18n from '../i18n';
 
 export function isMediaSessionConflict(data: unknown): data is MediaSessionConflictBody {
   const d = data as Partial<MediaSessionConflictBody> | null | undefined;
@@ -30,10 +31,13 @@ export function withReplaceSessionIds(data: unknown, ids: string[]): Record<stri
 
 /** "Music “Neon Skyline” on Aurora Radio" / "Video stream from iptv.example on Bravo (starting)". */
 export function describeMediaSession(s: MediaSessionInfo): string {
-  const what = s.kind === 'music'
-    ? `Music${s.label ? ` “${s.label}”` : ''}`
-    : `Video stream${s.label ? ` from ${s.label}` : ''}`;
-  return `${what} on ${s.botName}${s.state === 'starting' ? ' (starting)' : ''}`;
+  const kind = s.kind === 'music' ? 'sessionMusic' : 'sessionVideo';
+  const noLabel = s.label ? '' : 'NoLabel';
+  const starting = s.state === 'starting' ? 'Starting' : '';
+  return i18n.t(`media:mediaSwitch.${kind}${noLabel}${starting}`, {
+    label: s.label ?? '',
+    bot: s.botName,
+  });
 }
 
 /** Sessions still starting cannot be replaced; the user has to wait. */

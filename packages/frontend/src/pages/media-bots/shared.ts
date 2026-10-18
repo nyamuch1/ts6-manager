@@ -1,5 +1,6 @@
 import axios from 'axios';
 import type { YouTubeSearchResult } from '@ts6/common';
+import i18n from '../../i18n';
 
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
@@ -24,27 +25,31 @@ export interface UrlLoadInfo {
 
 export function youtubeInfoErrorMessage(err: unknown): string {
   if (axios.isAxiosError(err) && err.code === 'ECONNABORTED') {
-    return 'Matching tracks is taking longer than expected — try again in a minute';
+    return i18n.t('media:shared.matchTimeout');
   }
   if (axios.isAxiosError(err) && err.response?.data?.error) {
     return String(err.response.data.error);
   }
-  return 'Failed to load URL info';
+  return i18n.t('media:shared.urlInfoFailed');
 }
 
 
 export function urlInfoPlaylistLabel(info: UrlLoadInfo): string {
-  if (info.type !== 'playlist') return 'Single track';
+  if (info.type !== 'playlist') return i18n.t('media:shared.singleTrack');
   if (info.sourceTrackCount != null && info.matchedCount != null) {
     const cap = info.cappedAt ?? info.items.length;
-    return `${info.matchedCount} matched of ${info.sourceTrackCount} (first ${cap} searched)`;
+    return i18n.t('media:shared.matchedOfSource', {
+      matched: info.matchedCount,
+      source: info.sourceTrackCount,
+      cap,
+    });
   }
   return trackCount(info.items.length);
 }
 
 
 function trackCount(n: number): string {
-  return `${n} track${n === 1 ? '' : 's'}`;
+  return i18n.t('media:shared.trackCount', { count: n });
 }
 
 
@@ -76,13 +81,22 @@ export function playlistAddMessage({
   stream: boolean;
 }): string {
   if (added === 0) {
-    return alreadyInPlaylist > 0
-      ? `${alreadyInPlaylist === 1 ? 'That track is' : 'All selected tracks are'} already in ${playlistName}`
-      : 'Nothing new to add';
+    if (alreadyInPlaylist > 0) {
+      return i18n.t(
+        alreadyInPlaylist === 1 ? 'media:playlistAdd.oneAlready' : 'media:playlistAdd.allAlready',
+        { playlist: playlistName },
+      );
+    }
+    return i18n.t('media:playlistAdd.nothingNew');
   }
-  const already = alreadyInPlaylist > 0 ? ` (${alreadyInPlaylist} already there)` : '';
-  const tail = stream ? '. Nothing downloads until played.' : '';
-  return `Added ${trackCount(added)} to ${playlistName}${already}${tail}`;
+  const key = stream
+    ? (alreadyInPlaylist > 0 ? 'media:playlistAdd.addedAlreadyStream' : 'media:playlistAdd.addedStream')
+    : (alreadyInPlaylist > 0 ? 'media:playlistAdd.addedAlready' : 'media:playlistAdd.added');
+  return i18n.t(key, {
+    count: added,
+    playlist: playlistName,
+    already: alreadyInPlaylist,
+  });
 }
 
 
@@ -126,35 +140,55 @@ export function importJobProgressLabel(job: ImportJobStatus | undefined | null):
   if (job.phase === 'matching') {
     const ofSource =
       job.sourceTrackCount != null &&
-      job.sourceTrackCount > (job.matchTotal ?? 0)
-        ? ` of ${job.sourceTrackCount}`
-        : '';
-    return `Matching ${job.matchProcessed ?? 0}/${job.matchTotal ?? '?'}${ofSource} (${job.matched ?? 0} hits)`;
+      job.sourceTrackCount > (job.matchTotal ?? 0);
+    return i18n.t(ofSource ? 'media:shared.matchingOfSource' : 'media:shared.matching', {
+      processed: job.matchProcessed ?? 0,
+      total: job.matchTotal ?? '?',
+      source: job.sourceTrackCount ?? 0,
+      hits: job.matched ?? 0,
+    });
   }
-  return `Importing ${job.processed ?? 0}/${job.total ?? '?'}`;
+  return i18n.t('media:shared.importing', {
+    processed: job.processed ?? 0,
+    total: job.total ?? '?',
+  });
 }
 
 
 export function importJobCompleteMessage(job: ImportJobStatus): string {
   const parts: string[] = [];
-  if ((job.registered ?? 0) > 0) parts.push(`${job.registered} registered`);
-  if ((job.enqueued ?? 0) > 0) parts.push(`${job.enqueued} enqueued`);
-  if ((job.downloaded ?? 0) > 0) parts.push(`${job.downloaded} downloaded`);
-  if ((job.skipped ?? 0) > 0) parts.push(`${job.skipped} skipped`);
-  const base = parts.length ? `Import complete: ${parts.join(', ')}` : 'Import complete';
+  if ((job.registered ?? 0) > 0) {
+    parts.push(i18n.t('media:shared.partRegistered', { count: job.registered }));
+  }
+  if ((job.enqueued ?? 0) > 0) {
+    parts.push(i18n.t('media:shared.partEnqueued', { count: job.enqueued }));
+  }
+  if ((job.downloaded ?? 0) > 0) {
+    parts.push(i18n.t('media:shared.partDownloaded', { count: job.downloaded }));
+  }
+  if ((job.skipped ?? 0) > 0) {
+    parts.push(i18n.t('media:shared.partSkipped', { count: job.skipped }));
+  }
+  const joined = parts.join(i18n.t('media:shared.listSeparator'));
   if (
     job.sourceTrackCount != null &&
     job.sourceTrackCount > (job.total ?? 0)
   ) {
     const cap = job.importCap ?? job.total ?? 0;
-    return `${base}. Only first ${cap} of ${job.sourceTrackCount} source tracks — raise Max playlist import in Settings → Limits`;
+    return i18n.t(
+      parts.length ? 'media:shared.importCompletePartsCapped' : 'media:shared.importCompleteCapped',
+      { parts: joined, cap, source: job.sourceTrackCount },
+    );
   }
-  return base;
+  return i18n.t(
+    parts.length ? 'media:shared.importCompleteParts' : 'media:shared.importComplete',
+    { parts: joined },
+  );
 }
 
 
 export function importCapHint(maxPlaylistImport: number | undefined): string {
   const cap = maxPlaylistImport ?? 250;
-  return `Imports up to ${cap} tracks (Settings → Limits). Large Apple Music playlists may need a higher cap (max 500).`;
+  return i18n.t('media:shared.importCapHint', { cap });
 }
 

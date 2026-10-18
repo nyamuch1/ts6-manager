@@ -5,6 +5,8 @@
 
 import { Link } from 'react-router-dom';
 import { ChevronDown, LayoutGrid, Pause, Play, Radio, Tv } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { toast } from 'sonner';
 import type { BotMediaOverview } from '@ts6/common';
 import { Button } from '@/components/ui/button';
@@ -18,11 +20,30 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { BotAvatar } from '@/components/shared/BotAvatar';
 import { useBotMedia, usePausePlayback, useResumePlayback } from '@/hooks/use-music-bots';
-import { activeBots, activeBotsLabel, hubHeadline, hubTone } from '@/lib/bot-hub';
+import { activeBots, hubTone } from '@/lib/bot-hub';
 import { apiErrorMessage } from '@/lib/api-error';
+
+/** One-line summary of what a bot is doing right now. */
+function headlineFor(bot: BotMediaOverview, t: TFunction<'media'>): string {
+  const tone = hubTone(bot);
+  if (tone === 'offline') return t(bot.status === 'error' ? 'hub.error' : 'hub.offline');
+  if (tone === 'live') {
+    const label = bot.session?.label;
+    if (bot.session?.state === 'starting') {
+      return label ? t('hub.startingFrom', { label }) : t('hub.starting');
+    }
+    return label ? t('hub.streamingFrom', { label }) : t('hub.streaming');
+  }
+  if (tone === 'music' && bot.music) {
+    const title = bot.music.title ?? t('nowPlaying.unknownTrack');
+    return bot.music.artist ? `${title} — ${bot.music.artist}` : title;
+  }
+  return t('hub.idle');
+}
 
 /** Pause or resume a music bot without closing the menu. */
 function PlayPauseItem({ bot }: { bot: BotMediaOverview }) {
+  const { t } = useTranslation('media');
   const pause = usePausePlayback();
   const resume = useResumePlayback();
   const paused = bot.status === 'paused';
@@ -31,13 +52,16 @@ function PlayPauseItem({ bot }: { bot: BotMediaOverview }) {
     <DropdownMenuItem
       className="shrink-0 justify-center px-2"
       disabled={pending}
-      aria-label={`${paused ? 'Resume' : 'Pause'} ${bot.botName}`}
+      aria-label={t(paused ? 'activeBots.resumeBot' : 'activeBots.pauseBot', { bot: bot.botName })}
       onSelect={(e) => {
         // Keep the menu open so the new state shows on the next poll.
         e.preventDefault();
         const action = paused ? resume : pause;
         action.mutate(bot.botId, {
-          onError: (err) => toast.error(apiErrorMessage(err, paused ? 'Could not resume' : 'Could not pause')),
+          onError: (err) => toast.error(apiErrorMessage(
+            err,
+            t(paused ? 'activeBots.couldNotResume' : 'activeBots.couldNotPause'),
+          )),
         });
       }}
     >
@@ -48,12 +72,17 @@ function PlayPauseItem({ bot }: { bot: BotMediaOverview }) {
 
 /** One active bot: a link to its console, plus pause/resume for music. */
 function ActiveBotRow({ bot }: { bot: BotMediaOverview }) {
+  const { t } = useTranslation('media');
   const tone = hubTone(bot);
   const KindIcon = tone === 'live' ? Tv : Radio;
+  const headline = headlineFor(bot, t);
   return (
     <div className="flex items-center gap-1">
       <DropdownMenuItem asChild className="min-w-0 flex-1">
-        <Link to={`/bot-hub/${bot.botId}`} aria-label={`Open console for ${bot.botName}: ${hubHeadline(bot)}`}>
+        <Link
+          to={`/bot-hub/${bot.botId}`}
+          aria-label={t('activeBots.openConsole', { bot: bot.botName, status: headline })}
+        >
           <BotAvatar
             botId={bot.botId}
             name={bot.botName}
@@ -66,8 +95,9 @@ function ActiveBotRow({ bot }: { bot: BotMediaOverview }) {
             <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
               <KindIcon className="!size-3" aria-hidden="true" />
               <span className="truncate">
-                {bot.status === 'paused' ? 'Paused · ' : ''}
-                {hubHeadline(bot)}
+                {bot.status === 'paused'
+                  ? t('activeBots.pausedHeadline', { headline })
+                  : headline}
               </span>
             </span>
           </span>
@@ -80,17 +110,22 @@ function ActiveBotRow({ bot }: { bot: BotMediaOverview }) {
 
 /** "Now playing" pill: hidden text on phones, a quiet Bot Hub link when nothing is on. */
 export function ActiveBotsMenu() {
+  const { t } = useTranslation('media');
   const { data } = useBotMedia();
   const active = activeBots(data ?? []);
-  const label = activeBotsLabel(active);
+  const label = active.length === 0
+    ? null
+    : active.length > 1
+      ? t('activeBots.activeBotsCount', { count: active.length })
+      : headlineFor(active[0], t);
 
   // Until the first poll succeeds we don't know what's playing: link to Bot Hub without a status.
   if (data === undefined) {
     return (
       <Button asChild variant="outline" size="sm" className="h-9 text-muted-foreground">
-        <Link to="/bot-hub" aria-label="Open Bot Hub">
+        <Link to="/bot-hub" aria-label={t('activeBots.openBotHub')}>
           <LayoutGrid className="h-4 w-4 sm:mr-1.5" aria-hidden="true" />
-          <span className="hidden sm:inline">Bot Hub</span>
+          <span className="hidden sm:inline">{t('activeBots.botHub')}</span>
         </Link>
       </Button>
     );
@@ -99,9 +134,9 @@ export function ActiveBotsMenu() {
   if (!label) {
     return (
       <Button asChild variant="outline" size="sm" className="h-9 text-muted-foreground">
-        <Link to="/bot-hub" aria-label="No bots playing. Open Bot Hub">
+        <Link to="/bot-hub" aria-label={t('activeBots.noBotsPlayingOpen')}>
           <LayoutGrid className="h-4 w-4 sm:mr-1.5" aria-hidden="true" />
-          <span className="hidden sm:inline">No bots playing</span>
+          <span className="hidden sm:inline">{t('activeBots.noBotsPlaying')}</span>
         </Link>
       </Button>
     );
@@ -115,7 +150,7 @@ export function ActiveBotsMenu() {
           variant="outline"
           size="sm"
           className="h-9 max-w-[18rem] gap-2 border-primary/40"
-          aria-label={`Now playing: ${label}. Show active bots`}
+          aria-label={t('activeBots.nowPlayingShow', { label })}
         >
           <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden="true">
             {!allPaused && (
@@ -132,7 +167,7 @@ export function ActiveBotsMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80">
         <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
-          Now playing · {active.length} bot{active.length === 1 ? '' : 's'}
+          {t('activeBots.nowPlayingCount', { count: active.length })}
         </DropdownMenuLabel>
         {active.map((bot) => (
           <ActiveBotRow key={bot.botId} bot={bot} />
@@ -140,7 +175,7 @@ export function ActiveBotsMenu() {
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link to="/bot-hub">
-            <LayoutGrid aria-hidden="true" /> Open Bot Hub
+            <LayoutGrid aria-hidden="true" /> {t('activeBots.openBotHub')}
           </Link>
         </DropdownMenuItem>
       </DropdownMenuContent>

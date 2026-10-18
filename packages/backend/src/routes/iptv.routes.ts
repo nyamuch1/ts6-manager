@@ -3,6 +3,8 @@ import multer from 'multer';
 import rateLimit from 'express-rate-limit';
 import { requireRole } from '../middleware/rbac.js';
 import { AppError } from '../middleware/error-handler.js';
+import { translate } from '../i18n/index.js';
+import { requestLocale } from '../i18n/middleware.js';
 import {
   refreshPlaylist,
   createUploadedPlaylist,
@@ -33,7 +35,7 @@ const uploadLimiter = rateLimit({
   max: 40,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many IPTV upload requests, please try again later' },
+  message: (req: Request) => ({ error: translate(requestLocale(req), 'errors.rate_limited_iptv_upload') }),
 });
 
 /** Adapt multer errors into the API's normal error middleware. */
@@ -43,7 +45,10 @@ function multerUpload(field: string) {
       if (!err) return next();
       if (err instanceof multer.MulterError) {
         if (err.code === 'LIMIT_FILE_SIZE') {
-          return next(new AppError(400, `Playlist exceeds ${MAX_IPTV_UPLOAD_BYTES} byte limit`));
+          return next(new AppError(400, `Playlist exceeds ${MAX_IPTV_UPLOAD_BYTES} byte limit`, undefined, {
+            messageKey: 'errors.iptv_playlist_too_large',
+            messageParams: { bytes: MAX_IPTV_UPLOAD_BYTES },
+          }));
         }
         return next(new AppError(400, err.message));
       }
@@ -56,7 +61,10 @@ function multerUpload(field: string) {
 function queryString(req: Request, name: string): string | undefined {
   const value = req.query[name];
   if (value !== undefined && typeof value !== 'string') {
-    throw new AppError(400, `${name} must be a single value`);
+    throw new AppError(400, `${name} must be a single value`, undefined, {
+      messageKey: 'errors.iptv_single_value',
+      messageParams: { name },
+    });
   }
   return typeof value === 'string' ? value : undefined;
 }
@@ -65,13 +73,26 @@ function queryString(req: Request, name: string): string | undefined {
 function positiveQueryInt(req: Request, name: string, required = false): number | undefined {
   const raw = queryString(req, name);
   if (raw == null || raw === '') {
-    if (required) throw new AppError(400, `${name} must be a positive whole number`);
+    if (required) {
+      throw new AppError(400, `${name} must be a positive whole number`, undefined, {
+        messageKey: 'errors.iptv_positive_number',
+        messageParams: { name },
+      });
+    }
     return undefined;
   }
-  if (!/^[1-9]\d*$/.test(raw)) throw new AppError(400, `${name} must be a positive whole number`);
+  if (!/^[1-9]\d*$/.test(raw)) {
+    throw new AppError(400, `${name} must be a positive whole number`, undefined, {
+      messageKey: 'errors.iptv_positive_number',
+      messageParams: { name },
+    });
+  }
   const value = Number(raw);
   if (!Number.isSafeInteger(value) || value <= 0) {
-    throw new AppError(400, `${name} must be a positive whole number`);
+    throw new AppError(400, `${name} must be a positive whole number`, undefined, {
+      messageKey: 'errors.iptv_positive_number',
+      messageParams: { name },
+    });
   }
   return value;
 }
@@ -191,10 +212,17 @@ function pickIdentity(req: Request) {
   const { serverConfigId, playlistId, channelKey } = req.body ?? {};
   for (const [name, value] of [['serverConfigId', serverConfigId], ['playlistId', playlistId]] as const) {
     if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
-      throw new AppError(400, `${name} must be a positive whole number`);
+      throw new AppError(400, `${name} must be a positive whole number`, undefined, {
+        messageKey: 'errors.iptv_positive_number',
+        messageParams: { name },
+      });
     }
   }
-  if (typeof channelKey !== 'string' || !channelKey.trim()) throw new AppError(400, 'channelKey is required');
+  if (typeof channelKey !== 'string' || !channelKey.trim()) {
+    throw new AppError(400, 'channelKey is required', undefined, {
+      messageKey: 'errors.channel_key_required',
+    });
+  }
   return { serverConfigId: serverConfigId as number, playlistId: playlistId as number, channelKey };
 }
 
@@ -219,7 +247,7 @@ iptvRoutes.put('/favourites', async (req: Request, res: Response, next: NextFunc
       orderBy: [{ position: 'asc' }, { id: 'asc' }],
     });
     const channel = candidates.find((c: { tvgId: string | null; name: string }) => iptvChannelKey(c) === key.channelKey);
-    if (!channel) throw new AppError(404, 'Channel not found');
+    if (!channel) throw new AppError(404, 'Channel not found', undefined, { messageKey: 'errors.channel_not_found' });
     await prisma.iptvChannelPick.upsert({
       where: { serverConfigId_playlistId_channelKey: key },
       create: { ...key, name: channel.name, favourite: true }, update: { name: channel.name, favourite: true },
@@ -232,9 +260,15 @@ iptvRoutes.delete('/favourites', async (req: Request, res: Response, next: NextF
   try {
     const prisma = req.app.locals.prisma;
     const key = pickIdentity(req);
-    if (req.body.removeRecent !== undefined && typeof req.body.removeRecent !== 'boolean') throw new AppError(400, 'removeRecent must be a boolean');
+    if (req.body.removeRecent !== undefined && typeof req.body.removeRecent !== 'boolean') {
+      throw new AppError(400, 'removeRecent must be a boolean', undefined, {
+        messageKey: 'errors.remove_recent_boolean',
+      });
+    }
     const playlist = await prisma.iptvPlaylist.findFirst({ where: { id: key.playlistId, serverConfigId: key.serverConfigId }, select: { id: true } });
-    if (!playlist) throw new AppError(404, 'Playlist not found');
+    if (!playlist) {
+      throw new AppError(404, 'Playlist not found', undefined, { messageKey: 'errors.playlist_not_found' });
+    }
     await prisma.$transaction(async (tx: import('../../generated/prisma/index.js').Prisma.TransactionClient) => {
       if (req.body.removeRecent === true) {
         // A missing-channel Remove clears its saved row from both views.
@@ -267,7 +301,11 @@ iptvRoutes.post('/playlists', async (req: Request, res: Response, next) => {
   try {
     const prisma = req.app.locals.prisma;
     const { name, url, serverConfigId, autoRefreshMinutes } = req.body;
-    if (!name || !url || !serverConfigId) throw new AppError(400, 'name, url and serverConfigId are required');
+    if (!name || !url || !serverConfigId) {
+      throw new AppError(400, 'name, url and serverConfigId are required', undefined, {
+        messageKey: 'errors.iptv_name_url_server_required',
+      });
+    }
 
     const playlist = await prisma.iptvPlaylist.create({
       data: {
@@ -286,7 +324,7 @@ iptvRoutes.post('/playlists', async (req: Request, res: Response, next) => {
     try {
       ({ channelCount } = await refreshPlaylist(prisma, playlist.id));
     } catch (err: any) {
-      refreshError = err?.message ?? 'Refresh failed';
+      refreshError = err?.message ?? translate(requestLocale(req), 'errors.refresh_failed');
     }
 
     res.status(201).json({ id: playlist.id, channelCount, refreshError, sourceType: 'url' });
@@ -304,9 +342,15 @@ iptvRoutes.post(
       const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
       const serverConfigId = parseInt(req.body?.serverConfigId);
       if (!name || !Number.isFinite(serverConfigId)) {
-        throw new AppError(400, 'name and serverConfigId are required');
+        throw new AppError(400, 'name and serverConfigId are required', undefined, {
+          messageKey: 'errors.iptv_name_server_required',
+        });
       }
-      if (!req.file) throw new AppError(400, 'playlist file is required');
+      if (!req.file) {
+        throw new AppError(400, 'playlist file is required', undefined, {
+          messageKey: 'errors.iptv_file_required',
+        });
+      }
 
       const result = await createUploadedPlaylist(prisma, {
         name,
@@ -341,8 +385,16 @@ iptvRoutes.post(
     try {
       const prisma = req.app.locals.prisma;
       const id = parseInt(req.params.id as string);
-      if (!Number.isFinite(id)) throw new AppError(400, 'Invalid playlist id');
-      if (!req.file) throw new AppError(400, 'playlist file is required');
+      if (!Number.isFinite(id)) {
+        throw new AppError(400, 'Invalid playlist id', undefined, {
+          messageKey: 'errors.invalid_playlist_id',
+        });
+      }
+      if (!req.file) {
+        throw new AppError(400, 'playlist file is required', undefined, {
+          messageKey: 'errors.iptv_file_required',
+        });
+      }
 
       const result = await replaceUploadedPlaylist(prisma, {
         playlistId: id,
@@ -375,7 +427,9 @@ iptvRoutes.put('/playlists/:id', async (req: Request, res: Response, next) => {
     const prisma = req.app.locals.prisma;
     const id = parseInt(req.params.id as string);
     const existing = await prisma.iptvPlaylist.findUnique({ where: { id } });
-    if (!existing) throw new AppError(404, 'Playlist not found');
+    if (!existing) {
+      throw new AppError(404, 'Playlist not found', undefined, { messageKey: 'errors.playlist_not_found' });
+    }
 
     const { name, url, autoRefreshMinutes } = req.body;
     const sourceType = existing.sourceType || 'url';
@@ -398,7 +452,9 @@ iptvRoutes.delete('/playlists/:id', async (req: Request, res: Response, next) =>
     res.json({ success: true });
   } catch (err: any) {
     if (String(err?.message ?? err).includes('not found')) {
-      return next(new AppError(404, 'Playlist not found'));
+      return next(new AppError(404, 'Playlist not found', undefined, {
+        messageKey: 'errors.playlist_not_found',
+      }));
     }
     next(err);
   }
@@ -463,7 +519,11 @@ iptvRoutes.post('/stream', async (req: Request, res: Response, next) => {
     const prisma = req.app.locals.prisma;
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const { botId, channelId } = req.body;
-    if (!botId || !channelId) throw new AppError(400, 'botId and channelId are required');
+    if (!botId || !channelId) {
+      throw new AppError(400, 'botId and channelId are required', undefined, {
+        messageKey: 'errors.bot_and_channel_required',
+      });
+    }
     const parsed = parseStreamStartOptions({
       preset: req.body.preset,
       encoder: req.body.encoder,
@@ -475,11 +535,13 @@ iptvRoutes.post('/stream', async (req: Request, res: Response, next) => {
     if (!parsed.ok) throw new AppError(400, parsed.error);
 
     const channel = await prisma.iptvChannel.findUnique({ where: { id: parseInt(channelId) }, include: { playlist: { select: { serverConfigId: true } } } });
-    if (!channel) throw new AppError(404, 'Channel not found');
+    if (!channel) throw new AppError(404, 'Channel not found', undefined, { messageKey: 'errors.channel_not_found' });
 
     const bot = manager.getBot(parseInt(botId));
-    if (!bot) throw new AppError(404, 'Music bot not found or not running');
-    if (channel.playlist.serverConfigId !== bot.currentConfig.serverConfigId) throw new AppError(404, 'Channel not found');
+    if (!bot) throw new AppError(404, 'Music bot not found or not running', undefined, {
+      messageKey: 'errors.music_bot_not_found_or_running',
+    });
+    if (channel.playlist.serverConfigId !== bot.currentConfig.serverConfigId) throw new AppError(404, 'Channel not found', undefined, { messageKey: 'errors.channel_not_found' });
 
     // Channels come from admin-configured playlists, so they may use the
     // admin-approved LAN hosts (set server-side, never from the request body).
@@ -507,9 +569,13 @@ iptvRoutes.post('/stop', async (req: Request, res: Response, next) => {
   try {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const { botId } = req.body;
-    if (!botId) throw new AppError(400, 'botId is required');
+    if (!botId) {
+      throw new AppError(400, 'botId is required', undefined, { messageKey: 'errors.bot_id_required' });
+    }
     const bot = manager.getBot(parseInt(botId));
-    if (!bot) throw new AppError(404, 'Music bot not found or not running');
+    if (!bot) throw new AppError(404, 'Music bot not found or not running', undefined, {
+      messageKey: 'errors.music_bot_not_found_or_running',
+    });
     await runMediaAudited(req, bot, 'media.video.stop', () => bot.stopVideoStream('manual', 'Stopped from the IPTV page', { cancelPendingRequests: true }));
     res.json({ success: true });
   } catch (err) { next(err); }

@@ -17,6 +17,7 @@ import type {
   BotAutomationOverview,
   BotMediaOverview,
   MediaSessionInfo,
+  MediaStopDetailCode,
   MediaStopInfo,
   MediaStopReason,
   VideoEncoderCapabilities,
@@ -58,6 +59,7 @@ import {
 } from './streaming/lifecycle.js';
 import { videoStreamingDefaults } from '../utils/app-settings.js';
 import { AppError } from '../middleware/error-handler.js';
+import { resolveBotLocale, translate, type MessageKey, type SupportedLocale } from '../i18n/index.js';
 import { MediaSessionConflictError, newMediaSessionId, safeSourceLabel } from './media-session.js';
 
 const MUSIC_DIR = process.env.MUSIC_DIR || '/data/music';
@@ -76,6 +78,10 @@ export interface VoiceBotConfig {
   serverHost: string;
   serverPort: number;
   nickname: string;
+  /** Chat reply language; null or absent inherits the instance default. */
+  language?: string | null;
+  /** Loads the instance default chat language for notices the bot sends on its own. */
+  loadDefaultBotLanguage?: () => Promise<SupportedLocale>;
   serverPassword?: string;
   defaultChannel?: string;
   channelPassword?: string;
@@ -147,6 +153,12 @@ export interface MusicStartOptions {
 function quoteLog(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err);
   return JSON.stringify(message);
+}
+
+interface VideoStopOptions {
+  cancelPendingRequests?: boolean;
+  detailCode?: MediaStopDetailCode;
+  detailParams?: Record<string, string | number>;
 }
 
 export class VoiceBot extends EventEmitter {
@@ -241,6 +253,8 @@ export class VoiceBot extends EventEmitter {
   /** TeamSpeak anti-flood (error 524): chat is held until this time. */
   private _floodHoldUntil = 0;
   private _floodHoldTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Last locale resolved for chat; lets bot-initiated notices send synchronously. */
+  private _cachedChatLocale: SupportedLocale | null = null;
   private _floodIgnoredCommands = 0;
   private _lastVideoStop: MediaStopInfo | null = null;
   private _noViewerTimeoutSec = 0;
@@ -507,6 +521,8 @@ export class VoiceBot extends EventEmitter {
     if (this._floodHoldTimer) clearTimeout(this._floodHoldTimer);
     this._floodHoldTimer = setTimeout(() => this.endFloodHold(), FLOOD_HOLD_MS);
     this._floodHoldTimer.unref?.();
+    // Warm the cached locale so the end-of-hold notice can send synchronously.
+    if (!this._cachedChatLocale) void this.resolveChatLocale();
     console.warn(`[VoiceBot ${this.config.id}] TeamSpeak reported flooding (524); holding chat for ${FLOOD_HOLD_MS / 1000}s`);
   }
 
@@ -518,8 +534,33 @@ export class VoiceBot extends EventEmitter {
     const ignored = this._floodIgnoredCommands;
     this._floodIgnoredCommands = 0;
     if (ignored > 0) {
-      this.sendChannelMessage('Commands came in too fast for the TeamSpeak server and were ignored. You can try again now.');
+      this.sendBotNotice('bot.flood_hold');
     }
+  }
+
+  /**
+   * Resolve this bot's chat locale once and send a notice. Used for messages the
+   * bot posts without an inbound command (flood hold, queue failures).
+   */
+  async resolveChatLocale(): Promise<SupportedLocale> {
+    let instanceDefault: string | null = null;
+    try {
+      instanceDefault = this.config.loadDefaultBotLanguage
+        ? await this.config.loadDefaultBotLanguage()
+        : null;
+    } catch {
+      // Keep chat working when settings cannot be read.
+    }
+    const locale = resolveBotLocale(this.config.language, instanceDefault);
+    this._cachedChatLocale = locale;
+    return locale;
+  }
+
+  private sendBotNotice(key: MessageKey): void {
+    // Prefer the cached locale; fall back to the bot's own/English so the
+    // notice is never delayed by a settings read.
+    const locale = this._cachedChatLocale ?? resolveBotLocale(this.config.language, null);
+    this.sendChannelMessage(translate(locale, key));
   }
 
   /** Private (DM) text to a client. Dropped during a flood hold. */
@@ -604,7 +645,10 @@ export class VoiceBot extends EventEmitter {
       if (this._videoSettings.announceAutoStops) {
         this.sendChannelMessage(autoStopNotice('video', 'channel_empty', graceSec));
       }
-      await this.stopVideoStream('channel_empty', detail);
+      await this.stopVideoStream('channel_empty', detail, {
+        detailCode: 'channel_empty',
+        detailParams: { seconds: graceSec },
+      });
       return;
     }
 
@@ -672,12 +716,18 @@ export class VoiceBot extends EventEmitter {
     this._videoEndTimer = setTimeout(() => {
       this._videoEndTimer = null;
       console.log(`[VoiceBot ${this.config.id}] Video ended, auto-stopping`);
-      this.handleVideoSourceFinished('source_ended', 'Video reached its end').catch((err) => this.emit('error', err));
+      this.handleVideoSourceFinished('source_ended', 'Video reached its end', {
+        detailCode: 'video_ended',
+      }).catch((err) => this.emit('error', err));
     }, (durationSec + 2) * 1000);
   }
 
   /** A source finished on its own: let the hook take over, otherwise stop as usual. */
-  private async handleVideoSourceFinished(reason: MediaStopReason, detail: string | null): Promise<void> {
+  private async handleVideoSourceFinished(
+    reason: MediaStopReason,
+    detail: string | null,
+    stopOptions: VideoStopOptions = {},
+  ): Promise<void> {
     if (!this._videoStreaming || this._videoStopping) return;
     let handled = false;
     if (this.config.videoSourceFinished) {
@@ -687,7 +737,7 @@ export class VoiceBot extends EventEmitter {
         console.error(`[VoiceBot ${this.config.id}] videoSourceFinished hook failed:`, err);
       }
     }
-    if (!handled) await this.stopVideoStream(reason, detail);
+    if (!handled) await this.stopVideoStream(reason, detail, stopOptions);
   }
 
   /**
@@ -1937,8 +1987,10 @@ export class VoiceBot extends EventEmitter {
       if (this._videoSettings.announceAutoStops) {
         this.sendChannelMessage(autoStopNotice('video', 'no_viewers', timeoutSec));
       }
-      this.stopVideoStream('no_viewers', noViewersStopDetail(timeoutSec))
-        .catch((err) => this.emit('error', err));
+      this.stopVideoStream('no_viewers', noViewersStopDetail(timeoutSec), {
+        detailCode: 'no_viewers',
+        detailParams: { seconds: timeoutSec },
+      }).catch((err) => this.emit('error', err));
     }, timeoutSec * 1000);
   }
 
@@ -1993,7 +2045,10 @@ export class VoiceBot extends EventEmitter {
           exitError: stats.encoder.exitError ?? null,
         });
         console.warn(`[VoiceBot ${this.config.id}] Encoder exited (${exit.reason})`);
-        await this.handleVideoSourceFinished(exit.reason, exit.detail);
+        await this.handleVideoSourceFinished(exit.reason, exit.detail, {
+          detailCode: exit.detailCode,
+          detailParams: exit.detailParams,
+        });
         return;
       }
 
@@ -2157,8 +2212,19 @@ export class VoiceBot extends EventEmitter {
     this.emit('statusChange', this._status);
   }
 
-  private recordVideoStop(reason: MediaStopReason, detail: string | null): void {
-    this._lastVideoStop = { reason, at: Date.now(), detail };
+  private recordVideoStop(
+    reason: MediaStopReason,
+    detail: string | null,
+    detailCode?: MediaStopDetailCode,
+    detailParams?: Record<string, string | number>,
+  ): void {
+    this._lastVideoStop = {
+      reason,
+      at: Date.now(),
+      detail,
+      ...(detailCode ? { detailCode } : {}),
+      ...(detailParams ? { detailParams } : {}),
+    };
   }
 
   // ─── Source / encoder application ─────────────────────────
@@ -2374,12 +2440,16 @@ export class VoiceBot extends EventEmitter {
       throw new AppError(409, 'The stream is stopping', 'Wait for it to finish, then start again.', {
         reason: 'stream_stopping',
         retryable: true,
+        messageKey: 'errors.stream_stopping',
+        detailsKey: 'errors.stream_stopping_details',
       });
     }
     if (this._videoStarting) {
       throw new AppError(409, 'The stream is still starting', 'Wait a moment, then try again if it does not appear.', {
         reason: 'stream_starting',
         retryable: true,
+        messageKey: 'errors.stream_starting',
+        detailsKey: 'errors.stream_starting_details',
       });
     }
     const sameSource = this._videoSource === source;
@@ -2388,7 +2458,11 @@ export class VoiceBot extends EventEmitter {
         409,
         'This video is already streaming',
         'Stop the current stream before starting it again with different options.',
-        { reason: 'stream_already_running' },
+        {
+          reason: 'stream_already_running',
+          messageKey: 'errors.video_same_already_streaming',
+          detailsKey: 'errors.video_same_already_streaming_details',
+        },
       );
     }
     const label = safeSourceLabel(this._videoSource);
@@ -2398,7 +2472,12 @@ export class VoiceBot extends EventEmitter {
       label
         ? `${label} is already playing on this bot. Stop the current stream or use Switch source.`
         : 'Stop the current stream or use Switch source to change the video without stopping it.',
-      { reason: 'stream_already_running' },
+      {
+        reason: 'stream_already_running',
+        messageKey: 'errors.stream_already_running',
+        detailsKey: label ? 'errors.video_already_streaming_label' : 'errors.stream_already_running_details',
+        detailsParams: label ? { label } : undefined,
+      },
     );
   }
 
@@ -2696,19 +2775,23 @@ export class VoiceBot extends EventEmitter {
   stopVideoStream(
     reason: MediaStopReason = 'manual',
     detail: string | null = null,
-    options: { cancelPendingRequests?: boolean } = {},
+    options: VideoStopOptions = {},
   ): Promise<void> {
     if (options.cancelPendingRequests) this._stopGeneration++;
     if (reason === 'manual') this.automation?.manualStop();
     if (!this._videoStopPromise) {
-      this._videoStopPromise = this.stopVideoStreamOnce(reason, detail).finally(() => {
+      this._videoStopPromise = this.stopVideoStreamOnce(reason, detail, options).finally(() => {
         this._videoStopPromise = null;
       });
     }
     return this._videoStopPromise;
   }
 
-  private async stopVideoStreamOnce(reason: MediaStopReason, detail: string | null): Promise<void> {
+  private async stopVideoStreamOnce(
+    reason: MediaStopReason,
+    detail: string | null,
+    options: VideoStopOptions = {},
+  ): Promise<void> {
     if (this._videoStopping) return;
     // Prepare-phase: apply/download runs while `_videoStreaming` is still false.
     // A UI/IPTV stop must cancel that start so setupstream cannot activate later.
@@ -2776,7 +2859,7 @@ export class VoiceBot extends EventEmitter {
       if (this._status !== 'playing') {
         this.stopAutoStopTimer();
       }
-      this.recordVideoStop(reason, detail);
+      this.recordVideoStop(reason, detail, options.detailCode, options.detailParams);
     } finally {
       this._videoStopping = false;
     }

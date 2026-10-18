@@ -1,7 +1,8 @@
 import { summarizeBotAutomation } from '@ts6/common';
 import type { VoiceBot } from '../voice-bot.js';
 import { fetchLyrics, chunkLyrics, lyricsInputFromTrack } from '../lyrics.js';
-import { BUILTIN_COMMAND_HELP, suggestBuiltinCommand } from '../chat-commands.js';
+import { builtinCommandHelp, suggestBuiltinCommand } from '../chat-commands.js';
+import { translateChat } from '../bot-locale.js';
 import {
   formatCustomCommandsMessage,
   formatHelpMessage,
@@ -31,7 +32,7 @@ export async function handleCustomCommandsList(
     orderBy: { name: 'asc' },
     select: { name: true, description: true },
   });
-  await context.reply(bot, userClid, formatCustomCommandsMessage(custom));
+  await context.reply(bot, userClid, formatCustomCommandsMessage(custom, context.locale));
 }
 
 /** Claim a shared help flight and reply with built-in and enabled custom commands. */
@@ -122,9 +123,10 @@ export async function handleHelp(
     }
 
     await context.reply(bot, userClid, formatHelpMessage(
-      BUILTIN_COMMAND_HELP, custom, summarizeBotAutomation(
+      builtinCommandHelp(context.locale), custom, summarizeBotAutomation(
         bot.automation?.configuration, bot.automation?.active, bot.automation?.state.presenceSuppressed,
       ),
+      context.locale,
     ));
     completeHelpAction(ownedKey, true);
   } catch (err) {
@@ -174,7 +176,9 @@ export async function handleHelpCrossChannel(
       console.warn(`[MusicCmd] !help custom command lookup failed: ${err.message}`);
     }
 
-    const msg = formatHelpMessage(BUILTIN_COMMAND_HELP, custom);
+    const msg = formatHelpMessage(
+      builtinCommandHelp(context.locale), custom, undefined, context.locale,
+    );
     if (!context.eventBridge) {
       console.warn(`[MusicCmd] Cross-channel !help: no eventBridge (cid=${channelId})`);
       return;
@@ -227,7 +231,11 @@ export async function handleCustomCommand(
     if (!/^[\p{L}\p{N}][\p{L}\p{N}_-]*$/u.test(command)) return;
     if (context.flowCommandLookup?.(dbBot.serverConfigId, sid, message, sourceListenerChannelId)) return;
     if (!tryClaimChatInfoReply(dbBot.serverConfigId, sid, channelId, userClid, `unknown:${command}`)) return;
-    await context.reply(bot, userClid, formatUnknownCommandMessage(command, suggestBuiltinCommand(command)));
+    await context.reply(
+      bot,
+      userClid,
+      formatUnknownCommandMessage(command, suggestBuiltinCommand(command), context.locale),
+    );
     return;
   }
 
@@ -240,7 +248,7 @@ export async function handleCustomCommand(
 export function handleNowPlaying(context: CommandContext, bot: VoiceBot, userClid: number): void {
   const np = bot.nowPlaying;
   if (!np) {
-    context.reply(bot, userClid, '_Nothing is playing._');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.np.nothing'));
     return;
   }
 
@@ -264,7 +272,7 @@ export function handleNowPlaying(context: CommandContext, bot: VoiceBot, userCli
       totalQueueLength: bot.queue.length,
       queueIndex: bot.queue.index,
       includeControls: true,
-    }),
+    }, context.locale),
   );
 }
 
@@ -284,7 +292,7 @@ export async function handleLyrics(
   } else {
     const np = bot.nowPlaying;
     if (!np) {
-      context.reply(bot, userClid, 'Nothing playing. Usage: !lyrics [artist - title]');
+      context.reply(bot, userClid, translateChat(context.locale, 'bot.lyrics.nothing'));
       return;
     }
     const parsed = lyricsInputFromTrack({ artist: np.artist, title: np.title });
@@ -292,14 +300,21 @@ export async function handleLyrics(
     label = parsed.label;
   }
 
-  context.reply(bot, userClid, 'Looking up lyrics…');
+  context.reply(bot, userClid, translateChat(context.locale, 'bot.lyrics.looking_up'));
   const result = await fetchLyrics(input);
   if (!result) {
-    context.reply(bot, userClid, `Lyrics not found for "${label}".`);
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.lyrics.not_found', { label }));
     return;
   }
   if (result.instrumental) {
-    context.reply(bot, userClid, `♪ ${result.artist} — ${result.title}: instrumental track.`);
+    context.reply(
+      bot,
+      userClid,
+      translateChat(context.locale, 'bot.lyrics.instrumental', {
+        artist: result.artist,
+        title: result.title,
+      }),
+    );
     return;
   }
 
@@ -313,16 +328,21 @@ export async function handleLyrics(
 export function handleViewers(context: CommandContext, bot: VoiceBot, userClid: number): void {
   const status = bot.videoStreamStatus;
   if (!status.streaming) {
-    context.reply(bot, userClid, 'No active video stream.');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.viewers.no_stream'));
     return;
   }
   if (status.viewers.length === 0) {
-    context.reply(bot, userClid, 'No viewers connected.');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.viewers.none'));
     return;
   }
   const lines = status.viewers.map((v) => {
     const duration = Math.floor((Date.now() - v.joinedAt) / 1000);
     return `  clid=${v.clid} (${duration}s)`;
   });
-  context.reply(bot, userClid, `Viewers (${status.viewerCount}):\n${lines.join('\n')}`);
+  context.reply(
+    bot,
+    userClid,
+    translateChat(context.locale, 'bot.viewers.heading', { count: status.viewerCount }) +
+      `\n${lines.join('\n')}`,
+  );
 }

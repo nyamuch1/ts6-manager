@@ -3,6 +3,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Play, Radio } from 'lucide-react';
 import type { RadioStationInfo } from '@ts6/common';
 import { Pager } from '@/components/shared/Pager';
@@ -17,6 +18,7 @@ import { AddMediaLink } from './AddMediaLink';
 import type { ConsoleSourceContext } from './SourcePicker';
 
 export function RadioSource(ctx: ConsoleSourceContext) {
+  const { t } = useTranslation('bots');
   const [search, setSearch] = useState('');
   const [mood, setMood] = useState<string | null>(null); // mood key; null = All
   const [showAllMoods, setShowAllMoods] = useState(false);
@@ -57,13 +59,13 @@ export function RadioSource(ctx: ConsoleSourceContext) {
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search stations…"
-          aria-label="Search stations"
+          placeholder={t('radioSource.searchPlaceholder')}
+          aria-label={t('radioSource.searchAria')}
           className="h-11 min-w-0 flex-1 basis-48"
         />
-        <AddMediaLink to="/media-bots?tab=radio" label="Add station" />
+        <AddMediaLink to="/media-bots?tab=radio" label={t('radioSource.addStation')} />
       </div>
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Moods">
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('radioSource.moodsAria')}>
         <button
           type="button"
           className={cn(
@@ -73,7 +75,7 @@ export function RadioSource(ctx: ConsoleSourceContext) {
           aria-pressed={mood === null}
           onClick={() => setMood(null)}
         >
-          All ({stations.length})
+          {t('radioSource.allMoods', { count: stations.length })}
         </button>
         {visibleMoods.map(({ key, label, count }) => (
           <button
@@ -96,16 +98,16 @@ export function RadioSource(ctx: ConsoleSourceContext) {
             aria-expanded={showAllMoods}
             onClick={() => setShowAllMoods((v) => !v)}
           >
-            {showAllMoods ? 'Fewer moods' : `More moods (${moods.length - RADIO_MOOD_CHIP_LIMIT})`}
+            {showAllMoods ? t('radioSource.fewerMoods') : t('radioSource.moreMoods', { extra: moods.length - RADIO_MOOD_CHIP_LIMIT })}
           </button>
         )}
       </div>
 
-      {error && <p role="alert" className="text-sm text-destructive">{apiErrorMessage(error, 'Could not load stations')}</p>}
+      {error && <p role="alert" className="text-sm text-destructive">{apiErrorMessage(error, t('radioSource.loadError'))}</p>}
       {stationsQuery.isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading stations…</p>
+        <p className="text-sm text-muted-foreground">{t('radioSource.loading')}</p>
       ) : pageItems.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No stations found.</p>
+        <p className="text-sm text-muted-foreground">{t('radioSource.empty')}</p>
       ) : (
         <ul className="space-y-1">
           {pageItems.map((station) => (
@@ -120,7 +122,7 @@ export function RadioSource(ctx: ConsoleSourceContext) {
                 size="icon"
                 className="h-11 w-11 shrink-0"
                 disabled={pending}
-                aria-label={`Play ${station.name}`}
+                aria-label={t('radioSource.playAria', { name: station.name })}
                 onClick={() => playRadio.mutate({ botId: ctx.botId, stationId: station.id })}
               >
                 <Play className="h-4 w-4" aria-hidden="true" />
@@ -135,12 +137,12 @@ export function RadioSource(ctx: ConsoleSourceContext) {
         total={filtered.length}
         page={page}
         pageSize={pageSize}
-        noun="stations"
+        noun={t('common:units.stations')}
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
       />
       <p className="text-xs text-muted-foreground">
-        Moods come from each station&apos;s genre. Set or change it under Media Library → Radio stations.
+        {t('radioSource.moodsHint')}
       </p>
     </div>
   );

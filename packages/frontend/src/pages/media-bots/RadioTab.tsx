@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   useRadioStations,
@@ -39,7 +40,6 @@ import {
 import { Play, Plus, Trash2, Radio, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiErrorMessage } from '@/lib/api-error';
-import { toastMediaStarted } from '@/lib/media-start-toast';
 import { splitGenreTags } from '@/lib/radio-moods';
 import type { MusicBotSummary, RadioStationInfo, RadioPreset, RadioBrowserStationInfo } from '@ts6/common';
 
@@ -48,6 +48,7 @@ import type { MusicBotSummary, RadioStationInfo, RadioPreset, RadioBrowserStatio
 
 /** Manage a server's radio stations and play one on a running bot. */
 export function RadioTab() {
+  const { t } = useTranslation('media');
   const [searchParams] = useSearchParams();
   const linkedServer = Number(searchParams.get('server')) || null;
   const { selectedConfigId, setServer } = useServerStore();
@@ -77,8 +78,16 @@ export function RadioTab() {
   const handlePlay = (station: RadioStationInfo) => {
     if (!playBot) return;
     playRadio.mutate({ botId: playBot.id, stationId: station.id }, {
-      onSuccess: () => toastMediaStarted(`Playing ${station.name} on ${playBot.name}`),
-      onError: (err) => toast.error(apiErrorMessage(err, 'Could not play radio')),
+      onSuccess: () => toast.success(
+        t('radio.playingOn', { station: station.name, bot: playBot.name }),
+        {
+          action: {
+            label: t('toast.openBotHub'),
+            onClick: () => window.location.assign('/bot-hub'),
+          },
+        },
+      ),
+      onError: (err) => toast.error(apiErrorMessage(err, t('radio.couldNotPlay'))),
     });
   };
 
@@ -121,8 +130,8 @@ export function RadioTab() {
           genre: addForm.genre,
         },
       }, {
-        onSuccess: () => { toast.success('Station updated'); setShowAdd(false); setEditingStation(null); setAddForm({ name: '', url: '', genre: '' }); },
-        onError: (error) => toast.error(apiErrorMessage(error, 'Failed to update station')),
+        onSuccess: () => { toast.success(t('radio.stationUpdated')); setShowAdd(false); setEditingStation(null); setAddForm({ name: '', url: '', genre: '' }); },
+        onError: (error) => toast.error(apiErrorMessage(error, t('radio.stationUpdateFailed'))),
         onSettled: () => { stationSaveInFlight.current = false; },
       });
       return;
@@ -131,8 +140,8 @@ export function RadioTab() {
       configId,
       data: { name: addForm.name, url: addForm.url, genre: addForm.genre || undefined },
     }, {
-      onSuccess: () => { toast.success('Station added'); setShowAdd(false); setAddForm({ name: '', url: '', genre: '' }); },
-      onError: () => toast.error('Failed to add station'),
+      onSuccess: () => { toast.success(t('radio.stationAdded')); setShowAdd(false); setAddForm({ name: '', url: '', genre: '' }); },
+      onError: () => toast.error(t('radio.stationAddFailed')),
       onSettled: () => { stationSaveInFlight.current = false; },
     });
   };
@@ -143,8 +152,8 @@ export function RadioTab() {
       configId,
       data: { name: preset.name, url: preset.url, genre: preset.genre },
     }, {
-      onSuccess: () => toast.success(`Added: ${preset.name}`),
-      onError: () => toast.error(`Failed to add: ${preset.name}`),
+      onSuccess: () => toast.success(t('radio.addedName', { name: preset.name })),
+      onError: () => toast.error(t('radio.addNameFailed', { name: preset.name })),
     });
   };
 
@@ -164,7 +173,7 @@ export function RadioTab() {
         onError: (error) => {
           if (requestId !== browseRequestId.current) return;
           setBrowseSearchState('error');
-          toast.error(apiErrorMessage(error, 'Radio Browser search failed'));
+          toast.error(apiErrorMessage(error, t('radio.browserSearchFailed')));
         },
       },
     );
@@ -182,13 +191,13 @@ export function RadioTab() {
         stationuuid: station.stationuuid,
       },
     }, {
-      onSuccess: () => toast.success(`Added: ${station.name}`),
-      onError: (error) => toast.error(apiErrorMessage(error, `Failed to add: ${station.name}`)),
+      onSuccess: () => toast.success(t('radio.addedName', { name: station.name })),
+      onError: (error) => toast.error(apiErrorMessage(error, t('radio.addNameFailed', { name: station.name }))),
     });
   };
 
   if (!configId) {
-    return <EmptyState icon={Radio} title="Select a server" description="Choose a server to manage radio stations." />;
+    return <EmptyState icon={Radio} title={t('radio.selectServer')} description={t('radio.selectServerDescription')} />;
   }
 
   return (
@@ -196,7 +205,7 @@ export function RadioTab() {
       {/* Server selector + station actions */}
       <div className="flex items-center gap-2 flex-wrap">
         <Select value={String(configId)} onValueChange={(v) => setServerId(parseInt(v))}>
-          <SelectTrigger className="w-48"><SelectValue placeholder="Server..." /></SelectTrigger>
+          <SelectTrigger className="w-48"><SelectValue placeholder={t('radio.serverPlaceholder')} /></SelectTrigger>
           <SelectContent>
             {serverList.map((s: any) => (
               <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
@@ -206,9 +215,9 @@ export function RadioTab() {
 
         {runningBots.length > 1 && (
           <>
-            <Label htmlFor="radio-play-on" className="text-xs text-muted-foreground">Play on</Label>
+            <Label htmlFor="radio-play-on" className="text-xs text-muted-foreground">{t('radio.playOn')}</Label>
             <Select value={playBot ? String(playBot.id) : ''} onValueChange={(v) => setPickedBotId(parseInt(v))}>
-              <SelectTrigger id="radio-play-on" className="w-48"><SelectValue placeholder="Bot..." /></SelectTrigger>
+              <SelectTrigger id="radio-play-on" className="w-48"><SelectValue placeholder={t('radio.botPlaceholder')} /></SelectTrigger>
               <SelectContent>
                 {runningBots.map((b: MusicBotSummary) => (
                   <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
@@ -227,12 +236,12 @@ export function RadioTab() {
           onClick={() => {
             if (!configId) return;
             resetStationIds.mutate(configId, {
-              onSuccess: () => toast.success('Radio station IDs compacted'),
-              onError: () => toast.error('Failed to reset station IDs'),
+              onSuccess: () => toast.success(t('radio.idsCompacted')),
+              onError: () => toast.error(t('radio.resetIdsFailed')),
             });
           }}
         >
-          Reset IDs
+          {t('radio.resetIds')}
         </Button>
         <Button
           variant="outline"
@@ -245,30 +254,45 @@ export function RadioTab() {
             setShowBrowse(true);
           }}
         >
-          <Search className="h-4 w-4 mr-1" /> Search stations
+          <Search className="h-4 w-4 mr-1" /> {t('radio.searchStations')}
         </Button>
         <Button variant="outline" size="sm" onClick={() => setShowPresets(true)}>
-          <Radio className="h-4 w-4 mr-1" /> Presets
+          <Radio className="h-4 w-4 mr-1" /> {t('radio.presets')}
         </Button>
         <Button size="sm" onClick={() => {
           setEditingStation(null);
           setAddForm({ name: '', url: '', genre: '' });
           setShowAdd(true);
         }}>
-          <Plus className="h-4 w-4 mr-1" /> Add Station
+          <Plus className="h-4 w-4 mr-1" /> {t('radio.addStation')}
         </Button>
       </div>
 
       <p id="radio-play-hint" className="text-sm text-muted-foreground">
-        {playBot
-          ? <>Play sends a station to <span className="font-medium text-foreground">{playBot.name}</span>. You can also play from a bot&apos;s console in the </>
-          : <>Start a bot on this server to play stations here, or play from a bot&apos;s console in the </>}
-        <Link to="/bot-hub" className="text-primary underline-offset-4 hover:underline">Bot Hub</Link>.
+        {playBot ? (
+          <Trans
+            i18nKey="radio.playHint"
+            ns="media"
+            values={{ bot: playBot.name }}
+            components={{
+              bot: <span className="font-medium text-foreground" />,
+              hub: <Link to="/bot-hub" className="text-primary underline-offset-4 hover:underline" />,
+            }}
+          />
+        ) : (
+          <Trans
+            i18nKey="radio.startHint"
+            ns="media"
+            components={{
+              hub: <Link to="/bot-hub" className="text-primary underline-offset-4 hover:underline" />,
+            }}
+          />
+        )}
       </p>
 
       {/* Station List */}
       {isLoading ? <PageLoader /> : stationList.length === 0 ? (
-        <EmptyState icon={Radio} title="No radio stations" description="Add stations manually, from presets, or search Community Radio Browser, then play them from a bot's console." />
+        <EmptyState icon={Radio} title={t('radio.emptyTitle')} description={t('radio.emptyDescription')} />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {stationList.map((station) => (
@@ -293,9 +317,11 @@ export function RadioTab() {
                     size="icon"
                     className="h-11 w-11"
                     disabled={!playBot || playRadio.isPending}
-                    aria-label={`Play ${station.name}`}
+                    aria-label={t('radio.playStationAria', { station: station.name })}
                     aria-describedby={playBot ? undefined : 'radio-play-hint'}
-                    title={playBot ? `Play on ${playBot.name}` : 'Start a bot on this server first'}
+                    title={playBot
+                      ? t('radio.playOnTitle', { bot: playBot.name })
+                      : t('radio.startBotFirst')}
                     onClick={() => handlePlay(station)}
                   >
                     <Play className="h-4 w-4" aria-hidden="true" />
@@ -304,20 +330,20 @@ export function RadioTab() {
                     variant="outline"
                     size="sm"
                     className="min-h-11"
-                    aria-label={`Edit ${station.name}`}
+                    aria-label={t('radio.editStationAria', { station: station.name })}
                     onClick={() => {
                       setEditingStation(station);
                       setAddForm({ name: station.name, url: station.url, genre: station.genre || '' });
                       setShowAdd(true);
                     }}
                   >
-                    Edit
+                    {t('radio.edit')}
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
                     className="touch-action-reveal h-8 w-8 text-destructive transition-opacity hover:text-destructive"
-                    aria-label={`Delete ${station.name}`}
+                    aria-label={t('radio.deleteStationAria', { station: station.name })}
                     onClick={() => setDeleteId(station.id)}
                   >
                     <Trash2 className="h-3 w-3" />
@@ -340,29 +366,31 @@ export function RadioTab() {
       }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingStation ? 'Edit station' : 'Add Radio Station'}</DialogTitle>
-            <DialogDescription>{editingStation ? 'Edit this station’s name, stream URL, and mood or genre.' : 'Add a custom internet radio station by providing its stream URL.'}</DialogDescription>
+            <DialogTitle>{t(editingStation ? 'radio.editTitle' : 'radio.addTitle')}</DialogTitle>
+            <DialogDescription>
+              {t(editingStation ? 'radio.editDescription' : 'radio.addDescription')}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label htmlFor="radio-station-name" className="text-xs">Name</Label>
-              <Input id="radio-station-name" disabled={stationPending} value={addForm.name} onChange={(e) => setAddForm({ ...addForm, name: e.target.value })} placeholder="Station name" />
+              <Label htmlFor="radio-station-name" className="text-xs">{t('radio.name')}</Label>
+              <Input id="radio-station-name" disabled={stationPending} value={addForm.name} onChange={(e) => setAddForm({ ...addForm, name: e.target.value })} placeholder={t('radio.namePlaceholder')} />
             </div>
             <div>
-              <Label htmlFor="radio-station-url" className="text-xs">Stream URL</Label>
+              <Label htmlFor="radio-station-url" className="text-xs">{t('radio.streamUrl')}</Label>
               <Input id="radio-station-url" disabled={stationPending} value={addForm.url} onChange={(e) => setAddForm({ ...addForm, url: e.target.value })} placeholder="https://stream.example.com/live" />
             </div>
             <div>
-              <Label htmlFor="radio-station-genre" className="text-xs">Mood or genre</Label>
-              <Input id="radio-station-genre" disabled={stationPending} value={addForm.genre} onChange={(e) => setAddForm({ ...addForm, genre: e.target.value })} placeholder="Chill, Focus, Party…" />
+              <Label htmlFor="radio-station-genre" className="text-xs">{t('radio.genre')}</Label>
+              <Input id="radio-station-genre" disabled={stationPending} value={addForm.genre} onChange={(e) => setAddForm({ ...addForm, genre: e.target.value })} placeholder={t('radio.genrePlaceholder')} />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" disabled={stationPending} onClick={() => {
               if (!stationSaveInFlight.current) setShowAdd(false);
-            }}>Cancel</Button>
+            }}>{t('radio.cancel')}</Button>
             <Button onClick={handleAddStation} disabled={!addForm.name.trim() || !addForm.url.trim() || stationPending}>
-              {editingStation ? 'Save' : 'Add Station'}
+              {t(editingStation ? 'radio.save' : 'radio.addStation')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -372,10 +400,8 @@ export function RadioTab() {
       <Dialog open={showBrowse} onOpenChange={setShowBrowse}>
         <DialogContent className="max-w-lg [--dialog-max-height:80vh] flex flex-col overflow-auto">
           <DialogHeader>
-            <DialogTitle>Search stations</DialogTitle>
-            <DialogDescription>
-              Find internet radio stations and add them to this server&apos;s list.
-            </DialogDescription>
+            <DialogTitle>{t('radio.browseTitle')}</DialogTitle>
+            <DialogDescription>{t('radio.browseDescription')}</DialogDescription>
           </DialogHeader>
           <form
             className="flex gap-2"
@@ -392,22 +418,22 @@ export function RadioTab() {
                 setBrowseResults([]);
                 setBrowseSearchState('idle');
               }}
-              placeholder="Name, e.g. Jazz, BBC, Techno…"
+              placeholder={t('radio.browsePlaceholder')}
               disabled={browseSearchState === 'pending'}
-              aria-label="Search stations"
+              aria-label={t('radio.searchStations')}
             />
             <Button type="submit" disabled={!browseQuery.trim() || browseSearchState === 'pending'}>
-              Search
+              {t('radio.search')}
             </Button>
           </form>
           <div className="flex-1 max-h-[400px] overflow-y-auto">
             {browseSearchState === 'pending' ? (
-              <p className="text-xs text-muted-foreground text-center py-8">Searching…</p>
+              <p className="text-xs text-muted-foreground text-center py-8">{t('radio.searching')}</p>
             ) : browseSearchState === 'error' ? (
-              <p className="text-xs text-muted-foreground text-center py-8">Search failed. Try again.</p>
+              <p className="text-xs text-muted-foreground text-center py-8">{t('radio.searchFailed')}</p>
             ) : browseResults.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-8">
-                {browseSearchState === 'success' ? 'No stations found.' : 'Enter a name to search.'}
+                {t(browseSearchState === 'success' ? 'radio.noStationsFound' : 'radio.enterName')}
               </p>
             ) : (
               browseResults.map((station) => {
@@ -431,7 +457,7 @@ export function RadioTab() {
                       disabled={alreadyAdded || createStation.isPending}
                     >
                       <Plus className="h-3 w-3 mr-1" />
-                      {alreadyAdded ? 'Added' : 'Add'}
+                      {t(alreadyAdded ? 'radio.added' : 'radio.add')}
                     </Button>
                   </div>
                 );
@@ -439,19 +465,23 @@ export function RadioTab() {
             )}
           </div>
           <p className="text-[10px] text-muted-foreground">
-            Station data from{' '}
-            <a
-              href="https://www.radio-browser.info/"
-              target="_blank"
-              rel="noreferrer"
-              className="text-primary underline-offset-4 hover:underline"
-            >
-              Community Radio Browser
-            </a>
-            .
+            <Trans
+              i18nKey="radio.stationData"
+              ns="media"
+              components={{
+                link: (
+                  <a
+                    href="https://www.radio-browser.info/"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-primary underline-offset-4 hover:underline"
+                  />
+                ),
+              }}
+            />
           </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowBrowse(false)}>Done</Button>
+            <Button variant="outline" onClick={() => setShowBrowse(false)}>{t('radio.done')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -460,12 +490,12 @@ export function RadioTab() {
       <Dialog open={showPresets} onOpenChange={setShowPresets}>
         <DialogContent className="max-w-lg [--dialog-max-height:80vh] flex flex-col overflow-auto">
           <DialogHeader>
-            <DialogTitle>Radio Presets</DialogTitle>
-            <DialogDescription>Add popular radio stations with one click.</DialogDescription>
+            <DialogTitle>{t('radio.presetsTitle')}</DialogTitle>
+            <DialogDescription>{t('radio.presetsDescription')}</DialogDescription>
           </DialogHeader>
           <div className="flex-1 max-h-[400px] overflow-y-auto">
             {presetList.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-8">No presets available.</p>
+              <p className="text-xs text-muted-foreground text-center py-8">{t('radio.noPresets')}</p>
             ) : presetList.map((preset, i) => (
               <div key={i} className="flex items-center gap-3 px-2 py-2 hover:bg-muted/50 transition-colors rounded">
                 <Radio className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -477,13 +507,13 @@ export function RadioTab() {
                   onClick={() => handleAddPreset(preset)}
                   disabled={createStation.isPending}
                 >
-                  <Plus className="h-3 w-3 mr-1" /> Add
+                  <Plus className="h-3 w-3 mr-1" /> {t('radio.add')}
                 </Button>
               </div>
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPresets(false)}>Done</Button>
+            <Button variant="outline" onClick={() => setShowPresets(false)}>{t('radio.done')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -492,11 +522,11 @@ export function RadioTab() {
       <ConfirmDialog
         open={deleteId !== null}
         onOpenChange={() => setDeleteId(null)}
-        title="Delete Radio Station?"
-        description="This will remove this station from your list."
+        title={t('radio.deleteTitle')}
+        description={t('radio.deleteDescription')}
         onConfirm={() => {
           if (deleteId && configId) deleteStation.mutate({ configId, id: deleteId }, {
-            onSuccess: () => { toast.success('Station removed'); setDeleteId(null); },
+            onSuccess: () => { toast.success(t('radio.stationRemoved')); setDeleteId(null); },
           });
         }}
         destructive

@@ -25,13 +25,20 @@ userRoutes.get('/', async (req: Request, res: Response, next) => {
 userRoutes.post('/', async (req: Request, res: Response, next) => {
   try {
     const { username, password, displayName, role } = req.body;
-    if (!username || !password || !displayName) throw new AppError(400, 'Username, password, and display name required');
+    if (!username || !password || !displayName) {
+      throw new AppError(400, 'Username, password, and display name required', undefined, {
+        messageKey: 'errors.username_password_display_required',
+      });
+    }
 
     const pwError = validatePassword(password);
     if (pwError) throw new AppError(400, pwError);
 
     const assignedRole = role || 'viewer';
-    if (!VALID_ROLES.includes(assignedRole)) throw new AppError(400, `Invalid role. Must be one of: ${VALID_ROLES.join(', ')}`);
+    if (!VALID_ROLES.includes(assignedRole)) throw new AppError(400, `Invalid role. Must be one of: ${VALID_ROLES.join(', ')}`, undefined, {
+        messageKey: 'errors.invalid_role',
+        messageParams: { roles: VALID_ROLES.join(', ') },
+      });
 
     const prisma = req.app.locals.prisma;
     const passwordHash = await bcrypt.hash(password, 12);
@@ -61,7 +68,10 @@ userRoutes.put('/:userId', async (req: Request, res: Response, next) => {
 
     if (req.body.displayName !== undefined) data.displayName = req.body.displayName;
     if (req.body.role !== undefined) {
-      if (!VALID_ROLES.includes(req.body.role)) throw new AppError(400, `Invalid role. Must be one of: ${VALID_ROLES.join(', ')}`);
+      if (!VALID_ROLES.includes(req.body.role)) throw new AppError(400, `Invalid role. Must be one of: ${VALID_ROLES.join(', ')}`, undefined, {
+        messageKey: 'errors.invalid_role',
+        messageParams: { roles: VALID_ROLES.join(', ') },
+      });
       data.role = req.body.role;
     }
     if (req.body.enabled !== undefined) data.enabled = req.body.enabled;
@@ -90,7 +100,11 @@ userRoutes.delete('/:userId', async (req: Request, res: Response, next) => {
   try {
     const prisma = req.app.locals.prisma;
     const id = parseInt(String(req.params.userId));
-    if (id === req.user!.id) throw new AppError(400, 'Cannot delete your own account');
+    if (id === req.user!.id) {
+      throw new AppError(400, 'Cannot delete your own account', undefined, {
+        messageKey: 'errors.cannot_delete_own_account',
+      });
+    }
     await recordLocalSuccess(
       prisma,
       {

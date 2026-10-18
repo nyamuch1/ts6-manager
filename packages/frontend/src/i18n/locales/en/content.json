@@ -1,0 +1,138 @@
+{
+  "docLinks": {
+    "portsNetworking": "Ports & networking",
+    "httpQuery": "Enable HTTP WebQuery",
+    "quickstart": "Docker quick start",
+    "dockerNetworking": "Docker networking & ports",
+    "dockerCompose": "Docker Compose example",
+    "officialDocker": "Official TS6 Docker image",
+    "portsFirewall": "Ports & firewall",
+    "securityBestPractices": "Security best practices",
+    "querySecurity": "Query security",
+    "queryAuthentication": "Query authentication",
+    "sshQuerySetup": "SSH ServerQuery setup",
+    "queryOverview": "Server Query overview",
+    "sshQueryEnable": "Enable SSH ServerQuery (TS6 docs)",
+    "setServeradminPassword": "Set serveradmin password",
+    "httpQueryTs6": "Enable HTTP WebQuery (TS6 docs)",
+    "portsDockerSetup": "Ports & Docker setup",
+    "firewallSecurity": "Firewall & security",
+    "httpsWebquery": "HTTPS WebQuery setup (TS6 docs)",
+    "ts6ServerDocs": "TeamSpeak 6 Server docs"
+  },
+  "scenarios": {
+    "same-host": {
+      "label": "TS on same machine (bare metal)",
+      "description": "TeamSpeak and ts6-manager run on the same host.",
+      "hostHint": "Use 127.0.0.1 or your LAN IP if the manager cannot reach localhost."
+    },
+    "ts-docker-host-manager": {
+      "label": "TS in Docker, manager on host",
+      "description": "TeamSpeak runs in a container; ts6-manager runs on the host or elsewhere outside that container network.",
+      "hostHint": "Use the container name, published host port mapping target, or host.docker.internal from inside Docker."
+    },
+    "both-docker": {
+      "label": "Both in Docker (separate stacks)",
+      "description": "TeamSpeak and ts6-manager each run in Docker with separate compose stacks.",
+      "hostHint": "Attach the ts6-manager backend to the TeamSpeak external Docker network and use the TS service/container name as host.",
+      "notes": "In docker-compose, add the TS network to the backend service (see README Coolify section)."
+    },
+    "remote-ts": {
+      "label": "TS on a remote server",
+      "description": "TeamSpeak runs on another machine reachable over the network.",
+      "hostHint": "Use the hostname or public IP. Ensure firewalls allow WebQuery (default 10080) and SSH (default 10022) from the manager."
+    },
+    "manager-docker-remote-ts": {
+      "label": "Manager in Docker, TS remote",
+      "description": "ts6-manager runs in Docker; TeamSpeak is on a remote host or VPS.",
+      "hostHint": "Use the remote TS hostname or IP. No special Docker networking is required on the manager side."
+    }
+  },
+  "fieldHelp": {
+    "name": {
+      "referenceLabel": "Name",
+      "help": "A friendly label shown in the header server selector."
+    },
+    "host": {
+      "referenceLabel": "Host",
+      "help": "Hostname or IP address where the TeamSpeak server is reachable from the ts6-manager backend."
+    },
+    "webqueryPort": {
+      "referenceLabel": "Webquery Port",
+      "help": "WebQuery HTTP port on the TS server (default 10080). This is the primary API used by the manager."
+    },
+    "apiKey": {
+      "referenceLabel": "Api Key",
+      "help": "Required authenticated WebQuery key. On beta13+ Docker, provision with TSSERVER_QUERY_ADMIN_API_KEY; keep it stable. Alternatively use apikeyadd with lifetime=0. Stored encrypted."
+    },
+    "useHttps": {
+      "referenceLabel": "Use Https",
+      "help": "Enable if WebQuery is served over HTTPS instead of plain HTTP."
+    },
+    "sshPort": {
+      "referenceLabel": "Ssh Port",
+      "help": "SSH ServerQuery port (default 10022). Used for file browser, bot events, and music bot chat commands."
+    },
+    "sshUsername": {
+      "referenceLabel": "Ssh Username",
+      "help": "ServerQuery SSH username (commonly serveradmin)."
+    },
+    "sshPassword": {
+      "referenceLabel": "Ssh Password",
+      "help": "ServerQuery SSH password. Stored encrypted; leave blank when editing to keep the existing password."
+    },
+    "metricsEnabled": {
+      "referenceLabel": "Metrics Enabled",
+      "help": "Opt-in scrape of the TeamSpeak native Prometheus metrics listener for richer dashboard capacity/traffic data. Keep the metrics port private — it is unauthenticated. TeamSpeak defaults to localhost-only bind (`TSSERVER_METRICS_IP`); set a reachability address (for example `0.0.0.0` on a private Docker network) so the manager backend can scrape it."
+    },
+    "metricsPort": {
+      "referenceLabel": "Metrics Port",
+      "help": "TeamSpeak metrics HTTP port (default 9187). Separate from WebQuery; does not use HTTPS or the API key."
+    },
+    "metricsHost": {
+      "referenceLabel": "Metrics Host",
+      "help": "Optional host override when the metrics listener binds a different address than WebQuery. Leave blank to use the WebQuery host. Use this when metrics listen on another hostname/IP than Query."
+    }
+  },
+  "featureMatrix": {
+    "dashboard": "Dashboard, channels, clients, permissions",
+    "virtualServers": "Virtual servers, instance settings",
+    "botFlowActions": "Bot flow WebQuery actions",
+    "fileBrowser": "File browser",
+    "botEventTriggers": "Bot flow event triggers (join, message, etc.)",
+    "musicCommands": "Music bot !commands in channel chat"
+  },
+  "prepSteps": {
+    "webquery-port": {
+      "title": "Enable WebQuery HTTP",
+      "body": "In your TeamSpeak server configuration, ensure WebQuery HTTP is enabled (not telnet/raw query). Default port is 10080."
+    },
+    "guest-query": {
+      "title": "Beta13: explicitly disable guest Query for administration",
+      "body": "Beta13 enables guest Query by default. TS6 Manager uses authenticated WebQuery and optional authenticated SSH, so it does not need guest access. Leave guest access enabled only when you intentionally want to expose Guest Server Query permissions."
+    },
+    "bootstrap-api-key": {
+      "title": "Beta13+ Docker: provision a stable admin key",
+      "body": "Set this on the TeamSpeak container for deterministic serveradmin management access. Keep it stable: changing it replaces the built-in serveradmin management key. The previously encrypted key saved in TS6 Manager will stop authenticating; update the connection’s API key. Never share this value or put it in logs."
+    },
+    "api-key": {
+      "title": "Alternative: create a key manually (also for older servers)",
+      "body": "Connect via SSH ServerQuery, select your virtual server (use 1), then create a non-expiring key with lifetime=0. Example:"
+    },
+    "ssh": {
+      "title": "Enable SSH ServerQuery (optional)",
+      "body": "For file browser, bot event triggers, and music bot chat commands, enable SSH access on port 10022 (default) and note the serveradmin credentials."
+    },
+    "firewall": {
+      "title": "Open firewall ports",
+      "body": "Allow the ts6-manager backend to reach WebQuery (10080) and, if used, SSH (10022)."
+    }
+  },
+  "checklist": {
+    "webquery-enabled": "WebQuery enabled on TS server",
+    "api-key-created": "API key created",
+    "connection-added": "Connection added in manager",
+    "webquery-tested": "WebQuery test passed",
+    "ssh-configured": "SSH credentials configured (optional)"
+  }
+}

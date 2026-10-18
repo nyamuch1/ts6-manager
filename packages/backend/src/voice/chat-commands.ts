@@ -2,52 +2,63 @@ import {
   BUILTIN_CHAT_COMMANDS,
   type BuiltinChatCommand,
 } from '@ts6/common';
+import { translate, type MessageKey, type SupportedLocale } from '../i18n/index.js';
 
 export { BUILTIN_CHAT_COMMANDS, type BuiltinChatCommand };
 
 const BUILTIN_SET = new Set<string>(BUILTIN_CHAT_COMMANDS);
 
-/** Short help lines for built-in commands (shown by !help). */
-export const BUILTIN_COMMAND_HELP: { name: string; usage: string; blurb: string }[] = [
-  { name: 'help', usage: '!help', blurb: 'Show this command list' },
-  { name: 'commands', usage: '!commands', blurb: 'List enabled custom chat commands' },
-  { name: 'here', usage: '!here [id]', blurb: 'Summon a music bot here (prefers idle bots; use !here <id> to target one)' },
-  { name: 'come', usage: '!come [id]', blurb: 'Alias for !here' },
-  {
-    name: 'play',
-    usage: '!play <url|song name>',
-    blurb: 'Play a YouTube / Spotify / Apple Music link, or search YouTube Music by song name',
-  },
-  { name: 'queue', usage: '!queue [url|show|clear|remove <n>|play <n>]', blurb: 'Show queue or add a URL' },
-  { name: 'history', usage: '!history', blurb: 'Show the 10 most recent requests for this bot' },
-  { name: 'again', usage: '!again [id]', blurb: 'Replay a history request (latest by default); queue it while music is playing' },
-  { name: 'add', usage: '!add <url>', blurb: 'Alias for !queue <url>' },
-  { name: 'playlist', usage: '!playlist [name-or-id]', blurb: 'List or queue playlists for this server/bot' },
-  { name: 'pl', usage: '!pl <name-or-id>', blurb: 'Alias for !playlist' },
-  { name: 'repeat', usage: '!repeat [off|track|queue]', blurb: 'Show or set repeat mode' },
-  { name: 'seek', usage: '!seek <seconds|+seconds|-seconds>', blurb: 'Seek within a local/downloaded track' },
-  { name: 'remove', usage: '!remove <text>', blurb: 'Remove an unambiguous upcoming title/artist match' },
-  { name: 'shuffle', usage: '!shuffle [on|off]', blurb: 'Toggle or set queue shuffle' },
-  { name: 'stop', usage: '!stop', blurb: 'Stop playback and clear the queue' },
-  { name: 'pause', usage: '!pause', blurb: 'Pause / resume' },
-  { name: 'skip', usage: '!skip', blurb: 'Skip to next track' },
-  { name: 'voteskip', usage: '!voteskip', blurb: 'Vote to skip: more than half of human listeners in the bot channel' },
-  { name: 'remote', usage: '!remote [bot name]', blurb: 'Get a private one-time listener remote link for a bot in your channel' },
-  { name: 'next', usage: '!next', blurb: 'Alias for !skip' },
-  { name: 'prev', usage: '!prev', blurb: 'Previous track' },
-  { name: 'vol', usage: '!vol [0-100]', blurb: 'Show or set volume for music, radio, video, and IPTV' },
-  { name: 'volume', usage: '!volume [0-100]', blurb: 'Alias for !vol' },
-  { name: 'np', usage: '!np', blurb: 'Now playing' },
-  { name: 'nowplaying', usage: '!nowplaying', blurb: 'Alias for !np' },
-  { name: 'radio', usage: '!radio [id]', blurb: 'List or play radio stations' },
-  { name: 'stream', usage: '!stream <url> [preset]', blurb: 'Start video stream (preset: auto, 480p–2160p)' },
-  { name: 'stopstream', usage: '!stopstream', blurb: 'Stop video stream' },
-  { name: 'viewers', usage: '!viewers', blurb: 'List stream viewers' },
-  { name: 'channels', usage: '!channels [search]', blurb: 'List IPTV channels' },
-  { name: 'tv', usage: '!tv <name>', blurb: 'Stream an IPTV channel' },
-  { name: 'iptv', usage: '!iptv <name>', blurb: 'Alias for !tv' },
-  { name: 'lyrics', usage: '!lyrics [artist - title]', blurb: 'Show lyrics for now playing or search' },
+/** Usage strings stay English (command syntax); blurb text follows the bot locale. */
+const BUILTIN_COMMAND_HELP_KEYS: { name: string; usage: string; blurbKey: MessageKey }[] = [
+  { name: 'help', usage: '!help', blurbKey: 'bot.help.blurb.help' },
+  { name: 'commands', usage: '!commands', blurbKey: 'bot.help.blurb.commands' },
+  { name: 'here', usage: '!here [id]', blurbKey: 'bot.help.blurb.here' },
+  { name: 'come', usage: '!come [id]', blurbKey: 'bot.help.blurb.come' },
+  { name: 'play', usage: '!play <url|song name>', blurbKey: 'bot.help.blurb.play' },
+  { name: 'queue', usage: '!queue [url|show|clear|remove <n>|play <n>]', blurbKey: 'bot.help.blurb.queue' },
+  { name: 'history', usage: '!history', blurbKey: 'bot.help.blurb.history' },
+  { name: 'again', usage: '!again [id]', blurbKey: 'bot.help.blurb.again' },
+  { name: 'add', usage: '!add <url>', blurbKey: 'bot.help.blurb.add' },
+  { name: 'playlist', usage: '!playlist [name-or-id]', blurbKey: 'bot.help.blurb.playlist' },
+  { name: 'pl', usage: '!pl <name-or-id>', blurbKey: 'bot.help.blurb.pl' },
+  { name: 'repeat', usage: '!repeat [off|track|queue]', blurbKey: 'bot.help.blurb.repeat' },
+  { name: 'seek', usage: '!seek <seconds|+seconds|-seconds>', blurbKey: 'bot.help.blurb.seek' },
+  { name: 'remove', usage: '!remove <text>', blurbKey: 'bot.help.blurb.remove' },
+  { name: 'shuffle', usage: '!shuffle [on|off]', blurbKey: 'bot.help.blurb.shuffle' },
+  { name: 'stop', usage: '!stop', blurbKey: 'bot.help.blurb.stop' },
+  { name: 'pause', usage: '!pause', blurbKey: 'bot.help.blurb.pause' },
+  { name: 'skip', usage: '!skip', blurbKey: 'bot.help.blurb.skip' },
+  { name: 'voteskip', usage: '!voteskip', blurbKey: 'bot.help.blurb.voteskip' },
+  { name: 'remote', usage: '!remote [bot name]', blurbKey: 'bot.help.blurb.remote' },
+  { name: 'next', usage: '!next', blurbKey: 'bot.help.blurb.next' },
+  { name: 'prev', usage: '!prev', blurbKey: 'bot.help.blurb.prev' },
+  { name: 'vol', usage: '!vol [0-100]', blurbKey: 'bot.help.blurb.vol' },
+  { name: 'volume', usage: '!volume [0-100]', blurbKey: 'bot.help.blurb.volume' },
+  { name: 'np', usage: '!np', blurbKey: 'bot.help.blurb.np' },
+  { name: 'nowplaying', usage: '!nowplaying', blurbKey: 'bot.help.blurb.nowplaying' },
+  { name: 'radio', usage: '!radio [id]', blurbKey: 'bot.help.blurb.radio' },
+  { name: 'stream', usage: '!stream <url> [preset]', blurbKey: 'bot.help.blurb.stream' },
+  { name: 'stopstream', usage: '!stopstream', blurbKey: 'bot.help.blurb.stopstream' },
+  { name: 'viewers', usage: '!viewers', blurbKey: 'bot.help.blurb.viewers' },
+  { name: 'channels', usage: '!channels [search]', blurbKey: 'bot.help.blurb.channels' },
+  { name: 'tv', usage: '!tv <name>', blurbKey: 'bot.help.blurb.tv' },
+  { name: 'iptv', usage: '!iptv <name>', blurbKey: 'bot.help.blurb.iptv' },
+  { name: 'lyrics', usage: '!lyrics [artist - title]', blurbKey: 'bot.help.blurb.lyrics' },
 ];
+
+/** Short help lines for built-in commands (shown by !help) in the given bot locale. */
+export function builtinCommandHelp(
+  locale?: SupportedLocale | null,
+): { name: string; usage: string; blurb: string }[] {
+  return BUILTIN_COMMAND_HELP_KEYS.map(({ name, usage, blurbKey }) => ({
+    name,
+    usage,
+    blurb: translate(locale, blurbKey),
+  }));
+}
+
+/** English help lines (kept for callers that need a locale-independent list). */
+export const BUILTIN_COMMAND_HELP = builtinCommandHelp('en');
 
 /**
  * Recommended server-scoped canned-reply templates.

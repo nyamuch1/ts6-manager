@@ -180,7 +180,7 @@ export async function replayReference(
   const validation = await validate(row.url);
   if (!validation.valid) {
     if (validation.error?.endsWith('could not be resolved')) {
-      throw new AppError(503, 'Media source could not be resolved. Try again.', undefined, { retryable: true });
+      throw new AppError(503, 'Media source could not be resolved. Try again.', undefined, { retryable: true, messageKey: 'errors.media_source_unresolved' });
     }
     return { ok: false, error: MEDIA_UNAVAILABLE };
   }

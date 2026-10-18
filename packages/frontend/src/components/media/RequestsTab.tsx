@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
+import { enUS, zhCN } from 'date-fns/locale';
 import { Clock, ListMusic, Loader2, Music, Play } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { MusicRequest } from '@/api/music-requests.api';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ConnectionRequiredNotice } from '@/components/shared/NoServerSelectedState';
@@ -11,13 +13,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useMusicBots } from '@/hooks/use-music-bots';
 import { useMusicRequests, useReplayMusicRequest } from '@/hooks/use-music-requests';
 import { apiErrorMessage } from '@/lib/api-error';
-import { musicRequestSourceLabel } from '@/lib/music-requests';
-import { toastMediaStarted } from '@/lib/media-start-toast';
 import { cn } from '@/lib/utils';
 import { useServerStore } from '@/stores/server.store';
 import type { MusicBotSummary } from '@ts6/common';
 import { toast } from 'sonner';
 import { formatTime } from '@/pages/media-bots/shared';
+
+/** Brand names stay as-is; only generic source kinds are translated. */
+function requestSourceLabel(source: string, t: (key: string) => string): string {
+  switch (source) {
+    case 'local': return t('requests.sourceLocal');
+    case 'radio': return t('requests.sourceRadio');
+    case 'youtube': return 'YouTube';
+    case 'twitch': return 'Twitch';
+    case 'soundcloud': return 'SoundCloud';
+    default: return t('requests.sourceLink');
+  }
+}
 
 function runningBotsForServer(bots: MusicBotSummary[], configId: number | null): MusicBotSummary[] {
   if (!configId) return [];
@@ -29,6 +41,8 @@ function runningBotsForServer(bots: MusicBotSummary[], configId: number | null):
 }
 
 export function RequestsTab() {
+  const { t, i18n } = useTranslation('media');
+  const dateLocale = i18n.resolvedLanguage?.startsWith('zh') ? zhCN : enUS;
   const { selectedConfigId: configId } = useServerStore();
   const botQuery = useMusicBots();
   const bots = Array.isArray(botQuery.data) ? botQuery.data : [];
@@ -51,7 +65,7 @@ export function RequestsTab() {
   if (!configId) {
     return (
       <ConnectionRequiredNotice>
-        Select a TeamSpeak connection to view !play request history.
+        {t('requests.selectConnection')}
       </ConnectionRequiredNotice>
     );
   }
@@ -64,18 +78,28 @@ export function RequestsTab() {
 
   const runAction = (req: MusicRequest, enqueue: boolean) => {
     if (!selectedBot) {
-      toast.error('Start a media bot on this server first');
+      toast.error(t('requests.startBotFirst'));
       return;
     }
     replay.mutate(
       { configId, requestId: req.id, botId: selectedBot.id, enqueue },
       {
         onSuccess: () => {
-          if (enqueue) toast.success(`Queued on ${selectedBot.name}`);
-          else toastMediaStarted(`Playing on ${selectedBot.name}`);
+          if (enqueue) {
+            toast.success(t('requests.queuedOn', { bot: selectedBot.name }));
+          } else {
+            toast.success(t('requests.playingOn', { bot: selectedBot.name }), {
+              action: {
+                label: t('toast.openBotHub'),
+                onClick: () => {
+                  window.location.assign('/bot-hub');
+                },
+              },
+            });
+          }
         },
         onError: (err) =>
-          toast.error(apiErrorMessage(err, enqueue ? 'Failed to enqueue' : 'Failed to play')),
+          toast.error(apiErrorMessage(err, t(enqueue ? 'requests.failedToEnqueue' : 'requests.failedToPlay'))),
       },
     );
   };
@@ -84,15 +108,15 @@ export function RequestsTab() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-sm font-medium">Requests</h2>
+          <h2 className="text-sm font-medium">{t('requests.title')}</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Recent music requests for the selected bot on this server.
+            {t('requests.description')}
           </p>
         </div>
         <div className="flex flex-col gap-1">
-          <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Target bot</span>
+          <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{t('requests.targetBot')}</span>
           {running.length === 0 ? (
-            <p className="text-xs text-muted-foreground h-8 flex items-center">No running media bots</p>
+            <p className="text-xs text-muted-foreground h-8 flex items-center">{t('requests.noRunningBots')}</p>
           ) : running.length === 1 ? (
             <p className="text-xs h-8 flex items-center font-medium">{running[0].name}</p>
           ) : (
@@ -101,7 +125,7 @@ export function RequestsTab() {
               onValueChange={(v) => setBotId(Number(v))}
             >
               <SelectTrigger className="h-8 w-48 text-xs">
-                <SelectValue placeholder="Select bot…" />
+                <SelectValue placeholder={t('requests.selectBot')} />
               </SelectTrigger>
               <SelectContent>
                 {running.map((b) => (
@@ -113,15 +137,15 @@ export function RequestsTab() {
         </div>
       </div>
 
-      {loadError && <p role="alert" className="text-sm text-destructive">{apiErrorMessage(loadError, 'Could not load recent requests')}</p>}
+      {loadError && <p role="alert" className="text-sm text-destructive">{apiErrorMessage(loadError, t('requests.couldNotLoad'))}</p>}
 
       <div className="relative flex flex-col border border-border rounded-lg bg-card min-h-[280px]">
         {requests.length === 0 ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <EmptyState
               icon={Music}
-              title="No music requests yet"
-              description="Music requests from the console and !play appear here."
+              title={t('requests.emptyTitle')}
+              description={t('requests.emptyDescription')}
             />
           </div>
         ) : (
@@ -144,12 +168,17 @@ export function RequestsTab() {
                       {[req.artist, req.duration != null ? formatTime(req.duration) : null].filter(Boolean).join(' · ')}
                     </p>}
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      {musicRequestSourceLabel(req.source)} · {req.status === 'unavailable' ? 'Unavailable' : 'Available'}
+                      {requestSourceLabel(req.source, t)} · {t(req.status === 'unavailable' ? 'requests.unavailable' : 'requests.available')}
                     </p>
                     <p className="flex items-center gap-1.5 mt-1 text-[11px] text-muted-foreground font-mono-data">
                       <Clock className="w-3 h-3 shrink-0" />
-                      <time dateTime={req.requestedAt} title={new Date(req.requestedAt).toLocaleString()}>
-                        Requested {formatDistanceToNow(new Date(req.requestedAt), { addSuffix: true })}
+                      <time
+                        dateTime={req.requestedAt}
+                        title={new Date(req.requestedAt).toLocaleString(i18n.resolvedLanguage)}
+                      >
+                        {t('requests.requested', {
+                          time: formatDistanceToNow(new Date(req.requestedAt), { addSuffix: true, locale: dateLocale }),
+                        })}
                       </time>
                     </p>
                   </div>
@@ -161,7 +190,7 @@ export function RequestsTab() {
                       onClick={() => runAction(req, false)}
                     >
                       {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
-                      <span className="ml-1">Play</span>
+                      <span className="ml-1">{t('requests.play')}</span>
                     </Button>
                     <Button
                       size="sm"
@@ -171,7 +200,7 @@ export function RequestsTab() {
                       onClick={() => runAction(req, true)}
                     >
                       <ListMusic className="h-3 w-3" />
-                      <span className="ml-1">Enqueue</span>
+                      <span className="ml-1">{t('requests.enqueue')}</span>
                     </Button>
                   </div>
                 </div>

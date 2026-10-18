@@ -44,6 +44,8 @@ import { clientRateKey } from './utils/client-address.js';
 import { BoundedRateLimitStore } from './utils/rate-windows.js';
 
 import { applyTrustProxy, forwardedHeaderWarning } from './trust-proxy.js';
+import { localeMiddleware, requestLocale } from './i18n/middleware.js';
+import { translate } from './i18n/index.js';
 import { requireServerAccess } from './middleware/server-access.js';
 import { createRequire } from 'module';
 
@@ -56,6 +58,7 @@ export function createApp(): Express {
   // Explicit addresses/subnets prevent direct clients spoofing rate-limit IPs.
   applyTrustProxy(app, config.trustProxy);
   app.use(forwardedHeaderWarning(config.trustProxy));
+  app.use(localeMiddleware);
 
   app.use(helmet());
   app.use(cors({ origin: config.frontendUrl, credentials: true }));
@@ -70,11 +73,17 @@ export function createApp(): Express {
     max: 120,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: 'Too many remote requests', code: 'rate_limited' },
+    message: (req: express.Request) => ({
+      error: translate(requestLocale(req), 'errors.rate_limited_remote'),
+      code: 'rate_limited',
+    }),
     // Counted in the bounded listener remote audit totals; the response is unchanged.
-    handler: (req: express.Request, res: express.Response, _next: express.NextFunction, options: { statusCode: number; message: unknown }) => {
+    handler: (req: express.Request, res: express.Response, _next: express.NextFunction, options: { statusCode: number }) => {
       recordRefusal(req, res, new ListenerRemoteError(429, 'rate_limited', 'Too many remote requests'), 'limiter');
-      res.status(options.statusCode).send(options.message);
+      res.status(options.statusCode).send({
+        error: translate(requestLocale(req), 'errors.rate_limited_remote'),
+        code: 'rate_limited',
+      });
     },
   } as const;
   const remoteAddressLimiter = rateLimit({
@@ -91,9 +100,12 @@ export function createApp(): Express {
   });
   // Keep the bounded guard first; it also enforces the stricter exchange quota.
   app.use('/api/listener-remote', listenerRemoteIpGuard, remoteAddressLimiter, remoteListenerLimiter, listenerRemoteRoutes);
-  const remoteParseError: ErrorRequestHandler = (_err, _req, res, _next) => {
+  const remoteParseError: ErrorRequestHandler = (_err, req, res, _next) => {
     res.setHeader('Cache-Control', 'no-store');
-    res.status(400).json({ error: 'Invalid listener request.', code: 'invalid_request' });
+    res.status(400).json({
+      error: translate(requestLocale(req), 'errors.invalid_listener_request'),
+      code: 'invalid_request',
+    });
   };
   app.use('/api/listener-remote', remoteParseError);
   app.use(express.json({ limit: '10mb' }));
@@ -117,7 +129,9 @@ export function createApp(): Express {
     store: authStore,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: 'Too many attempts, please try again later' },
+    message: (req: express.Request) => ({
+      error: translate(requestLocale(req), 'errors.rate_limited_auth'),
+    }),
     keyGenerator: req => clientRateKey(req),
   });
   app.use('/api/auth/login', authLimiter);
@@ -133,7 +147,9 @@ export function createApp(): Express {
   // Bot webhook route (unauthenticated — called by external systems)
   app.all('/api/bots/webhook/:path(*)', (req, res) => {
     const engine = req.app.locals.botEngine;
-    if (!engine) return res.status(503).json({ error: 'Bot engine not running' });
+    if (!engine) {
+      return res.status(503).json({ error: translate(requestLocale(req), 'errors.bot_engine_not_running') });
+    }
     engine.handleWebhookRequest(req, res);
   });
 

@@ -52,7 +52,7 @@ function buildOriginForAddress(address: string, port: number): string {
 
 export function createMetricsClient(host: string, port: number = DEFAULT_METRICS_PORT): MetricsClient {
   if (!isAllowedTsServerHost(host)) {
-    throw new AppError(400, 'Invalid TeamSpeak metrics host');
+    throw new AppError(400, 'Invalid TeamSpeak metrics host', undefined, { messageKey: 'errors.metrics_host_invalid' });
   }
   // Metrics listener is HTTP unless a real fixture/docs prove otherwise.
   const endpoint = createValidatedTsServerEndpoint(host, port, false, DEFAULT_METRICS_PORT);

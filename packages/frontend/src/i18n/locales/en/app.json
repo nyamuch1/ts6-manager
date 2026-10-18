@@ -1,0 +1,101 @@
+{
+  "auth": {
+    "login": {
+      "subtitle": "Server Administration Panel",
+      "heading": "Sign in to continue",
+      "username": "Username",
+      "password": "Password",
+      "invalidCredentials": "Invalid credentials. Please try again.",
+      "unavailable": "Unable to sign in. Check your connection and try again.",
+      "signingIn": "Signing in...",
+      "signIn": "Sign In"
+    },
+    "setup": {
+      "subtitle": "Initial setup · Create your administrator account",
+      "heading": "This is the first time setup. Create an admin account to get started.",
+      "username": "Username",
+      "displayName": "Display Name",
+      "displayNamePlaceholder": "Administrator",
+      "password": "Password",
+      "passwordPlaceholder": "Min. 8 chars, uppercase, lowercase, digit",
+      "confirmPassword": "Confirm Password",
+      "confirmPlaceholder": "Repeat password",
+      "passwordMismatch": "Passwords do not match",
+      "failed": "Setup failed",
+      "creating": "Creating account...",
+      "createAccount": "Create Admin Account"
+    }
+  },
+  "nav": {
+    "sections": {
+      "overview": "Overview",
+      "management": "Management",
+      "security": "Security",
+      "content": "Content",
+      "system": "System",
+      "automation": "Automation"
+    },
+    "items": {
+      "dashboard": "Dashboard",
+      "virtualServers": "Virtual Servers",
+      "channels": "Channels",
+      "clients": "Clients",
+      "serverGroups": "Server Groups",
+      "channelGroups": "Channel Groups",
+      "permissions": "Permissions",
+      "bans": "Bans",
+      "tokens": "Tokens",
+      "files": "Files",
+      "complaints": "Complaints",
+      "messages": "Messages",
+      "serverLogs": "Server Logs",
+      "adminAudit": "Admin Audit",
+      "activityJournal": "Activity Journal",
+      "instance": "Instance",
+      "diagnostics": "Diagnostics",
+      "botHub": "Bot Hub",
+      "botFlows": "Bot Flows",
+      "mediaLibrary": "Media Library",
+      "iptv": "IPTV",
+      "settings": "Settings"
+    },
+    "primary": "Primary navigation",
+    "mobile": "Mobile navigation",
+    "expandSection": "Expand {{section}} section",
+    "collapseSection": "Collapse {{section}} section",
+    "openMenu": "Open navigation menu",
+    "navigation": "TS6 Manager navigation",
+    "navigationDescription": "Choose a page to navigate to.",
+    "collapse": "Collapse",
+    "expandSidebar": "Expand sidebar",
+    "collapseSidebar": "Collapse sidebar",
+    "dashboardLabel": "TS6 Manager dashboard",
+    "repository": "Open TS6 Manager repository on GitHub",
+    "repositoryTitle": "View TS6 Manager on GitHub",
+    "documentation": "Open TS6 Manager documentation",
+    "documentationTitle": "Open TS6 Manager documentation"
+  },
+  "notFound": {
+    "title": "Page Not Found",
+    "description": "The page you're looking for doesn't exist or has been moved.",
+    "back": "Back to Dashboard"
+  },
+  "header": {
+    "accountMenu": "Account menu",
+    "openAccountMenu": "Open account menu",
+    "logOut": "Log out",
+    "role": {
+      "admin": "Admin",
+      "viewer": "Viewer"
+    }
+  },
+  "serverSelector": {
+    "connection": "Connection",
+    "selectConnection": "Select server connection",
+    "selectServer": "Select server...",
+    "virtualServer": "Virtual server",
+    "selectVirtualServer": "Select virtual server",
+    "loadingVirtualServers": "Loading virtual servers…",
+    "noVirtualServer": "No virtual server"
+  }
+}

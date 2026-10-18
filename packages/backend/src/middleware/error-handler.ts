@@ -1,16 +1,30 @@
 import { randomBytes } from 'node:crypto';
 import { Request, Response, NextFunction } from 'express';
+import { translate, type MessageKey, type SupportedLocale } from '../i18n/index.js';
+import { requestLocale } from '../i18n/middleware.js';
+
+type MessageVariables = Record<string, string | number | boolean | null | undefined>;
 
 export type AppErrorMeta = {
   reason?: string;
   retryable?: boolean;
   retryAfterSeconds?: number;
+  /** Translation key used instead of the English `message` when responding. */
+  messageKey?: MessageKey;
+  messageParams?: MessageVariables;
+  /** Translation key used instead of the English `details` when responding. */
+  detailsKey?: MessageKey;
+  detailsParams?: MessageVariables;
 };
 
 export class AppError extends Error {
   reason?: string;
   retryable?: boolean;
   retryAfterSeconds?: number;
+  messageKey?: MessageKey;
+  messageParams?: MessageVariables;
+  detailsKey?: MessageKey;
+  detailsParams?: MessageVariables;
 
   constructor(
     public statusCode: number,
@@ -23,6 +37,10 @@ export class AppError extends Error {
     this.reason = meta?.reason;
     this.retryable = meta?.retryable;
     this.retryAfterSeconds = meta?.retryAfterSeconds;
+    this.messageKey = meta?.messageKey;
+    this.messageParams = meta?.messageParams;
+    this.detailsKey = meta?.detailsKey;
+    this.detailsParams = meta?.detailsParams;
   }
 }
 
@@ -42,7 +60,14 @@ export class TeamSpeakFloodError extends AppError {
       429,
       'TeamSpeak Query temporarily paused',
       `TeamSpeak flood protection is active. TS6 Manager will retry automatically after the cooldown (about ${retryAfterSeconds}s). If this repeats, verify the TS6 Manager host/IP is present in the TeamSpeak Query allow-list.`,
-      { reason: 'ts_query_flood', retryable: true, retryAfterSeconds },
+      {
+        reason: 'ts_query_flood',
+        retryable: true,
+        retryAfterSeconds,
+        messageKey: 'errors.ts_query_flood',
+        detailsKey: 'errors.ts_query_flood_details',
+        detailsParams: { seconds: retryAfterSeconds },
+      },
     );
     this.name = 'TeamSpeakFloodError';
   }
@@ -55,7 +80,14 @@ export class TeamSpeakUnavailableError extends AppError {
       503,
       'TeamSpeak Query is still starting',
       `The TeamSpeak server is up but Query is not ready yet (common for ~30–90s after a fresh compose start). Wait a few seconds and retry — about ${retryAfterSeconds}s is usually enough.`,
-      { reason: 'ts_query_starting', retryable: true, retryAfterSeconds },
+      {
+        reason: 'ts_query_starting',
+        retryable: true,
+        retryAfterSeconds,
+        messageKey: 'errors.ts_query_starting',
+        detailsKey: 'errors.ts_query_starting_details',
+        detailsParams: { seconds: retryAfterSeconds },
+      },
     );
     this.name = 'TeamSpeakUnavailableError';
   }
@@ -76,7 +108,14 @@ export class TeamSpeakSshDisconnectedError extends AppError {
         ? 'Could not browse files: SSH is not connected. Check SSH credentials and that the Query session is connected.'
         : 'Could not change files: SSH is not connected. Check SSH credentials and that the Query session is connected.',
       `The EventBridge SSH session is temporarily disconnected (common for ~60s after TeamSpeak Query flood protection on container start). Wait about ${retryAfterSeconds}s and retry.`,
-      { reason: 'ts_ssh_disconnected', retryable: true, retryAfterSeconds },
+      {
+        reason: 'ts_ssh_disconnected',
+        retryable: true,
+        retryAfterSeconds,
+        messageKey: purpose === 'browse' ? 'errors.ts_ssh_browse' : 'errors.ts_ssh_changes',
+        detailsKey: 'errors.ts_ssh_details',
+        detailsParams: { seconds: retryAfterSeconds },
+      },
     );
     this.name = 'TeamSpeakSshDisconnectedError';
   }
@@ -94,7 +133,12 @@ export class TeamSpeakLogviewIoError extends AppError {
       `TeamSpeak could not read the server logfile (error ${tsCode}: ${tsMessage}). `
         + 'This is usually a log directory permission, lock, or rotation issue on the TeamSpeak host — not a Manager connection failure. '
         + 'Retry once after a few seconds, or check the TeamSpeak logs volume/permissions (see docs/public/troubleshooting.md).',
-      { reason: 'ts_logview_io' },
+      {
+        reason: 'ts_logview_io',
+        messageKey: 'errors.ts_logview_io',
+        detailsKey: 'errors.ts_logview_io_details',
+        detailsParams: { code: tsCode, message: tsMessage },
+      },
     );
     this.name = 'TeamSpeakLogviewIoError';
   }
@@ -104,6 +148,13 @@ export class TeamSpeakLogviewIoError extends AppError {
  * TeamSpeak Query permission denied (commonly error 2568).
  * Read/list success elsewhere never implies authorization for this write (or a different read scope).
  */
+const PERMISSION_ACTION_KEYS: Record<string, MessageKey> = {
+  'this action': 'errors.ts_permission_denied',
+  'creating directories': 'errors.ts_permission_denied_creating_directories',
+  'deleting files': 'errors.ts_permission_denied_deleting_files',
+  'managing icons': 'errors.ts_permission_denied_managing_icons',
+};
+
 export class TeamSpeakPermissionError extends AppError {
   constructor(
     public tsCode: number = 2568,
@@ -115,7 +166,12 @@ export class TeamSpeakPermissionError extends AppError {
       `Insufficient TeamSpeak permission for ${actionHint}`,
       `TeamSpeak denied the request (error ${tsCode}: ${tsMessage}). `
         + 'Successful reads or connection diagnostics do not authorize writes — grant the Query identity the permissions required for this action.',
-      { reason: 'ts_permission_denied' },
+      {
+        reason: 'ts_permission_denied',
+        messageKey: PERMISSION_ACTION_KEYS[actionHint] ?? 'errors.ts_permission_denied',
+        detailsKey: 'errors.ts_permission_denied_details',
+        detailsParams: { code: tsCode, message: tsMessage },
+      },
     );
     this.name = 'TeamSpeakPermissionError';
   }
@@ -148,25 +204,40 @@ export function mapOperationalError(err: Error): AppError | null {
     return new AppError(409, 'Bot is not connected', 'Start the bot, then try again.', {
       reason: 'bot_not_connected',
       retryable: true,
+      messageKey: 'errors.bot_not_connected',
+      detailsKey: 'errors.bot_not_connected_details',
     });
   }
   if (msg === 'Bot is already running') {
-    return new AppError(409, 'This bot is already started', undefined, { reason: 'bot_already_started' });
+    return new AppError(409, 'This bot is already started', undefined, {
+      reason: 'bot_already_started',
+      messageKey: 'errors.bot_already_started',
+    });
   }
   if (msg === 'Video stream already active') {
     return new AppError(
       409,
       'A video is already streaming',
       'Stop the current stream or use Switch source to change the video without stopping it.',
-      { reason: 'stream_already_running' },
+      {
+        reason: 'stream_already_running',
+        messageKey: 'errors.stream_already_running',
+        detailsKey: 'errors.stream_already_running_details',
+      },
     );
   }
   if (msg === 'No active video stream') {
-    return new AppError(409, 'No active stream', 'Start a video first.', { reason: 'stream_not_running' });
+    return new AppError(409, 'No active stream', 'Start a video first.', {
+      reason: 'stream_not_running',
+      messageKey: 'errors.stream_not_running',
+      detailsKey: 'errors.stream_not_running_details',
+    });
   }
   if (msg === 'Local video file not found') {
     return new AppError(404, 'Local video file not found', 'Choose a file that exists in the music folder.', {
       reason: 'source_not_found',
+      messageKey: 'errors.source_local_not_found',
+      detailsKey: 'errors.source_local_not_found_details',
     });
   }
   if (
@@ -176,10 +247,13 @@ export function mapOperationalError(err: Error): AppError | null {
   ) {
     return new AppError(400, 'Local video source must be a filename under the music directory', undefined, {
       reason: 'source_invalid',
+      messageKey: 'errors.source_local_invalid',
     });
   }
   if (msg === 'volume must be a number') {
-    return new AppError(400, 'volume must be a number from 0 to 100');
+    return new AppError(400, 'volume must be a number from 0 to 100', undefined, {
+      messageKey: 'errors.volume_range',
+    });
   }
   if (msg === 'Sidecar health check timeout' || msg === 'No sidecar') {
     const timeout = msg.includes('timeout');
@@ -187,7 +261,12 @@ export function mapOperationalError(err: Error): AppError | null {
       timeout ? 504 : 503,
       timeout ? 'The media sidecar timed out' : 'The media sidecar is unavailable',
       'Check that the sidecar is running, then try again.',
-      { reason: timeout ? 'sidecar_timeout' : 'sidecar_unavailable', retryable: true },
+      {
+        reason: timeout ? 'sidecar_timeout' : 'sidecar_unavailable',
+        retryable: true,
+        messageKey: timeout ? 'errors.sidecar_timeout' : 'errors.sidecar_unavailable',
+        detailsKey: 'errors.sidecar_check_details',
+      },
     );
   }
   if (msg.startsWith('Sidecar ')) {
@@ -195,7 +274,12 @@ export function mapOperationalError(err: Error): AppError | null {
       502,
       'The media sidecar is unavailable',
       'Check that the sidecar is running, then try again.',
-      { reason: 'sidecar_unavailable', retryable: true },
+      {
+        reason: 'sidecar_unavailable',
+        retryable: true,
+        messageKey: 'errors.sidecar_unavailable',
+        detailsKey: 'errors.sidecar_check_details',
+      },
     );
   }
   if (msg.startsWith('Failed to start sidecar:')) {
@@ -204,12 +288,19 @@ export function mapOperationalError(err: Error): AppError | null {
       timeout ? 504 : 502,
       timeout ? 'The media sidecar timed out' : 'The media sidecar is unavailable',
       'Check that the sidecar is running, then try again.',
-      { reason: timeout ? 'sidecar_timeout' : 'sidecar_unavailable', retryable: true },
+      {
+        reason: timeout ? 'sidecar_timeout' : 'sidecar_unavailable',
+        retryable: true,
+        messageKey: timeout ? 'errors.sidecar_timeout' : 'errors.sidecar_unavailable',
+        detailsKey: 'errors.sidecar_check_details',
+      },
     );
   }
   if (msg.startsWith('yt-dlp not found:') || msg.startsWith('yt-dlp failed to start:')) {
     return new AppError(502, 'Could not start yt-dlp', 'Check that yt-dlp is installed, then try again.', {
       reason: 'source_unavailable',
+      messageKey: 'errors.ytdlp_start',
+      detailsKey: 'errors.ytdlp_start_details',
     });
   }
   if (msg.startsWith('TeamSpeak did not answer the stream request')) {
@@ -217,18 +308,26 @@ export function mapOperationalError(err: Error): AppError | null {
       504,
       'TeamSpeak did not answer the stream request',
       'Try again. If it keeps happening, check that the bot is connected and the server allows streaming.',
-      { reason: 'ts_stream_timeout', retryable: true },
+      {
+        reason: 'ts_stream_timeout',
+        retryable: true,
+        messageKey: 'errors.ts_stream_timeout',
+        detailsKey: 'errors.ts_stream_timeout_details',
+      },
     );
   }
   if (msg.startsWith('TeamSpeak refused the stream:')) {
     return new AppError(502, 'TeamSpeak refused the stream', msg.replace(/^TeamSpeak refused the stream:\s*/, ''), {
       reason: 'ts_stream_refused',
+      messageKey: 'errors.ts_stream_refused',
     });
   }
   if (err.name === 'TimeoutError' || err.name === 'AbortError') {
     return new AppError(504, 'The request timed out', 'Try again.', {
       reason: 'request_timeout',
       retryable: true,
+      messageKey: 'errors.request_timeout',
+      detailsKey: 'errors.request_timeout_details',
     });
   }
 
@@ -239,55 +338,58 @@ const QUIET_TS_API_CODES = new Set([
   1281, // database empty result set
 ]);
 
-function appErrorBody(err: AppError): Record<string, unknown> {
-  const body: Record<string, unknown> = { error: err.message };
-  if (err.details) body.details = err.details;
+function appErrorBody(err: AppError, locale: SupportedLocale): Record<string, unknown> {
+  const message = err.messageKey ? translate(locale, err.messageKey, err.messageParams) : err.message;
+  const details = err.detailsKey ? translate(locale, err.detailsKey, err.detailsParams) : err.details;
+  const body: Record<string, unknown> = { error: message };
+  if (details) body.details = details;
   if (err.reason) body.reason = err.reason;
   if (typeof err.retryable === 'boolean') body.retryable = err.retryable;
   if (err.retryAfterSeconds != null) body.retryAfterSeconds = err.retryAfterSeconds;
   return body;
 }
 
-function sendAppError(res: Response, err: AppError): void {
+function sendAppError(res: Response, err: AppError, locale: SupportedLocale): void {
   if (err.retryAfterSeconds != null) {
     res.setHeader('Retry-After', String(err.retryAfterSeconds));
   }
 
   if (err instanceof TeamSpeakLogviewIoError) {
-    res.status(err.statusCode).json({ ...appErrorBody(err), code: err.tsCode });
+    res.status(err.statusCode).json({ ...appErrorBody(err, locale), code: err.tsCode });
     return;
   }
   if (err instanceof TeamSpeakPermissionError) {
-    res.status(err.statusCode).json({ ...appErrorBody(err), code: err.tsCode });
+    res.status(err.statusCode).json({ ...appErrorBody(err, locale), code: err.tsCode });
     return;
   }
   const conflict = err as AppError & { requested?: unknown; conflicts?: unknown };
   if (err.name === 'MediaSessionConflictError') {
     res.status(err.statusCode).json({
-      ...appErrorBody(err),
+      ...appErrorBody(err, locale),
       requested: conflict.requested,
       conflicts: conflict.conflicts,
     });
     return;
   }
-  res.status(err.statusCode).json(appErrorBody(err));
+  res.status(err.statusCode).json(appErrorBody(err, locale));
 }
 
-function unexpectedClientCopy(req: Request): { error: string; details: string } {
+function unexpectedClientCopy(req: Request, locale: SupportedLocale): { error: string; details: string } {
   const path = `${req.originalUrl || req.url || ''}`;
   if (/\/stream\/start(?:\?|$)/.test(path) || /\/iptv\/stream(?:\?|$)/.test(path)) {
     return {
-      error: 'Something went wrong while starting the stream',
-      details: 'Try again. If it keeps happening, check the server logs.',
+      error: translate(locale, 'errors.stream_start'),
+      details: translate(locale, 'errors.internal_details'),
     };
   }
   return {
-    error: 'Something went wrong',
-    details: 'Try again. If it keeps happening, check the server logs.',
+    error: translate(locale, 'errors.internal'),
+    details: translate(locale, 'errors.internal_details'),
   };
 }
 
 export function errorHandler(err: Error, req: Request, res: Response, _next: NextFunction) {
+  const locale = requestLocale(req);
   const mapped = err instanceof AppError ? err : mapOperationalError(err);
 
   const quietTs = err instanceof TSApiError && QUIET_TS_API_CODES.has(err.code);
@@ -305,24 +407,24 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
     if (!quietMapped) {
       console.error(`[Error] ${mapped.name}: ${mapped.message}`);
     }
-    sendAppError(res, mapped);
+    sendAppError(res, mapped, locale);
     return;
   }
 
   if (err instanceof TSApiError) {
     if (isTeamSpeakLogviewIoError(err)) {
-      sendAppError(res, new TeamSpeakLogviewIoError(err.code, err.message));
+      sendAppError(res, new TeamSpeakLogviewIoError(err.code, err.message), locale);
       return;
     }
     if (isTeamSpeakPermissionError(err)) {
-      sendAppError(res, new TeamSpeakPermissionError(err.code, err.message));
+      sendAppError(res, new TeamSpeakPermissionError(err.code, err.message), locale);
       return;
     }
     if (!quietTs) {
       console.error(`[Error] ${err.name}: ${err.message}`);
     }
     res.status(502).json({
-      error: 'TeamSpeak API Error',
+      error: translate(locale, 'errors.teamspeak_api'),
       code: err.code,
       details: err.message,
     });
@@ -331,7 +433,7 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
 
   const errorId = randomBytes(4).toString('hex');
   console.error(`[Error ${errorId}] ${err.name}: ${err.message}`);
-  const copy = unexpectedClientCopy(req);
+  const copy = unexpectedClientCopy(req, locale);
   res.status(500).json({
     error: copy.error,
     details: copy.details,

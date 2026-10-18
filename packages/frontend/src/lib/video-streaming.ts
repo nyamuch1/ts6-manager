@@ -15,9 +15,16 @@ import type {
   VideoStreamPresetKey,
   VideoStreamQualityInfo,
 } from '@ts6/common';
+import i18n from '../i18n';
 
+// Label getters are evaluated on access: these modules are imported before
+// `initI18n()` runs, so plain constants would capture untranslated keys.
 export const QUALITY_OPTIONS: ReadonlyArray<{ value: VideoQualityRequest; label: string; hint: string }> = [
-  { value: 'auto', label: 'Auto', hint: 'Match the source, never upscale' },
+  {
+    value: 'auto',
+    get label() { return i18n.t('media:quality.auto'); },
+    get hint() { return i18n.t('media:quality.autoHint'); },
+  },
   { value: '480p', label: '480p', hint: '854×480 · 1 Mbps' },
   { value: '720p', label: '720p', hint: '1280×720 · 2.5 Mbps' },
   { value: '1080p', label: '1080p', hint: '1920×1080 · 4.5 Mbps' },
@@ -28,55 +35,62 @@ export const QUALITY_OPTIONS: ReadonlyArray<{ value: VideoQualityRequest; label:
 export const AUTO_LIMIT_OPTIONS: ReadonlyArray<VideoStreamPresetKey> = ['720p', '1080p', '1440p', '2160p'];
 
 export const ENCODER_LABELS: Record<VideoEncoderId, string> = {
-  vp8: 'VP8 (software)',
-  vp9: 'VP9 (software)',
-  h264: 'H.264 (software)',
-  vp8_vaapi: 'VP8 (VAAPI)',
-  vp9_vaapi: 'VP9 (VAAPI)',
-  h264_vaapi: 'H.264 (VAAPI)',
-  h264_nvenc: 'H.264 (NVENC)',
-  h264_amf: 'H.264 (AMF)',
-  h264_videotoolbox: 'H.264 (VideoToolbox)',
+  get vp8() { return i18n.t('media:encoder.vp8Software'); },
+  get vp9() { return i18n.t('media:encoder.vp9Software'); },
+  get h264() { return i18n.t('media:encoder.h264Software'); },
+  get vp8_vaapi() { return i18n.t('media:encoder.vp8Vaapi'); },
+  get vp9_vaapi() { return i18n.t('media:encoder.vp9Vaapi'); },
+  get h264_vaapi() { return i18n.t('media:encoder.h264Vaapi'); },
+  get h264_nvenc() { return i18n.t('media:encoder.h264Nvenc'); },
+  get h264_amf() { return i18n.t('media:encoder.h264Amf'); },
+  get h264_videotoolbox() { return i18n.t('media:encoder.h264Videotoolbox'); },
 };
 
 export const ENCODER_OPTIONS: ReadonlyArray<{ value: VideoEncoderRequest; label: string }> = [
-  { value: 'auto', label: 'Auto' },
-  ...(Object.keys(ENCODER_LABELS) as VideoEncoderId[]).map((id) => ({ value: id, label: ENCODER_LABELS[id] })),
+  {
+    value: 'auto',
+    get label() { return i18n.t('media:encoder.auto'); },
+  },
+  ...(Object.keys(ENCODER_LABELS) as VideoEncoderId[]).map((id) => ({
+    value: id,
+    get label() { return ENCODER_LABELS[id]; },
+  })),
 ];
 
 /** Auto menu label from Streaming defaults.preferHardware (default off → software). */
 export function autoEncoderPreferenceLabel(preferHardware: boolean): string {
-  return preferHardware ? 'Auto (hardware preferred)' : 'Auto (software preferred)';
+  return i18n.t(preferHardware ? 'media:encoder.autoHardware' : 'media:encoder.autoSoftware');
 }
 
 /** Short helper for Video options / Streaming defaults. */
 export function autoEncoderPreferenceHint(preferHardware: boolean): string {
-  return preferHardware
-    ? 'Auto picks the first working hardware encoder (VAAPI, NVENC, AMF, or VideoToolbox), then falls back to VP8 software. Per-stream Auto uses this same preference.'
-    : 'Auto uses VP8 software unless "Auto prefers hardware" is enabled in Streaming defaults. Per-stream Auto inherits that setting.';
+  return i18n.t(preferHardware ? 'media:encoder.autoHardwareHint' : 'media:encoder.autoSoftwareHint');
 }
 
 /** Per-stream no-viewer timeout choices, in seconds. */
 export const NO_VIEWER_TIMEOUT_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
-  { value: '0', label: 'Off' },
-  { value: '60', label: '1 min' },
-  { value: '300', label: '5 min' },
-  { value: '600', label: '10 min' },
-  { value: '1800', label: '30 min' },
-];
+  '0',
+  '60',
+  '300',
+  '600',
+  '1800',
+].map((value) => ({
+  value,
+  get label() { return formatTimeout(Number(value)); },
+}));
 
 export const STOP_REASON_LABELS: Record<MediaStopReason, string> = {
-  manual: 'Stopped manually',
-  no_viewers: 'No viewers',
-  channel_empty: 'Channel empty',
-  source_ended: 'Source ended',
-  source_unreachable: 'Source unreachable',
-  encoder_failure: 'Encoder failure',
-  sidecar_failure: 'Media sidecar stopped',
-  replaced_by_music: 'Replaced by music',
-  replaced_by_video: 'Replaced by another stream',
-  server_disconnect: 'Server disconnected',
-  bot_stopped: 'Bot stopped',
+  get manual() { return i18n.t('media:stopReason.manual'); },
+  get no_viewers() { return i18n.t('media:stopReason.noViewers'); },
+  get channel_empty() { return i18n.t('media:stopReason.channelEmpty'); },
+  get source_ended() { return i18n.t('media:stopReason.sourceEnded'); },
+  get source_unreachable() { return i18n.t('media:stopReason.sourceUnreachable'); },
+  get encoder_failure() { return i18n.t('media:stopReason.encoderFailure'); },
+  get sidecar_failure() { return i18n.t('media:stopReason.sidecarFailure'); },
+  get replaced_by_music() { return i18n.t('media:stopReason.replacedByMusic'); },
+  get replaced_by_video() { return i18n.t('media:stopReason.replacedByVideo'); },
+  get server_disconnect() { return i18n.t('media:stopReason.serverDisconnect'); },
+  get bot_stopped() { return i18n.t('media:stopReason.botStopped'); },
 };
 
 /** "4:59" / "1:02:03" for a countdown or uptime in milliseconds. */
@@ -92,16 +106,19 @@ export function formatClock(ms: number): string {
 
 /** "Off", "5 min", "90 s", "1 h 30 min". */
 export function formatTimeout(sec: number): string {
-  if (sec <= 0) return 'Off';
-  if (sec < 60) return `${sec} s`;
+  if (sec <= 0) return i18n.t('media:time.off');
+  if (sec < 60) return i18n.t('media:time.seconds', { seconds: sec });
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
   const s = sec % 60;
-  const parts: string[] = [];
-  if (h) parts.push(`${h} h`);
-  if (m) parts.push(`${m} min`);
-  if (s) parts.push(`${s} s`);
-  return parts.join(' ');
+  if (h && m && s) {
+    return i18n.t('media:time.hoursMinutesSeconds', { hours: h, minutes: m, seconds: s });
+  }
+  if (h && m) return i18n.t('media:time.hoursMinutes', { hours: h, minutes: m });
+  if (h && s) return i18n.t('media:time.hoursSeconds', { hours: h, seconds: s });
+  if (m && s) return i18n.t('media:time.minutesSeconds', { minutes: m, seconds: s });
+  if (h) return i18n.t('media:time.hours', { hours: h });
+  return i18n.t('media:time.minutes', { minutes: m });
 }
 
 /** "Auto → 1080p", "Auto → 720p (reduced from 1080p)", or just "1440p" for a fixed preset. */
@@ -109,7 +126,9 @@ export function qualityLabel(q: VideoStreamQualityInfo | null | undefined, fallb
   if (!q) return fallbackPreset ?? '—';
   if (q.requested !== 'auto') return q.actual;
   const ceiling = q.adaptation?.ceiling;
-  return ceiling && ceiling !== q.actual ? `Auto → ${q.actual} (reduced from ${ceiling})` : `Auto → ${q.actual}`;
+  return ceiling && ceiling !== q.actual
+    ? i18n.t('media:quality.autoToReduced', { actual: q.actual, ceiling })
+    : i18n.t('media:quality.autoTo', { actual: q.actual });
 }
 
 /** How long a finished recovery stays on screen. */
@@ -128,40 +147,99 @@ export function qualityAdaptationNote(
   if (!q || !q.adaptation || !change) return null;
   const reduced = q.actual !== q.adaptation.ceiling;
   if (!reduced && now - change.at > QUALITY_RESTORED_NOTE_MS) return null;
-  const agoMin = Math.floor(Math.max(0, now - change.at) / 60_000);
-  const ago = agoMin < 1 ? 'just now' : agoMin < 60 ? `${agoMin} min ago` : `${Math.floor(agoMin / 60)} h ago`;
-  const verb = change.direction === 'down' ? 'reduced' : 'raised';
-  return { text: `Auto ${verb} quality to ${change.to}: ${change.reason} · ${ago}`, reduced };
+  const ago = relativeTime(now - change.at);
+  const key = change.direction === 'down' ? 'media:quality.reducedTo' : 'media:quality.raisedTo';
+  return {
+    text: i18n.t(key, { quality: change.to, reason: change.reason, ago }),
+    reduced,
+  };
+}
+
+function relativeTime(elapsedMs: number): string {
+  const agoMin = Math.floor(Math.max(0, elapsedMs) / 60_000);
+  if (agoMin < 1) return i18n.t('media:time.justNow');
+  if (agoMin < 60) return i18n.t('media:time.minutesAgo', { count: agoMin });
+  return i18n.t('media:time.hoursAgo', { count: Math.floor(agoMin / 60) });
 }
 
 /** "H.264 (VAAPI)", "Auto → VP8 (software)", or "H.264 (VAAPI) → H.264 (software)" after a fallback. */
 export function encoderLabel(e: VideoStreamEncoderInfo | null | undefined): string {
   if (!e) return '—';
   const active = ENCODER_LABELS[e.active] ?? e.active;
-  if (e.selected !== e.active) return `${ENCODER_LABELS[e.selected] ?? e.selected} → ${active}`;
-  if (e.requested === 'auto') return `Auto → ${active}`;
+  if (e.selected !== e.active) {
+    return i18n.t('media:encoder.fallback', {
+      selected: ENCODER_LABELS[e.selected] ?? e.selected,
+      active,
+    });
+  }
+  if (e.requested === 'auto') return i18n.t('media:encoder.autoTo', { encoder: active });
   return active;
+}
+
+interface StopDetailCodeFields {
+  detailCode?: unknown;
+  detailParams?: unknown;
+}
+
+/** "5 minutes", "1 minute 30 seconds" — the backend's lifecycle duration wording. */
+function formatDurationLong(totalSec: number): string {
+  const sec = Math.max(0, Math.round(totalSec));
+  if (sec < 60) return i18n.t('media:time.durationSeconds', { count: sec });
+  const parts: string[] = [];
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  if (h) parts.push(i18n.t('media:time.durationHours', { count: h }));
+  if (m) parts.push(i18n.t('media:time.durationMinutes', { count: m }));
+  if (s) parts.push(i18n.t('media:time.durationSeconds', { count: s }));
+  return parts.join(i18n.resolvedLanguage?.startsWith('zh') ? '' : ' ');
+}
+
+/** Translate a stored stop detail code when the backend provides one. */
+function translatedStopDetail(stop: MediaStopInfo): string | null {
+  const { detailCode, detailParams } = stop as MediaStopInfo & StopDetailCodeFields;
+  if (typeof detailCode !== 'string' || !detailCode) return null;
+  const params = detailParams && typeof detailParams === 'object' && !Array.isArray(detailParams)
+    ? (detailParams as Record<string, unknown>)
+    : {};
+  const camelCode = detailCode.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+  const baseKey = `media:stopDetail.${camelCode}`;
+  const hasError = params.error != null && params.error !== '';
+  const withErrorKey = `${baseKey}WithError`;
+  if (hasError && i18n.exists(withErrorKey)) return i18n.t(withErrorKey, params);
+  if (i18n.exists(baseKey)) {
+    if (detailCode === 'no_viewers' || detailCode === 'channel_empty') {
+      const raw = params.seconds;
+      const seconds = typeof raw === 'number' ? raw : Number(raw);
+      if (!Number.isFinite(seconds)) return null;
+      return i18n.t(baseKey, { ...params, duration: formatDurationLong(seconds) });
+    }
+    return i18n.t(baseKey, params);
+  }
+  // Legacy fallback: map a snake_case code onto the camelCase reason label.
+  const reasonKey = `media:stopReason.${camelCode}`;
+  if (i18n.exists(reasonKey)) return i18n.t(reasonKey, params);
+  return null;
 }
 
 /** "No viewers — Stopped after 5 minutes with no viewers · 8 min ago". */
 export function lastStopLabel(stop: MediaStopInfo | null | undefined, now: number = Date.now()): string | null {
   if (!stop) return null;
-  const base = stop.detail || STOP_REASON_LABELS[stop.reason] || stop.reason;
-  const agoMin = Math.floor(Math.max(0, now - stop.at) / 60_000);
-  const ago = agoMin < 1 ? 'just now' : agoMin < 60 ? `${agoMin} min ago` : `${Math.floor(agoMin / 60)} h ago`;
-  return `${base} · ${ago}`;
+  const base = translatedStopDetail(stop) || stop.detail || STOP_REASON_LABELS[stop.reason] || stop.reason;
+  const ago = relativeTime(now - stop.at);
+  return i18n.t('media:time.lastStop', { detail: base, ago });
 }
 
 export const SOURCE_MODE_OPTIONS: ReadonlyArray<{ value: VideoSourceModeRequest; label: string }> = [
-  { value: 'auto', label: 'Detect' },
-  { value: 'live', label: 'Live' },
-  { value: 'vod', label: 'On demand' },
+  { value: 'auto', get label() { return i18n.t('media:sourceMode.detect'); } },
+  { value: 'live', get label() { return i18n.t('media:sourceMode.live'); } },
+  { value: 'vod', get label() { return i18n.t('media:sourceMode.onDemand'); } },
 ];
 
 export const SOURCE_MODE_LABELS: Record<VideoSourceMode, string> = {
-  live: 'Live',
-  vod: 'On demand',
-  file: 'Local file',
+  get live() { return i18n.t('media:sourceMode.live'); },
+  get vod() { return i18n.t('media:sourceMode.onDemand'); },
+  get file() { return i18n.t('media:sourceMode.localFile'); },
 };
 
 /** "1.01x · 30 fps" or "—" before the first sample. */

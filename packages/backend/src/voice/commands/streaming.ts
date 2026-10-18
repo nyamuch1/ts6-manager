@@ -5,6 +5,7 @@ import { MediaSessionConflictError } from '../media-session.js';
 import { parseStreamStartOptions } from '../streaming/start-options.js';
 import { classifyStreamHost } from '../streaming/video-download.js';
 import type { CommandContext } from './context.js';
+import { translateChat } from '../bot-locale.js';
 
 // ─── Video Streaming Commands ─────────────────────────────
 /** Validate stream arguments and start or change a video source with existing preset rules. */
@@ -15,7 +16,7 @@ export async function handleStream(
   args: string,
 ): Promise<void> {
   if (!args) {
-    context.reply(bot, userClid, 'Usage: !stream <url> [preset]  — Presets: auto (default for YouTube and Twitch), 480p, 720p, 1080p, 1440p, 2160p');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.stream.usage'));
     return;
   }
 
@@ -33,7 +34,7 @@ export async function handleStream(
   const preset = parts[1] || (classifyStreamHost(url) === 'other' ? undefined : 'auto');
 
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    context.reply(bot, userClid, 'Please provide a valid URL.');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.stream.invalid_url'));
     return;
   }
 
@@ -49,19 +50,23 @@ export async function handleStream(
     // Change source if already streaming
     try {
       await bot.setVideoSource(url);
-      context.reply(bot, userClid, `Stream source changed to: ${url}`);
+      context.reply(bot, userClid, translateChat(context.locale, 'bot.stream.source_changed', { url }));
     } catch (err: any) {
-      context.reply(bot, userClid, `Error: ${err.message}`);
+      context.reply(bot, userClid, translateChat(context.locale, 'bot.stream.error', { error: err.message }));
     }
     return;
   }
 
-  context.reply(bot, userClid, 'Starting video stream...');
+  context.reply(bot, userClid, translateChat(context.locale, 'bot.stream.starting'));
   try {
     await context.voiceBotManager.startVideoStream(bot, url, { preset, ...context.chatVideoSwitch(bot) });
-    context.reply(bot, userClid, `Video stream started: ${url}`);
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.stream.started', { url }));
   } catch (err: any) {
-    context.reply(bot, userClid, `Failed to start stream: ${context.streamStartError(err)}`);
+    context.reply(
+      bot,
+      userClid,
+      translateChat(context.locale, 'bot.stream.failed', { error: streamStartError(context, err) }),
+    );
   }
 }
 
@@ -69,7 +74,9 @@ export async function handleStream(
 export function streamStartError(context: CommandContext, err: any): string {
   if (err instanceof MediaSessionConflictError) {
     const other = err.conflicts.find((c) => c.kind === 'video');
-    if (other) return `another stream is running on ${other.botName} — stop it there first`;
+    if (other) {
+      return translateChat(context.locale, 'bot.stream.conflict', { bot: other.botName });
+    }
   }
   return err?.message ?? String(err);
 }
@@ -81,11 +88,11 @@ export async function handleStopStream(
   userClid: number,
 ): Promise<void> {
   if (!bot.videoStreaming) {
-    context.reply(bot, userClid, 'No active video stream.');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.stopstream.none'));
     return;
   }
   await bot.stopVideoStream('manual', 'Stopped by chat command', { cancelPendingRequests: true });
-  context.reply(bot, userClid, 'Video stream stopped.');
+  context.reply(bot, userClid, translateChat(context.locale, 'bot.stopstream.stopped'));
 }
 
 /** List the first matching IPTV channels belonging to the bot’s server. */
@@ -97,7 +104,7 @@ export async function handleChannels(
 ): Promise<void> {
   const serverConfigId = bot.currentConfig.serverConfigId;
   if (!serverConfigId) {
-    context.reply(bot, userClid, 'No server configured for this bot.');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.channels.no_server'));
     return;
   }
   const search = args.trim();
@@ -111,9 +118,13 @@ export async function handleChannels(
   });
 
   if (channels.length === 0) {
-    context.reply(bot, userClid, search
-      ? `No IPTV channels matching "${search}". Add a playlist in the IPTV page.`
-      : 'No IPTV channels found. Add a playlist in the IPTV page.');
+    context.reply(
+      bot,
+      userClid,
+      search
+        ? translateChat(context.locale, 'bot.channels.none_search', { query: search })
+        : translateChat(context.locale, 'bot.channels.none'),
+    );
     return;
   }
 
@@ -121,7 +132,16 @@ export async function handleChannels(
   context.reply(
     bot,
     userClid,
-    `IPTV channels${search ? ` matching "${search}"` : ''} (first ${channels.length}):\n${list}\n\nUse !tv <name> to stream one.`,
+    search
+      ? translateChat(context.locale, 'bot.channels.heading_search', {
+        query: search,
+        count: channels.length,
+        list,
+      })
+      : translateChat(context.locale, 'bot.channels.heading', {
+        count: channels.length,
+        list,
+      }),
   );
 }
 
@@ -134,12 +154,12 @@ export async function handleTv(
 ): Promise<void> {
   const query = args.trim();
   if (!query) {
-    context.reply(bot, userClid, 'Usage: !tv <channel name>  — Use !channels to list.');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.tv.usage'));
     return;
   }
   const serverConfigId = bot.currentConfig.serverConfigId;
   if (!serverConfigId) {
-    context.reply(bot, userClid, 'No server configured for this bot.');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.channels.no_server'));
     return;
   }
 
@@ -148,18 +168,22 @@ export async function handleTv(
     orderBy: { position: 'asc' },
   });
   if (!channel) {
-    context.reply(bot, userClid, `No channel matching "${query}". Use !channels ${query} to search.`);
+    context.reply(
+      bot,
+      userClid,
+      translateChat(context.locale, 'bot.tv.no_match', { query }),
+    );
     return;
   }
 
   if (bot.videoStreaming) {
     await bot.setVideoSource(channel.url, undefined, 'live', await loadIptvLocalHosts(context.prisma));
     await recordIptvRecentSafely(context.prisma, serverConfigId, channel);
-    context.reply(bot, userClid, `Now streaming: ${channel.name}`);
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.tv.now_streaming', { name: channel.name }));
     return;
   }
 
-  context.reply(bot, userClid, `Starting stream: ${channel.name}...`);
+  context.reply(bot, userClid, translateChat(context.locale, 'bot.tv.starting', { name: channel.name }));
   try {
     await context.voiceBotManager.startVideoStream(bot, channel.url, {
       sourceMode: 'live',
@@ -168,8 +192,12 @@ export async function handleTv(
       ...context.chatVideoSwitch(bot),
     });
     await recordIptvRecentSafely(context.prisma, serverConfigId, channel);
-    context.reply(bot, userClid, `Video stream started: ${channel.name}`);
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.tv.started', { name: channel.name }));
   } catch (err: any) {
-    context.reply(bot, userClid, `Failed to start stream: ${context.streamStartError(err)}`);
+    context.reply(
+      bot,
+      userClid,
+      translateChat(context.locale, 'bot.tv.failed', { error: context.streamStartError(err) }),
+    );
   }
 }

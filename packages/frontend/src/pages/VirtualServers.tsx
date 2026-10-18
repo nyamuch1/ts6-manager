@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useStartVirtualServer, useStopVirtualServer, useVirtualServers } from '@/hooks/use-servers';
 import { useServerStore } from '@/stores/server.store';
 import { Card, CardContent } from '@/components/ui/card';
@@ -23,6 +24,8 @@ type StopTarget = {
 };
 
 export default function VirtualServers() {
+  const { t } = useTranslation('admin');
+  const { t: tc } = useTranslation();
   const { selectedConfigId } = useServerStore();
   const { data, isLoading, error, refetch, isFetching } = useVirtualServers();
   const startServer = useStartVirtualServer();
@@ -33,15 +36,15 @@ export default function VirtualServers() {
   const actionGuards = useRef(new Set<string>());
   const stopCancelButton = useRef<HTMLButtonElement>(null);
 
-  if (!selectedConfigId) return <NoServerSelectedState pageTitle="Virtual Servers" icon={Server} />;
+  if (!selectedConfigId) return <NoServerSelectedState pageTitle={t('virtualServers.title')} icon={Server} />;
   if (isLoading && data === undefined) return <PageLoader />;
   if (error && data === undefined) {
     return (
       <div className="space-y-4">
-        <EmptyState icon={Server} title="Connection failed" description={apiErrorMessage(error, 'Could not load virtual servers.')} />
+        <EmptyState icon={Server} title={t('connectionFailed')} description={apiErrorMessage(error, t('virtualServers.loadFailed'))} />
         <div className="flex justify-center">
           <Button size="sm" variant="outline" onClick={() => { void refetch(); }} disabled={isFetching} aria-busy={isFetching}>
-            {isFetching ? 'Retrying…' : 'Retry'}
+            {isFetching ? t('retrying') : tc('action.retry')}
           </Button>
         </div>
       </div>
@@ -51,7 +54,7 @@ export default function VirtualServers() {
   const servers = Array.isArray(data) ? data : [];
   const onlineServers = servers.filter((server: any) => server.virtualserver_status === 'online').length;
   const backgroundError = error
-    ? apiErrorMessage(error, 'Virtual server refresh failed. The last successful list is still displayed.')
+    ? apiErrorMessage(error, t('virtualServers.refreshFailed'))
     : null;
 
   const handleStart = (sid: number, name: string) => {
@@ -63,8 +66,8 @@ export default function VirtualServers() {
     startServer.mutate(
       { configId, sid },
       {
-        onSuccess: () => toast.success(`Started ${name}`),
-        onError: (error) => toast.error(`Could not start ${name}: ${apiErrorMessage(error, 'The server did not accept the request')}`),
+        onSuccess: () => toast.success(t('virtualServers.started', { name })),
+        onError: (error) => toast.error(t('virtualServers.startFailed', { name, message: apiErrorMessage(error, t('virtualServers.notAccepted')) })),
         onSettled: () => {
           actionGuards.current.delete(guardKey);
           setStartingSid((current) => current === sid ? null : current);
@@ -89,11 +92,11 @@ export default function VirtualServers() {
       { configId: target.configId, sid: target.sid },
       {
         onSuccess: () => {
-          toast.success(`Stopped ${target.name}`);
+          toast.success(t('virtualServers.stopped', { name: target.name }));
           closeStopDialog();
         },
         onError: (error) => {
-          const message = `Could not stop ${target.name}: ${apiErrorMessage(error, 'The server did not accept the request')}`;
+          const message = t('virtualServers.stopFailed', { name: target.name, message: apiErrorMessage(error, t('virtualServers.notAccepted')) });
           setStopError(message);
           toast.error(message);
         },
@@ -105,11 +108,11 @@ export default function VirtualServers() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Virtual Servers"
+        title={t('virtualServers.title')}
         icon={Server}
-        description={`${formatNumber(servers.length)} servers in this connection`}
-        badge={<Badge variant="secondary" className="font-mono-data">{formatNumber(onlineServers)} online</Badge>}
-        metadata={<RefreshStatus isRefreshing={isFetching} idleLabel="Server list up to date" refreshingLabel="Refreshing servers…" />}
+        description={t('virtualServers.description', { count: formatNumber(servers.length) })}
+        badge={<Badge variant="secondary" className="font-mono-data">{t('virtualServers.onlineCount', { count: formatNumber(onlineServers) })}</Badge>}
+        metadata={<RefreshStatus isRefreshing={isFetching} idleLabel={t('virtualServers.idleLabel')} refreshingLabel={t('virtualServers.refreshingLabel')} />}
       />
 
       {backgroundError && (
@@ -125,7 +128,7 @@ export default function VirtualServers() {
           <Card
             key={vs.virtualserver_id}
             role="group"
-            aria-label={`${vs.virtualserver_name} virtual server`}
+            aria-label={t('virtualServers.ariaLabel', { name: vs.virtualserver_name })}
             className="hover:border-primary/30 transition-colors"
           >
             <CardContent className="p-4">
@@ -142,8 +145,8 @@ export default function VirtualServers() {
                       </Badge>
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      <span className="font-mono-data">SID: {vs.virtualserver_id}</span>
-                      <span className="font-mono-data">Port: {vs.virtualserver_port}</span>
+                      <span className="font-mono-data">{t('virtualServers.sid', { id: vs.virtualserver_id })}</span>
+                      <span className="font-mono-data">{t('virtualServers.port', { port: vs.virtualserver_port })}</span>
                       {vs.virtualserver_status === 'online' && (
                         <>
                           <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {vs.virtualserver_clientsonline - (vs.virtualserver_queryclientsonline || 0)}/{vs.virtualserver_maxclients}</span>
@@ -163,7 +166,7 @@ export default function VirtualServers() {
                         setStopError('');
                       }}
                     >
-                      <Square className="h-3 w-3 mr-1" /> Stop
+                      <Square className="h-3 w-3 mr-1" /> {tc('action.stop')}
                     </Button>
                   ) : (
                     <Button
@@ -173,7 +176,7 @@ export default function VirtualServers() {
                       aria-busy={startingSid === Number(vs.virtualserver_id)}
                     >
                       <Play className="h-3 w-3 mr-1" />
-                      {startingSid === Number(vs.virtualserver_id) ? 'Starting…' : 'Start'}
+                      {startingSid === Number(vs.virtualserver_id) ? t('virtualServers.starting') : tc('action.start')}
                     </Button>
                   )}
                 </div>
@@ -189,14 +192,18 @@ export default function VirtualServers() {
       >
         <DialogContent onOpenAutoFocus={(event) => { event.preventDefault(); stopCancelButton.current?.focus(); }}>
           <DialogHeader>
-            <DialogTitle>Stop virtual server</DialogTitle>
+            <DialogTitle>{t('virtualServers.stopTitle')}</DialogTitle>
             <DialogDescription>
-              Stop <span className="font-medium text-foreground">{stopTarget?.name}</span> (SID {stopTarget?.sid}). All connected users will be disconnected.
+              <Trans
+                i18nKey="admin:virtualServers.stopDescription"
+                values={{ name: stopTarget?.name, sid: stopTarget?.sid }}
+                components={{ name: <span className="font-medium text-foreground" /> }}
+              />
             </DialogDescription>
           </DialogHeader>
           {stopError && <p role="alert" className="text-sm text-destructive">{stopError}</p>}
           <DialogFooter>
-            <Button ref={stopCancelButton} className="min-h-10" variant="outline" onClick={closeStopDialog} disabled={stopServer.isPending}>Cancel</Button>
+            <Button ref={stopCancelButton} className="min-h-10" variant="outline" onClick={closeStopDialog} disabled={stopServer.isPending}>{tc('action.cancel')}</Button>
             <Button
               className="min-h-10"
               variant="destructive"
@@ -205,7 +212,7 @@ export default function VirtualServers() {
               aria-busy={stopServer.isPending}
             >
               <Square className="h-4 w-4 mr-1" />
-              {stopServer.isPending ? 'Stopping…' : 'Stop server'}
+              {stopServer.isPending ? t('virtualServers.stopping') : t('virtualServers.stopServer')}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -5,6 +5,7 @@
  */
 
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Bot } from 'lucide-react';
 import type { BotMediaOverview, PlaybackState } from '@ts6/common';
 import { NowPlaying } from '@/components/media/NowPlaying';
@@ -33,20 +34,20 @@ import { BotAvatar } from '@/components/shared/BotAvatar';
 
 /** Source tabs in order Music · Link · Radio · IPTV. */
 export const CONSOLE_TABS: ConsoleSourceTab[] = [
-  { id: 'music', label: 'Music', render: (ctx) => <MusicSource {...ctx} /> },
-  { id: 'link', label: 'Link', render: (ctx) => <LinkSource {...ctx} /> },
-  { id: 'radio', label: 'Radio', render: (ctx) => <RadioSource {...ctx} /> },
-  { id: 'iptv', label: 'IPTV', render: (ctx) => <IptvSource key={ctx.serverConfigId} {...ctx} /> },
+  { id: 'music', labelKey: 'console.tabs.music', render: (ctx) => <MusicSource {...ctx} /> },
+  { id: 'link', labelKey: 'console.tabs.link', render: (ctx) => <LinkSource {...ctx} /> },
+  { id: 'radio', labelKey: 'console.tabs.radio', render: (ctx) => <RadioSource {...ctx} /> },
+  { id: 'iptv', labelKey: 'console.tabs.iptv', render: (ctx) => <IptvSource key={ctx.serverConfigId} {...ctx} /> },
 ];
 
 /** The bot's TeamSpeak connection, shown next to its name. */
-const CONNECTION_BADGE: Record<string, { label: string; variant: 'success' | 'warning' | 'destructive' | 'outline' }> = {
-  connected: { label: 'Connected', variant: 'success' },
-  playing: { label: 'Connected', variant: 'success' },
-  paused: { label: 'Connected', variant: 'success' },
-  starting: { label: 'Connecting', variant: 'warning' },
-  stopped: { label: 'Offline', variant: 'outline' },
-  error: { label: 'Error', variant: 'destructive' },
+const CONNECTION_BADGE: Record<string, { labelKey: string; variant: 'success' | 'warning' | 'destructive' | 'outline' }> = {
+  connected: { labelKey: 'console.connection.connected', variant: 'success' },
+  playing: { labelKey: 'console.connection.connected', variant: 'success' },
+  paused: { labelKey: 'console.connection.connected', variant: 'success' },
+  starting: { labelKey: 'console.connection.connecting', variant: 'warning' },
+  stopped: { labelKey: 'console.connection.offline', variant: 'outline' },
+  error: { labelKey: 'console.connection.error', variant: 'destructive' },
 };
 
 /** Keep elapsed playback displays current while the console is open. */
@@ -91,6 +92,7 @@ function UpNextLanes({ bot }: { bot: BotMediaOverview }) {
 
 /** Render one bot's playback state, queue, and source tabs. */
 export default function BotConsole() {
+  const { t } = useTranslation('bots');
   const botId = Number(useParams().botId);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -102,12 +104,12 @@ export default function BotConsole() {
 
   if (media.isLoading) return <PageLoader />;
   if (media.isError) {
-    return <EmptyState icon={AlertTriangle} title="Could not load bot media" description={apiErrorMessage(media.error, 'Try again in a moment.')} />;
+    return <EmptyState icon={AlertTriangle} title={t('console.loadErrorTitle')} description={apiErrorMessage(media.error, t('console.tryAgain'))} />;
   }
   if (!bot) {
     return (
-      <EmptyState icon={Bot} title="Bot not found" description="This bot doesn't exist or was deleted.">
-        <Button asChild size="sm"><Link to="/bot-hub">Back to Bot Hub</Link></Button>
+      <EmptyState icon={Bot} title={t('console.notFoundTitle')} description={t('console.notFoundDescription')}>
+        <Button asChild size="sm"><Link to="/bot-hub">{t('console.backToHub')}</Link></Button>
       </EmptyState>
     );
   }
@@ -116,19 +118,19 @@ export default function BotConsole() {
 
   return (
     <div className="space-y-4">
-      <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground">
-        <Link to="/bot-hub" className="hover:text-foreground">Bot Hub</Link> / <span>{bot.botName}</span>
+      <nav aria-label={t('console.breadcrumbAria')} className="text-sm text-muted-foreground">
+        <Link to="/bot-hub" className="hover:text-foreground">{t('console.botHub')}</Link> / <span>{bot.botName}</span>
       </nav>
       <PageHeader
         title={bot.botName}
         leading={<BotAvatar botId={bot.botId} name={bot.botName} mode={bot.avatarMode} md5={bot.avatarMd5} />}
         badge={(
           <span className="flex flex-wrap items-center gap-1">
-            <Badge variant={connection.variant} aria-live="polite">{connection.label}</Badge>
+            <Badge variant={connection.variant} aria-live="polite">{t(connection.labelKey)}</Badge>
             <AutomationBadges bot={bot} />
           </span>
         )}
-        description={`${bot.serverName ?? `Server ${bot.serverConfigId}`}${bot.channelName ? ` · #${bot.channelName}` : ''}`}
+        description={`${bot.serverName ?? t('console.serverFallback', { id: bot.serverConfigId })}${bot.channelName ? ` · #${bot.channelName}` : ''}`}
         actions={(
           <BotSettingsMenu botId={bot.botId} botName={bot.botName} status={bot.status} size="default"
             onDeleted={() => navigate('/bot-hub', { replace: true })} />

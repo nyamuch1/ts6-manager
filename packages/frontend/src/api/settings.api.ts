@@ -36,6 +36,13 @@ export const settingsApi = {
   getMediaDiagnostics: (): Promise<MediaAdminDiagnosticReport> =>
     api.get('/settings/media-diagnostics', { timeout: 15_000 }).then((r) => r.data),
 
+  /** Instance default for bot chat replies; explicit per-bot languages win. */
+  getBotChatLanguage: (): Promise<{ language: 'en' | 'zh-CN' }> =>
+    api.get('/settings/bot-chat-language').then((r) => r.data),
+
+  updateBotChatLanguage: (language: 'en' | 'zh-CN'): Promise<{ language: 'en' | 'zh-CN' }> =>
+    api.put('/settings/bot-chat-language', { language }).then((r) => r.data),
+
   getLimits: () => api.get('/settings/limits').then((r) => r.data),
 
   updateLimits: (data: { maxVideoDuration?: number; maxPlaylistImport?: number; youtubeDirectStream?: boolean }) =>

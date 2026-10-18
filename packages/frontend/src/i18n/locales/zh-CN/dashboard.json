@@ -1,0 +1,78 @@
+{
+  "page": {
+    "nudgeTitle": "连接你的 TeamSpeak 服务器以开始使用",
+    "nudgeDescription": "在设置中添加连接以管理频道、客户端、机器人等。",
+    "goToConnections": "前往连接",
+    "dismissNudge": "忽略连接设置建议",
+    "selectFromHeader": "从页眉中选择一个服务器连接以查看仪表盘。",
+    "overviewDescription": "TeamSpeak 服务器实时概览",
+    "widgets": "小部件"
+  },
+  "errors": {
+    "queryStarting": "TeamSpeak 查询在启动后仍在启动中。请稍等片刻后重试。",
+    "connectFailed": "无法连接到 TeamSpeak 服务器。请检查你的连接设置。",
+    "retryConnection": "重试连接",
+    "connectionFailed": "连接失败",
+    "liveStarting": "TeamSpeak 查询仍在启动中。在其上线之前，实时数据可能不完整。",
+    "liveRefreshFailed": "实时数据刷新失败。仍显示上次成功获取的快照。"
+  },
+  "status": {
+    "onlineBadge": "在线"
+  },
+  "refresh": {
+    "liveMonitoring": "实时监控已启用",
+    "refreshingLive": "正在刷新实时数据…",
+    "liveInterrupted": "实时更新已中断"
+  },
+  "source": {
+    "webqueryOnly": "仅 WebQuery",
+    "combined": "WebQuery + 原生指标",
+    "unreachable": "WebQuery · 指标不可达",
+    "timeout": "WebQuery · 指标超时",
+    "invalid": "WebQuery · 指标无效",
+    "unscoped": "WebQuery · 指标未限定作用域",
+    "unavailable": "WebQuery · 指标不可用",
+    "hintWebquery": "仪表盘使用经过身份验证的 WebQuery。",
+    "hintDisabled": "仪表盘仅使用经过身份验证的 WebQuery。此连接的原生指标抓取已关闭。",
+    "hintCurrent": "WebQuery 身份加上限定作用域的 TeamSpeak 原生 Prometheus 指标。",
+    "hintUnreachable": "指标抓取无法连接。请确保 TSSERVER_METRICS_ENABLED=1，且管理器可以访问 TSSERVER_METRICS_IP（管理器在远程时不能仅绑定 localhost），并确认 metricsHost/端口匹配。",
+    "hintTimeout": "仪表盘返回前指标抓取未完成。如果监听器可达，稍后刷新可能会获取缓存的抓取结果。",
+    "hintInvalid": "指标响应被拒绝（HTTP 状态、内容类型，或样本为空/无效）。",
+    "hintUnscoped": "无法证明指标样本与当前虚拟服务器身份匹配；已保留 WebQuery 的值。",
+    "hintUnavailable": "原生指标已启用但不可用；仪表盘保留了 WebQuery 的值。"
+  },
+  "health": {
+    "elevated": "偏高",
+    "high": "高"
+  },
+  "serverStatus": {
+    "title": "服务器状态",
+    "description": "可用性、使用率与连接健康",
+    "onlineUsers": "在线用户",
+    "utilised": "已使用 {{percent}}%",
+    "utilisationLabel": "用户槽位使用率",
+    "slotsAvailable_one": "{{formatted}} 个空位可用",
+    "slotsAvailable_other": "{{formatted}} 个空位可用"
+  },
+  "metric": {
+    "channels": "频道",
+    "uptime": "运行时间",
+    "ping": "延迟",
+    "packetLoss": "丢包率"
+  },
+  "traffic": {
+    "title": "流量",
+    "description": "最近本地样本的入站和出站带宽",
+    "collecting": "正在收集带宽样本…",
+    "incoming": "入站",
+    "outgoing": "出站"
+  },
+  "runtime": {
+    "title": "运行状态与容量",
+    "description": "运行身份与可用容量",
+    "serverVersion": "服务器版本",
+    "platform": "平台",
+    "totalSlots": "总槽位数",
+    "availableSlots": "可用槽位数"
+  }
+}

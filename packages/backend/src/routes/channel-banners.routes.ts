@@ -4,13 +4,15 @@
  * signing in, so the public route serves only server-generated file names.
  */
 
-import { Router } from 'express';
+import { Router, type Request } from 'express';
 import multer from 'multer';
 import rateLimit from 'express-rate-limit';
 import type { ChannelBannerList, HostedChannelBanner } from '@ts6/common';
 import { AppError } from '../middleware/error-handler.js';
 import { requireRole } from '../middleware/rbac.js';
 import { actorFromRequest, runRemoteAudited } from '../audit/index.js';
+import { translate } from '../i18n/index.js';
+import { requestLocale } from '../i18n/middleware.js';
 import { loadPublicUrl } from '../utils/app-settings.js';
 import {
   MAX_BANNER_BYTES,
@@ -57,12 +59,22 @@ channelBannerRoutes.get('/', async (req, res, next) => {
 // POST /api/channel-banners — upload one image (multipart field `file`).
 channelBannerRoutes.post('/', (req, res, next) => {
   bannerUpload(req, res, (error) => {
-    if (error) return next(new AppError(400, error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE' ? 'Banner must be at most 5 MB' : 'Upload exactly one PNG, JPEG, GIF or WebP image'));
+    if (error) {
+      const tooLarge = error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE';
+      return next(new AppError(400,
+        tooLarge ? 'Banner must be at most 5 MB' : 'Upload exactly one PNG, JPEG, GIF or WebP image',
+        undefined,
+        { messageKey: tooLarge ? 'errors.banner_too_large' : 'errors.upload_banner_hint' }));
+    }
     next();
   });
 }, async (req, res, next) => {
   try {
-    if (!req.file) throw new AppError(400, 'Upload exactly one PNG, JPEG, GIF or WebP image');
+    if (!req.file) {
+      throw new AppError(400, 'Upload exactly one PNG, JPEG, GIF or WebP image', undefined, {
+        messageKey: 'errors.upload_banner_hint',
+      });
+    }
     bannerImageType(req.file.buffer);
     const prisma = req.app.locals.prisma;
     const saved = await runRemoteAudited(prisma, {
@@ -77,11 +89,15 @@ channelBannerRoutes.post('/', (req, res, next) => {
 channelBannerRoutes.delete('/:name', async (req, res, next) => {
   try {
     const name = String(req.params.name);
-    if (!(await hasChannelBanner(name))) throw new AppError(404, 'Banner not found');
+    if (!(await hasChannelBanner(name))) {
+      throw new AppError(404, 'Banner not found', undefined, { messageKey: 'errors.banner_not_found' });
+    }
     await runRemoteAudited(req.app.locals.prisma, {
       actor: actorFromRequest(req.user), action: 'channel_banner.delete', target: { type: 'channel_banner', id: name },
     }, async () => {
-      if (!(await deleteChannelBanner(name))) throw new AppError(404, 'Banner not found');
+      if (!(await deleteChannelBanner(name))) {
+        throw new AppError(404, 'Banner not found', undefined, { messageKey: 'errors.banner_not_found' });
+      }
     });
     res.json({ success: true });
   } catch (err) { next(err); }
@@ -92,7 +108,7 @@ const publicBannerLimiter = rateLimit({
   max: 600,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many banner requests, please try again later' },
+  message: (req: Request) => ({ error: translate(requestLocale(req), 'errors.rate_limited_banner') }),
 });
 
 export const channelBannerPublicRoutes: Router = Router();
@@ -104,7 +120,7 @@ channelBannerPublicRoutes.get('/:name', publicBannerLimiter, async (req, res, ne
     const image = isBannerName(name) ? await readChannelBanner(name) : null;
     if (!image) {
       res.setHeader('Cache-Control', 'no-store');
-      throw new AppError(404, 'Banner not found');
+      throw new AppError(404, 'Banner not found', undefined, { messageKey: 'errors.banner_not_found' });
     }
     // Revalidate every time (Express's ETag makes that a cheap 304) so a
     // deleted banner stops showing instead of living on in client caches.

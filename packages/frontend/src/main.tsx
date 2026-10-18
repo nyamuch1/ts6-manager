@@ -4,7 +4,11 @@ import { App } from './App';
 import { installRemoteTokenCapture } from '@/lib/listener-remote-launch';
 import { evaluateSafeUiLatch } from '@/lib/safe-ui';
 import { stripEdgeReauthMarker } from '@/lib/edge-reauth';
+import { initI18n } from './i18n';
 import './styles/globals.css';
+
+// Resolve the persisted language before the first render to avoid a flash.
+initI18n();
 
 // Latch ?safe-ui=1 for this document before React mounts or custom CSS can inject.
 evaluateSafeUiLatch();

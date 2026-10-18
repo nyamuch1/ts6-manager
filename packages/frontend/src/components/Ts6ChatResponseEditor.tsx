@@ -1,4 +1,5 @@
 import { useCallback, useRef, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   AlignCenter,
   AlignJustify,
@@ -110,6 +111,7 @@ export function Ts6ChatResponseEditor({
   className,
   id,
 }: Ts6ChatResponseEditorProps) {
+  const { t } = useTranslation('bots');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const getSelection = (): TextSelection => {
@@ -152,165 +154,165 @@ export function Ts6ChatResponseEditor({
       )}
     >
       <div className="flex flex-wrap items-center gap-0.5 border-b border-border/60 bg-muted/30 px-1.5 py-1">
-        <ToolbarIconButton label="Bold" onClick={() => wrap('**', '**', 'bold')}>
+        <ToolbarIconButton label={t('chatEditor.bold')} onClick={() => wrap('**', '**', 'bold')}>
           <Bold className="h-3.5 w-3.5" />
         </ToolbarIconButton>
-        <ToolbarIconButton label="Italic" onClick={() => wrap('*', '*', 'italic')}>
+        <ToolbarIconButton label={t('chatEditor.italic')} onClick={() => wrap('*', '*', 'italic')}>
           <Italic className="h-3.5 w-3.5" />
         </ToolbarIconButton>
-        <ToolbarIconButton label="Strikethrough" onClick={() => wrap('~~', '~~', 'strike')}>
+        <ToolbarIconButton label={t('chatEditor.strikethrough')} onClick={() => wrap('~~', '~~', 'strike')}>
           <Strikethrough className="h-3.5 w-3.5" />
         </ToolbarIconButton>
-        <ToolbarIconButton label="Underline" onClick={() => wrap('<u>', '</u>', 'underline')}>
+        <ToolbarIconButton label={t('chatEditor.underline')} onClick={() => wrap('<u>', '</u>', 'underline')}>
           <Underline className="h-3.5 w-3.5" />
         </ToolbarIconButton>
 
         <div className="mx-0.5 h-4 w-px bg-border/80" />
 
         <ToolbarIconButton
-          label="Link"
+          label={t('chatEditor.link')}
           onClick={() => wrap('[', '](https://example.com)', 'link text')}
         >
           <Link className="h-3.5 w-3.5" />
         </ToolbarIconButton>
-        <ToolbarIconButton label="Blockquote" onClick={() => prefix('> ', 'quote')}>
+        <ToolbarIconButton label={t('chatEditor.blockquote')} onClick={() => prefix('> ', 'quote')}>
           <Pilcrow className="h-3.5 w-3.5" />
         </ToolbarIconButton>
-        <ToolbarIconButton label="Inline code" onClick={() => wrap('`', '`', 'code')}>
+        <ToolbarIconButton label={t('chatEditor.inlineCode')} onClick={() => wrap('`', '`', 'code')}>
           <Code className="h-3.5 w-3.5" />
         </ToolbarIconButton>
 
         <DropdownMenu>
-          <ToolbarMenuTrigger label="Lists">
+          <ToolbarMenuTrigger label={t('chatEditor.lists')}>
             <List className="h-3.5 w-3.5" />
           </ToolbarMenuTrigger>
           <DropdownMenuContent align="start" className="min-w-[10rem]">
             <DropdownMenuItem onClick={() => prefix('- ', 'item')}>
               <List className="h-4 w-4" />
-              Bulleted list
+              {t('chatEditor.bulletedList')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => prefix('1. ', 'item')}>
               <ListOrdered className="h-4 w-4" />
-              Numbered list
+              {t('chatEditor.numberedList')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => prefix('- [ ] ', 'task')}>
               <ListTodo className="h-4 w-4" />
-              Checklist
+              {t('chatEditor.checklist')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
         <DropdownMenu>
-          <ToolbarMenuTrigger label="Spoiler">
+          <ToolbarMenuTrigger label={t('chatEditor.spoiler')}>
             <EyeOff className="h-3.5 w-3.5" />
           </ToolbarMenuTrigger>
           <DropdownMenuContent align="start" className="min-w-[11rem]">
             <DropdownMenuItem onClick={() => wrap('||', '||', 'spoiler')}>
-              Inline spoiler
+              {t('chatEditor.inlineSpoiler')}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => wrap('[spoiler]', '[/spoiler]', 'hidden text')}
             >
-              BBCode spoiler
+              {t('chatEditor.bbcodeSpoiler')}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() =>
                 block('<details>\n<summary>Spoiler title</summary>\n\nHidden content\n</details>')
               }
             >
-              Details / summary block
+              {t('chatEditor.detailsSummary')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
         <DropdownMenu>
-          <ToolbarMenuTrigger label="Headings">
+          <ToolbarMenuTrigger label={t('chatEditor.headings')}>
             <Heading className="h-3.5 w-3.5" />
           </ToolbarMenuTrigger>
           <DropdownMenuContent align="start" className="min-w-[10rem]">
             <DropdownMenuItem onClick={() => prefix('# ', 'Heading 1')}>
-              Heading 1
+              {t('chatEditor.heading1')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => prefix('## ', 'Heading 2')}>
-              Heading 2
+              {t('chatEditor.heading2')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => prefix('### ', 'Heading 3')}>
-              Heading 3
+              {t('chatEditor.heading3')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => block('Setext title\n==============')}
             >
-              Setext H1
+              {t('chatEditor.setextH1')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => block('Setext title\n--------------')}>
-              Setext H2
+              {t('chatEditor.setextH2')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
         <DropdownMenu>
-          <ToolbarMenuTrigger label="Others">
-            <span className="text-[11px] font-medium">Others</span>
+          <ToolbarMenuTrigger label={t('chatEditor.others')}>
+            <span className="text-[11px] font-medium">{t('chatEditor.others')}</span>
           </ToolbarMenuTrigger>
           <DropdownMenuContent align="start" className="min-w-[12rem]">
             <DropdownMenuItem
               onClick={() => block('```\ncode block\n```')}
             >
               <Code2 className="h-4 w-4" />
-              Code block
+              {t('chatEditor.codeBlock')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => insert('[^1]', true)}>
               <Superscript className="h-4 w-4" />
-              Footnote ref
+              {t('chatEditor.footnoteRef')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => block('[^1]: Footnote text')}>
               <Subscript className="h-4 w-4" />
-              Footnote definition
+              {t('chatEditor.footnoteDefinition')}
             </DropdownMenuItem>
 
             <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-xs text-muted-foreground">Links</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-xs text-muted-foreground">{t('chatEditor.links')}</DropdownMenuLabel>
             <DropdownMenuItem onClick={() => insert('https://example.com', true)}>
               <Link2 className="h-4 w-4" />
-              Autolink URL
+              {t('chatEditor.autolinkUrl')}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => wrap('[', '][ref]', 'link text')}
             >
-              Reference link
+              {t('chatEditor.referenceLink')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => block('[ref]: https://example.com')}>
-              Reference definition
+              {t('chatEditor.referenceDefinition')}
             </DropdownMenuItem>
 
             <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-xs text-muted-foreground">Math</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-xs text-muted-foreground">{t('chatEditor.math')}</DropdownMenuLabel>
             <DropdownMenuItem onClick={() => wrap('$', '$', 'x^2')}>
               <FunctionSquare className="h-4 w-4" />
-              Inline math
+              {t('chatEditor.inlineMath')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => block('$$\nx = \\frac{-b}{2a}\n$$')}>
-              Block math
+              {t('chatEditor.blockMath')}
             </DropdownMenuItem>
 
             <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-xs text-muted-foreground">Align</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-xs text-muted-foreground">{t('chatEditor.align')}</DropdownMenuLabel>
             <DropdownMenuItem onClick={() => wrap('[left]', '[/left]', 'text')}>
               <AlignLeft className="h-4 w-4" />
-              Left
+              {t('chatEditor.left')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => wrap('[center]', '[/center]', 'text')}>
               <AlignCenter className="h-4 w-4" />
-              Center
+              {t('chatEditor.center')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => wrap('[right]', '[/right]', 'text')}>
               <AlignRight className="h-4 w-4" />
-              Right
+              {t('chatEditor.right')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => wrap('[justify]', '[/justify]', 'text')}>
               <AlignJustify className="h-4 w-4" />
-              Justify
+              {t('chatEditor.justify')}
             </DropdownMenuItem>
 
             <DropdownMenuSeparator />
@@ -320,11 +322,11 @@ export function Ts6ChatResponseEditor({
               }
             >
               <Network className="h-4 w-4" />
-              Mermaid diagram
+              {t('chatEditor.mermaidDiagram')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => wrap('==', '==', 'highlight')}>
               <Highlighter className="h-4 w-4" />
-              Highlight
+              {t('chatEditor.highlight')}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() =>
@@ -332,22 +334,22 @@ export function Ts6ChatResponseEditor({
               }
             >
               <Table className="h-4 w-4" />
-              Table
+              {t('chatEditor.table')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => insert('\n---\n')}>
               <Minus className="h-4 w-4" />
-              Thematic break
+              {t('chatEditor.thematicBreak')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => wrap('![alt](', ')', 'https://example.com/image.png')}>
-              Image
+              {t('chatEditor.image')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => wrap('[b]', '[/b]', 'bold')}>
-              BBCode bold
+              {t('chatEditor.bbcodeBold')}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => wrap('[color=#ff6600]', '[/color]', 'colored')}
             >
-              BBCode color
+              {t('chatEditor.bbcodeColor')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

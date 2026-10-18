@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,17 +23,8 @@ import {
 import { AddMediaLink } from './AddMediaLink';
 import type { ConsoleSourceContext } from './SourcePicker';
 
-const LINK_LABEL = 'YouTube, Twitch, direct link, or a file already in the music folder';
-const FOLDER_HINT = 'Music-folder files play from the Music tab.';
-
-/** Wording for the start button and its error, by what a press will do. */
-function linkAction(mode: LinkPlayMode, videoStreaming: boolean): { label: string; failed: string } {
-  if (mode !== 'video') return { label: 'Play as music', failed: 'Failed to play URL' };
-  if (videoStreaming) return { label: 'Queue as video', failed: 'Failed to queue the video' };
-  return { label: 'Stream as video', failed: 'Failed to start stream' };
-}
-
 export function LinkSource({ botId, serverConfigId }: ConsoleSourceContext) {
+  const { t } = useTranslation('bots');
   const [input, setInput] = useState('');
   const [mode, setMode] = useState<LinkPlayMode>('music');
   const [options, setOptions, optionsLoading, defaults] = useVideoStartOptions(serverConfigId);
@@ -51,8 +43,12 @@ export function LinkSource({ botId, serverConfigId }: ConsoleSourceContext) {
   const busy = playUrl.isPending || startVideo.isPending || queueVideo.isPending;
   const error = effectiveMode === 'video' ? startVideo.error ?? queueVideo.error : playUrl.error;
   const canStart = trimmed.length > 0 && !busy && !(effectiveMode === 'video' && optionsLoading);
-  const action = linkAction(effectiveMode, videoStreaming);
-  const busyLabel = queueVideo.isPending && videoStreaming ? 'Adding…' : 'Starting…';
+  const action = effectiveMode !== 'video'
+    ? { label: t('linkSource.playAsMusic'), failed: t('linkSource.playFailed') }
+    : videoStreaming
+      ? { label: t('linkSource.queueAsVideo'), failed: t('linkSource.queueFailed') }
+      : { label: t('linkSource.streamAsVideo'), failed: t('linkSource.startFailed') };
+  const busyLabel = queueVideo.isPending && videoStreaming ? t('linkSource.adding') : t('linkSource.starting');
 
   useEffect(() => {
     if (trimmed && !musicPlayAllowed(input) && mode === 'music') setMode('video');
@@ -74,7 +70,7 @@ export function LinkSource({ botId, serverConfigId }: ConsoleSourceContext) {
       startVideo.reset();
       queueVideo.mutate(
         { botId, ...request.body },
-        { onSuccess: (data) => toastMediaStarted(queuedVideoToast(data)) },
+        { onSuccess: (data) => toastMediaStarted(queuedVideoToast(data, t)) },
       );
       return;
     }
@@ -83,7 +79,7 @@ export function LinkSource({ botId, serverConfigId }: ConsoleSourceContext) {
       startVideo.reset();
       playUrl.mutate(
         { botId, url: request.body.url },
-        { onSuccess: () => toastMediaStarted('Playing URL') },
+        { onSuccess: () => toastMediaStarted(t('linkSource.toasts.playingUrl')) },
       );
       return;
     }
@@ -92,7 +88,7 @@ export function LinkSource({ botId, serverConfigId }: ConsoleSourceContext) {
       { botId, ...request.body },
       {
         onSuccess: (data: { alreadyRunning?: boolean }) => {
-          toastMediaStarted(data?.alreadyRunning ? 'Already streaming' : 'Video stream started');
+          toastMediaStarted(data?.alreadyRunning ? t('linkSource.toasts.alreadyStreaming') : t('linkSource.toasts.streamStarted'));
         },
       },
     );
@@ -101,22 +97,22 @@ export function LinkSource({ botId, serverConfigId }: ConsoleSourceContext) {
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
-        <Label htmlFor="console-link-input">{LINK_LABEL}</Label>
+        <Label htmlFor="console-link-input">{t('linkSource.inputLabel')}</Label>
         <div className="flex flex-wrap items-center gap-2">
           <Input
             id="console-link-input"
             className="h-11 min-w-0 flex-1 basis-48"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="https://… or filename.mp4"
+            placeholder={t('linkSource.inputPlaceholder')}
             autoComplete="off"
           />
-          <AddMediaLink to="/media-bots" label="Add files" />
+          <AddMediaLink to="/media-bots" label={t('linkSource.addFiles')} />
         </div>
       </div>
 
       <fieldset className="space-y-2">
-        <legend className="mb-2 text-sm font-medium">How should the bot play it?</legend>
+        <legend className="mb-2 text-sm font-medium">{t('linkSource.modeLegend')}</legend>
         <label
           className={cn(
             'flex min-h-11 cursor-pointer items-start gap-3 rounded-md border px-3 py-2.5 text-sm transition-colors',
@@ -136,12 +132,12 @@ export function LinkSource({ botId, serverConfigId }: ConsoleSourceContext) {
             onChange={() => setMode('music')}
           />
           <span className="min-w-0">
-            <span id="console-link-music-label" className="block font-medium">Play as music</span>
-            <span id="console-link-music-hint" className="block text-xs text-muted-foreground">Audio only, goes in the queue</span>
+            <span id="console-link-music-label" className="block font-medium">{t('linkSource.playAsMusic')}</span>
+            <span id="console-link-music-hint" className="block text-xs text-muted-foreground">{t('linkSource.playAsMusicHint')}</span>
           </span>
         </label>
         {!allowMusic && input.trim() && (
-          <p className="px-1 text-xs text-muted-foreground">{FOLDER_HINT}</p>
+          <p className="px-1 text-xs text-muted-foreground">{t('linkSource.folderHint')}</p>
         )}
         <label
           className={cn(
@@ -160,8 +156,8 @@ export function LinkSource({ botId, serverConfigId }: ConsoleSourceContext) {
             onChange={() => setMode('video')}
           />
           <span className="min-w-0">
-            <span id="console-link-video-label" className="block font-medium">Stream as video</span>
-            <span id="console-link-video-hint" className="block text-xs text-muted-foreground">Picture and sound in the channel</span>
+            <span id="console-link-video-label" className="block font-medium">{t('linkSource.streamAsVideo')}</span>
+            <span id="console-link-video-hint" className="block text-xs text-muted-foreground">{t('linkSource.streamAsVideoHint')}</span>
           </span>
         </label>
       </fieldset>

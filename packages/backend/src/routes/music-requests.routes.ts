@@ -1,6 +1,8 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { requireRole } from '../middleware/rbac.js';
 import { AppError } from '../middleware/error-handler.js';
+import { translate } from '../i18n/index.js';
+import { requestLocale } from '../i18n/middleware.js';
 import { parseReplaceSessionIds } from '../voice/media-session.js';
 import { runMediaAudited } from './media-audit.js';
 import { createPlayUrlHandler } from './music-bots.routes.js';
@@ -26,9 +28,13 @@ export const musicRequestRoutes: Router = Router({ mergeParams: true });
 musicRequestRoutes.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const configId = Number(req.params.configId);
-    if (!Number.isSafeInteger(configId) || configId <= 0) return res.status(400).json({ error: 'Invalid config id' });
+    if (!Number.isSafeInteger(configId) || configId <= 0) {
+      return res.status(400).json({ error: translate(requestLocale(req), 'errors.invalid_config_id') });
+    }
     const botId = req.query.botId == null ? undefined : Number(req.query.botId);
-    if (botId !== undefined && (typeof req.query.botId !== 'string' || !Number.isSafeInteger(botId) || botId <= 0)) return res.status(400).json({ error: 'Invalid bot id' });
+    if (botId !== undefined && (typeof req.query.botId !== 'string' || !Number.isSafeInteger(botId) || botId <= 0)) {
+      return res.status(400).json({ error: translate(requestLocale(req), 'errors.invalid_bot_id') });
+    }
 
     await pruneMusicRequests(req.app.locals.prisma, configId, 0);
     await pruneOrphanMusicRequests(req.app.locals.prisma, configId);
@@ -53,7 +59,9 @@ musicRequestRoutes.post('/:id/replay', requireRole('admin'), async (req: Request
     const enqueue = Boolean(req.body?.enqueue);
     if (![configId, requestId, botId].every((id) => Number.isSafeInteger(id) && id > 0)
       || (req.body?.enqueue !== undefined && typeof req.body.enqueue !== 'boolean')) {
-      throw new AppError(400, 'Invalid replay request');
+      throw new AppError(400, 'Invalid replay request', undefined, {
+        messageKey: 'errors.invalid_replay_request',
+      });
     }
 
     const prisma = req.app.locals.prisma;
@@ -62,25 +70,41 @@ musicRequestRoutes.post('/:id/replay', requireRole('admin'), async (req: Request
     const arrivalBot = manager.getBot(botId);
     const arrivalGeneration = arrivalBot?.stopGeneration;
     const row = await prisma.musicRequest.findFirst({ where: { id: requestId, serverConfigId: configId } });
-    if (!row) throw new AppError(404, 'Request not found');
+    if (!row) {
+      throw new AppError(404, 'Request not found', undefined, { messageKey: 'errors.request_not_found' });
+    }
 
     const bot = manager.getBot(botId);
-    if (bot?.currentConfig.serverConfigId !== configId) throw new AppError(404, 'Music bot not found');
+    if (bot?.currentConfig.serverConfigId !== configId) {
+      throw new AppError(404, 'Music bot not found', undefined, { messageKey: 'errors.music_bot_not_found' });
+    }
     // The generation is per bot instance, so a bot replaced during the lookup cannot be compared.
-    if (arrivalBot && arrivalBot !== bot) throw new AppError(409, 'Bot changed during replay. Try again.');
+    if (arrivalBot && arrivalBot !== bot) {
+      throw new AppError(409, 'Bot changed during replay. Try again.', undefined, {
+        messageKey: 'errors.bot_changed_replay',
+      });
+    }
 
     const serverPort = bot.currentConfig.serverPort;
     const stopGeneration = arrivalGeneration ?? bot.stopGeneration;
     const assertCurrentBot = () => {
       if (manager.getBot(botId) !== bot || bot.currentConfig.serverConfigId !== configId
-        || bot.currentConfig.serverPort !== serverPort) throw new AppError(409, 'Bot changed during replay. Try again.');
-      if (bot.stopGeneration !== stopGeneration) throw new AppError(409, 'Playback was stopped before the replay started.');
+        || bot.currentConfig.serverPort !== serverPort) {
+        throw new AppError(409, 'Bot changed during replay. Try again.', undefined, {
+          messageKey: 'errors.bot_changed_replay',
+        });
+      }
+      if (bot.stopGeneration !== stopGeneration) {
+        throw new AppError(409, 'Playback was stopped before the replay started.', undefined, {
+          messageKey: 'errors.playback_stopped_before_replay',
+        });
+      }
     };
     const ref = await replayReference(row);
     assertCurrentBot();
     if (!ref.ok) {
       await markMusicRequestUnavailable(prisma, row.id);
-      throw new AppError(410, MEDIA_UNAVAILABLE);
+      throw new AppError(410, MEDIA_UNAVAILABLE, undefined, { messageKey: 'errors.media_unavailable' });
     }
 
     if (ref.kind === 'url') {
@@ -90,13 +114,13 @@ musicRequestRoutes.post('/:id/replay', requireRole('admin'), async (req: Request
       return createPlayUrlHandler({ ...deps, downloadTrack: async (url: string) => {
         try { return await deps.downloadTrack(url); }
         catch (error) {
-          if (isUnavailableMusicRequestError(error)) throw new AppError(410, MEDIA_UNAVAILABLE);
+          if (isUnavailableMusicRequestError(error)) throw new AppError(410, MEDIA_UNAVAILABLE, undefined, { messageKey: 'errors.media_unavailable' });
           throw error;
         }
       } })(req, res, (err) => {
         if (err instanceof AppError && err.statusCode === 410) {
           void markMusicRequestUnavailable(prisma, row.id).then(
-            () => next(new AppError(410, MEDIA_UNAVAILABLE)),
+            () => next(new AppError(410, MEDIA_UNAVAILABLE, undefined, { messageKey: 'errors.media_unavailable' })),
             next,
           );
           return;
@@ -109,7 +133,11 @@ musicRequestRoutes.post('/:id/replay', requireRole('admin'), async (req: Request
       ? { id: `history_${row.id}`, title: row.title, artist: row.artist ?? undefined, duration: row.duration ?? undefined, filePath: ref.filePath, source: 'local' }
       : { id: `history_${row.id}`, title: row.title, artist: row.artist ?? undefined, filePath: '', source: 'radio', streamUrl: ref.url };
     if (bot.status !== 'connected' && bot.status !== 'playing' && bot.status !== 'paused') {
-      throw new AppError(400, 'Bot is not connected');
+      throw new AppError(400, 'Bot is not connected', undefined, {
+        messageKey: 'errors.bot_not_connected',
+        reason: 'bot_not_connected',
+        retryable: true,
+      });
     }
     if (enqueue) {
       bot.queue.add(item);

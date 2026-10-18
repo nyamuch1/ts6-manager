@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ElementType, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -19,7 +20,7 @@ import { useServers, useVirtualServers } from '@/hooks/use-servers';
 import { useServerStore } from '@/stores/server.store';
 import { useAuthStore } from '@/stores/auth.store';
 import { NUDGE_DISMISS_STORAGE_KEY } from '@/content/connection-setup';
-import { classifyPacketLoss, classifyPing, METRIC_HEALTH_LABEL, type MetricHealth } from '@/lib/connection-health';
+import { classifyPacketLoss, classifyPing, METRIC_HEALTH_LABEL_KEY, type MetricHealth } from '@/lib/connection-health';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -74,6 +75,7 @@ const chartColours = {
 };
 
 function Metric({ label, value, icon: Icon, health = 'normal' }: { label: string; value: string | number; icon: ElementType; health?: MetricHealth }) {
+  const { t } = useTranslation('dashboard');
   return (
     <div
       data-health={health}
@@ -90,7 +92,7 @@ function Metric({ label, value, icon: Icon, health = 'normal' }: { label: string
         {health !== 'normal' && (
           <Badge variant={health === 'high' ? 'destructive' : 'warning'} className="ml-auto shrink-0 px-1.5 text-[10px]">
             <AlertTriangle className="mr-1 h-3 w-3" aria-hidden="true" />
-            {METRIC_HEALTH_LABEL[health]}
+            {t(METRIC_HEALTH_LABEL_KEY[health])}
           </Badge>
         )}
       </div>
@@ -118,6 +120,7 @@ function DetailRow({ label, children }: { label: string; children: ReactNode }) 
 }
 
 export default function Dashboard() {
+  const { t } = useTranslation('dashboard');
   const { selectedConfigId, selectedSid } = useServerStore();
   const { data: servers } = useServers();
   const {
@@ -189,16 +192,16 @@ export default function Dashboard() {
           <Card className="border-primary/30 bg-primary/5">
             <CardContent className="flex flex-col items-start gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm">
-                <p className="font-medium">Connect your TeamSpeak server to get started</p>
+                <p className="font-medium">{t('page.nudgeTitle')}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  Add a connection under Settings to manage channels, clients, bots, and more.
+                  {t('page.nudgeDescription')}
                 </p>
               </div>
               <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0">
                 <Button size="sm" asChild>
-                  <Link to={CONNECTION_SETUP_PATH}>Go to Connections</Link>
+                  <Link to={CONNECTION_SETUP_PATH}>{t('page.goToConnections')}</Link>
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={dismissNudge} aria-label="Dismiss connection setup suggestion">
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={dismissNudge} aria-label={t('page.dismissNudge')}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
@@ -207,14 +210,14 @@ export default function Dashboard() {
         )}
         <EmptyState
           icon={Server}
-          title={hasNoConnections ? 'No server connection configured' : 'No server selected'}
+          title={hasNoConnections ? t('common:noServer.noneConfigured') : t('common:noServer.selected')}
           description={hasNoConnections
-            ? 'Use the setup wizard in Settings → Connections to add your TeamSpeak server.'
-            : 'Select a server connection from the header to view the dashboard.'}
+            ? t('common:noServer.setupHint')
+            : t('page.selectFromHeader')}
         >
           {hasNoConnections && !showConnectionNudge && (
             <Button size="sm" asChild>
-              <Link to={CONNECTION_SETUP_PATH}>Open connection setup</Link>
+              <Link to={CONNECTION_SETUP_PATH}>{t('common:noServer.openSetup')}</Link>
             </Button>
           )}
         </EmptyState>
@@ -231,15 +234,15 @@ export default function Dashboard() {
       const detail = apiErrorMessage(
         gateError,
         isTeamSpeakStarting(gateError)
-          ? 'TeamSpeak Query is still coming up after startup. Wait a moment and retry.'
-          : 'Could not connect to the TeamSpeak server. Check your connection settings.',
+          ? t('errors.queryStarting')
+          : t('errors.connectFailed'),
       );
       return (
         <div className="space-y-4">
           <EmptyState icon={Wifi} title={teamSpeakConnectionTitle(gateError)} description={detail} />
           <div className="flex justify-center">
             <Button size="sm" variant="outline" onClick={retryGate} disabled={isFetchingGate}>
-              {isFetchingGate ? 'Retrying…' : 'Retry connection'}
+              {isFetchingGate ? t('common:refresh.retrying') : t('errors.retryConnection')}
             </Button>
           </div>
         </div>
@@ -250,12 +253,12 @@ export default function Dashboard() {
       <div className="space-y-4">
         <EmptyState
           icon={Wifi}
-          title="Connection failed"
-          description="Could not connect to the TeamSpeak server. Check your connection settings."
+          title={t('errors.connectionFailed')}
+          description={t('errors.connectFailed')}
         />
         <div className="flex justify-center">
           <Button size="sm" variant="outline" onClick={retryGate} disabled={isFetchingGate}>
-            {isFetchingGate ? 'Retrying…' : 'Retry connection'}
+            {isFetchingGate ? t('common:refresh.retrying') : t('errors.retryConnection')}
           </Button>
         </div>
       </div>
@@ -274,8 +277,8 @@ export default function Dashboard() {
     ? apiErrorMessage(
       gateError,
       isTeamSpeakStarting(gateError)
-        ? 'TeamSpeak Query is still starting. Live data may be incomplete until it comes online.'
-        : 'Live data refresh failed. The last successful snapshot is still displayed.',
+        ? t('errors.liveStarting')
+        : t('errors.liveRefreshFailed'),
     )
     : null;
   // Cached snapshot + Query still warming (or selected sid not in VS list yet) must not claim Live.
@@ -287,11 +290,11 @@ export default function Dashboard() {
     <div className="min-w-0 space-y-5">
       <PageHeader
         title={data.serverName}
-        description="Live TeamSpeak server overview"
-        badge={<Badge variant="success" className="font-mono-data text-[10px]">ONLINE</Badge>}
+        description={t('page.overviewDescription')}
+        badge={<Badge variant="success" className="font-mono-data text-[10px]">{t('status.onlineBadge')}</Badge>}
         actions={isAdmin ? (
           <Button size="sm" variant="outline" onClick={() => setShowWidgets(true)}>
-            <LayoutGrid className="mr-1.5 h-3.5 w-3.5" /> Widgets
+            <LayoutGrid className="mr-1.5 h-3.5 w-3.5" /> {t('page.widgets')}
           </Button>
         ) : undefined}
         metadata={(
@@ -306,10 +309,10 @@ export default function Dashboard() {
             <RefreshStatus
               isRefreshing={isFetchingGate}
               tone={refreshTone}
-              idleLabel="Live monitoring active"
-              refreshingLabel="Refreshing live data…"
-              degradedLabel="Live updates interrupted"
-              startingLabel="Waiting for TeamSpeak Query…"
+              idleLabel={t('refresh.liveMonitoring')}
+              refreshingLabel={t('refresh.refreshingLive')}
+              degradedLabel={t('refresh.liveInterrupted')}
+              startingLabel={t('common:refresh.waiting')}
             />
           </div>
         )}
@@ -324,22 +327,22 @@ export default function Dashboard() {
       )}
 
       <DataPanel
-        title="Server Status"
-        description="Availability, utilisation, and connection health"
-        status={<Badge variant="success">Online</Badge>}
+        title={t('serverStatus.title')}
+        description={t('serverStatus.description')}
+        status={<Badge variant="success">{t('common:state.online')}</Badge>}
       >
         <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
           <div className="min-w-0 rounded-lg border border-primary/20 bg-primary/5 p-4 sm:p-5">
             <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Online users</p>
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{t('serverStatus.onlineUsers')}</p>
                 <p className="mt-1 font-mono-data text-3xl font-bold text-primary">{formatNumber(data.onlineUsers)} / {formatNumber(data.maxClients)}</p>
               </div>
-              <p className="font-mono-data text-sm text-muted-foreground">{roundedUtilisation}% utilised</p>
+              <p className="font-mono-data text-sm text-muted-foreground">{t('serverStatus.utilised', { percent: roundedUtilisation })}</p>
             </div>
             <div
               role="progressbar"
-              aria-label="User slot utilisation"
+              aria-label={t('serverStatus.utilisationLabel')}
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={roundedUtilisation}
@@ -351,23 +354,26 @@ export default function Dashboard() {
               />
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              {formatNumber(availableSlots)} {availableSlots === 1 ? 'slot' : 'slots'} available
+              {t('serverStatus.slotsAvailable', {
+                count: availableSlots,
+                formatted: formatNumber(availableSlots),
+              })}
             </p>
           </div>
 
           <div className="grid min-w-0 grid-cols-2 gap-3">
-            <Metric icon={Hash} label="Channels" value={formatNumber(data.channelCount)} />
-            <Metric icon={Clock} label="Uptime" value={formatUptime(data.uptime)} />
-            <Metric icon={Gauge} label="Ping" value={`${pingMs.toFixed(1)} ms`} health={classifyPing(pingMs)} />
-            <Metric icon={Radio} label="Packet loss" value={`${packetLossPercent.toFixed(2)}%`} health={classifyPacketLoss(packetLossPercent / 100)} />
+            <Metric icon={Hash} label={t('metric.channels')} value={formatNumber(data.channelCount)} />
+            <Metric icon={Clock} label={t('metric.uptime')} value={formatUptime(data.uptime)} />
+            <Metric icon={Gauge} label={t('metric.ping')} value={`${pingMs.toFixed(1)} ms`} health={classifyPing(pingMs)} />
+            <Metric icon={Radio} label={t('metric.packetLoss')} value={`${packetLossPercent.toFixed(2)}%`} health={classifyPacketLoss(packetLossPercent / 100)} />
           </div>
         </div>
       </DataPanel>
 
       <div className="grid min-w-0 gap-4 lg:grid-cols-3">
         <DataPanel
-          title="Traffic"
-          description="Incoming and outgoing bandwidth over the latest local samples"
+          title={t('traffic.title')}
+          description={t('traffic.description')}
           className="lg:col-span-2"
         >
           <div className="h-[240px] min-w-0">
@@ -389,7 +395,10 @@ export default function Dashboard() {
                   <ReTooltip
                     contentStyle={{ background: chartColours.popover, border: `1px solid ${chartColours.border}`, borderRadius: '6px', fontSize: '12px' }}
                     labelStyle={{ color: chartColours.popoverForeground }}
-                    formatter={(value: number, name: string) => [`${formatBytes(value)}/s`, name === 'incoming' ? 'Incoming' : 'Outgoing']}
+                    formatter={(value: number, name: string) => [
+                      `${formatBytes(value)}/s`,
+                      name === 'incoming' ? t('traffic.incoming') : t('traffic.outgoing'),
+                    ]}
                   />
                   <Area type="monotone" dataKey="incoming" stroke={chartColours.incoming} fill="url(#dashboard-incoming)" strokeWidth={2} isAnimationActive={false} />
                   <Area type="monotone" dataKey="outgoing" stroke={chartColours.outgoing} fill="url(#dashboard-outgoing)" strokeWidth={2} isAnimationActive={false} />
@@ -397,30 +406,30 @@ export default function Dashboard() {
               </ResponsiveContainer>
             ) : (
               <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
-                Collecting bandwidth samples…
+                {t('traffic.collecting')}
               </div>
             )}
           </div>
           <div className="mt-3 grid gap-2 border-t border-border pt-3 sm:grid-cols-2">
             <div data-traffic-series="incoming" className="flex min-w-0 items-center gap-2 text-primary">
               <ArrowDownToLine className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span className="text-xs text-muted-foreground">Incoming</span>
+              <span className="text-xs text-muted-foreground">{t('traffic.incoming')}</span>
               <span className="ml-auto font-mono-data text-sm">{formatBytes(data.bandwidth.incoming)}/s</span>
             </div>
             <div data-traffic-series="outgoing" className="flex min-w-0 items-center gap-2 [color:hsl(var(--chart-3))]">
               <ArrowUpFromLine className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span className="text-xs text-muted-foreground">Outgoing</span>
+              <span className="text-xs text-muted-foreground">{t('traffic.outgoing')}</span>
               <span className="ml-auto font-mono-data text-sm">{formatBytes(data.bandwidth.outgoing)}/s</span>
             </div>
           </div>
         </DataPanel>
 
-        <DataPanel title="Runtime & Capacity" description="Runtime identity and available capacity">
+        <DataPanel title={t('runtime.title')} description={t('runtime.description')}>
           <dl className="min-w-0">
-            <DetailRow label="Server version">{data.version || 'Unknown'}</DetailRow>
-            <DetailRow label="Platform">{data.platform || 'Unknown'}</DetailRow>
-            <DetailRow label="Total slots">{formatNumber(data.maxClients)}</DetailRow>
-            <DetailRow label="Available slots">{formatNumber(availableSlots)}</DetailRow>
+            <DetailRow label={t('runtime.serverVersion')}>{data.version || t('common:state.unknown')}</DetailRow>
+            <DetailRow label={t('runtime.platform')}>{data.platform || t('common:state.unknown')}</DetailRow>
+            <DetailRow label={t('runtime.totalSlots')}>{formatNumber(data.maxClients)}</DetailRow>
+            <DetailRow label={t('runtime.availableSlots')}>{formatNumber(availableSlots)}</DetailRow>
           </dl>
         </DataPanel>
       </div>

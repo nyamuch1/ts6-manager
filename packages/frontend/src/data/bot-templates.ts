@@ -1,3 +1,4 @@
+import type { TFunction } from 'i18next';
 import { AlarmClock, Bell, CalendarClock, Clock, Users, Shield, Globe, Zap, MessageSquare, Moon, Timer, Megaphone, Award, FolderPlus, Eye, Webhook, Sparkles } from 'lucide-react';
 
 export interface TemplateConfigField {
@@ -18,19 +19,218 @@ export interface BotTemplate {
   icon: React.ElementType;
   configFields: TemplateConfigField[];
   /** Extra checks beyond non-empty required fields (numeric ids, conditional channel). */
-  validateConfig?: (config: Record<string, string>) => string | null;
+  validateConfig?: (config: Record<string, string>, t?: TFunction<'bots'>) => string | null;
   flowDataFactory: (config: Record<string, string>) => { nodes: any[]; edges: any[] };
 }
 
-export function templateConfigError(template: BotTemplate, config: Record<string, string>): string | null {
-  for (const field of template.configFields) {
-    if (field.required && !String(config[field.key] ?? '').trim()) return `${field.label} is required`;
-  }
-  return template.validateConfig?.(config) ?? null;
+/** Translation keys for the config-field labels shown in the template gallery. */
+const FIELD_KEYS: Record<string, string> = {
+  'Channel ID': 'templates.fields.channelId',
+  'Timezone': 'templates.fields.timezone',
+  'Uptime Channel ID': 'templates.fields.uptimeChannelId',
+  'Clients Channel ID': 'templates.fields.clientsChannelId',
+  'Channel Count Channel ID': 'templates.fields.channelCountChannelId',
+  'Display Text': 'templates.fields.displayText',
+  'Animation Style': 'templates.fields.animationStyle',
+  'Speed': 'templates.fields.speed',
+  'Channel Name Prefix': 'templates.fields.channelNamePrefix',
+  'Suppress edit events': 'templates.fields.suppressEditEvents',
+  'Welcome Message': 'templates.fields.welcomeMessage',
+  'Delivery Method': 'templates.fields.deliveryMethod',
+  'Support Channel ID': 'templates.fields.supportChannelId',
+  'Admin Group ID': 'templates.fields.adminGroupId',
+  'Notification Message': 'templates.fields.notificationMessage',
+  'Lobby Channel ID': 'templates.fields.lobbyChannelId',
+  'Parent Channel ID': 'templates.fields.parentChannelId',
+  'Ranks (JSON)': 'templates.fields.ranksJson',
+  'Check Interval': 'templates.fields.checkInterval',
+  'Staff Group ID': 'templates.fields.staffGroupId',
+  'Message': 'templates.fields.message',
+  'Schedule': 'templates.fields.schedule',
+  'Audience': 'templates.fields.audience',
+  'AFK Channel ID': 'templates.fields.afkChannelId',
+  'Idle Threshold (seconds)': 'templates.fields.idleThreshold',
+  'Exempt Group IDs (comma-separated)': 'templates.fields.exemptGroupIds',
+  'Kick Reason': 'templates.fields.kickReason',
+  'Bad Words (comma-separated)': 'templates.fields.badWords',
+  'Protected Group ID': 'templates.fields.protectedGroupId',
+  'Authorized Group ID': 'templates.fields.authorizedGroupId',
+  'Action': 'templates.fields.action',
+  'Webhook Path': 'templates.fields.webhookPath',
+  'Secret (optional)': 'templates.fields.secretOptional',
+  'Server Group ID to assign': 'templates.fields.serverGroupIdAssign',
+  'Channel ID to update': 'templates.fields.channelIdToUpdate',
+  'Channel Name Template': 'templates.fields.channelNameTemplate',
+  'API URL (use {{ip}} placeholder)': 'templates.fields.apiUrl',
+  'Action for VPN': 'templates.fields.actionForVpn',
+};
+
+/** Translation keys for config-field placeholders that contain prose. */
+const PLACEHOLDER_KEYS: Record<string, { key: string; token?: string }> = {
+  'Welcome to MyServer': { key: 'templates.placeholders.welcomeToMyServer' },
+  'Welcome {{event.client_nickname}}!': { key: 'templates.placeholders.welcomeMessage', token: '{{event.client_nickname}}' },
+  'Support needed by {{event.client_nickname}}!': { key: 'templates.placeholders.supportNeeded', token: '{{event.client_nickname}}' },
+  'Announcement {{time.date}}': { key: 'templates.placeholders.announcement', token: '{{time.date}}' },
+  'Idle timeout': { key: 'templates.placeholders.idleTimeout' },
+  'Forbidden nickname': { key: 'templates.placeholders.forbiddenNickname' },
+};
+
+/** Translation keys for config select options; timezone names stay as they are. */
+const OPTION_KEYS: Record<string, string> = {
+  'Scroll Left (Marquee)': 'editor.fields.animations.scroll',
+  'Typewriter': 'editor.fields.animations.typewriter',
+  'Bounce': 'editor.fields.animations.bounce',
+  'Blink': 'editor.fields.animations.blink',
+  'Wave (Decorative)': 'editor.fields.animations.wave',
+  'Alternate Case': 'editor.fields.animations.alternateCase',
+  'Normal (10s)': 'editor.fields.speeds.normal',
+  'Relaxed (15s)': 'editor.fields.speeds.relaxed',
+  'Calm (30s)': 'editor.fields.speeds.calm',
+  'Slow (60s)': 'editor.fields.speeds.slow',
+  'Yes (recommended)': 'editor.fields.yesRecommended',
+  'No': 'editor.fields.no',
+  'Private Message': 'templates.options.privateMessage',
+  'Poke': 'templates.options.poke',
+  'Every 5 min': 'templates.options.every5Min',
+  'Every 15 min': 'templates.options.every15Min',
+  'Every hour': 'templates.options.everyHour',
+  'Daily at 09:00': 'templates.options.dailyAt9',
+  'Hourly': 'templates.options.hourly',
+  'Mondays at 09:00': 'templates.options.mondaysAt9',
+  'Whole server': 'templates.options.wholeServer',
+  'One channel': 'templates.options.oneChannel',
+  'Kick': 'templates.options.kick',
+  'Remove Group': 'templates.options.removeGroup',
+  'Ban (1h)': 'templates.options.ban1h',
+};
+
+/** Translation keys for the default node labels written into template flows. */
+const FLOW_LABEL_KEYS: Record<string, string> = {
+  'Every Minute': 'templates.flowLabels.everyMinute',
+  'Every 5 Min': 'templates.flowLabels.every5Min',
+  'Client Enter': 'templates.flowLabels.clientEnter',
+  'Client Leave': 'templates.flowLabels.clientLeave',
+  'Client Moved': 'templates.flowLabels.clientMoved',
+  'Support Command': 'templates.flowLabels.supportCommand',
+  'Remind Command': 'templates.flowLabels.remindCommand',
+  'Announcement Schedule': 'templates.flowLabels.announcementSchedule',
+  'AFK Check': 'templates.flowLabels.afkCheck',
+  'Idle Check': 'templates.flowLabels.idleCheck',
+  'Incoming Webhook': 'templates.flowLabels.incomingWebhook',
+  'Verification Webhook': 'templates.flowLabels.verificationWebhook',
+  'Status Webhook': 'templates.flowLabels.statusWebhook',
+  'Rank Timer': 'templates.flowLabels.rankTimer',
+  'Cleanup Timer': 'templates.flowLabels.cleanupTimer',
+  'Update Clock': 'templates.flowLabels.updateClock',
+  'Get Server Info': 'templates.flowLabels.getServerInfo',
+  'Update Counter': 'templates.flowLabels.updateCounter',
+  'Uptime': 'templates.flowLabels.uptime',
+  'Clients': 'templates.flowLabels.clients',
+  'Channels': 'templates.flowLabels.channels',
+  'Animated Channel': 'templates.flowLabels.animatedChannel',
+  'Is Human?': 'templates.flowLabels.isHuman',
+  'Welcome Poke': 'templates.flowLabels.welcomePoke',
+  'Welcome Msg': 'templates.flowLabels.welcomeMsg',
+  'Joined Support?': 'templates.flowLabels.joinedSupport',
+  'Get Client Info': 'templates.flowLabels.getClientInfo',
+  'Notify Admins': 'templates.flowLabels.notifyAdmins',
+  'Joined Lobby?': 'templates.flowLabels.joinedLobby',
+  'Create Channel': 'templates.flowLabels.createChannel',
+  'Move to Channel': 'templates.flowLabels.moveToChannel',
+  'Delete Empty Channels': 'templates.flowLabels.deleteEmptyChannels',
+  'Check Ranks': 'templates.flowLabels.checkRanks',
+  'Store Timestamp': 'templates.flowLabels.storeTimestamp',
+  'Log Leave': 'templates.flowLabels.logLeave',
+  'Has Topic?': 'templates.flowLabels.hasTopic',
+  'Create Ticket Channel': 'templates.flowLabels.createTicketChannel',
+  'Move Requester': 'templates.flowLabels.moveRequester',
+  'Poke Staff': 'templates.flowLabels.pokeStaff',
+  'Delete Empty Tickets': 'templates.flowLabels.deleteEmptyTickets',
+  'Has Reminder Text?': 'templates.flowLabels.hasReminderText',
+  'Wait': 'templates.flowLabels.wait',
+  'Private Reminder': 'templates.flowLabels.privateReminder',
+  'Announce': 'templates.flowLabels.announce',
+  'Move AFK': 'templates.flowLabels.moveAfk',
+  'Kick Idle': 'templates.flowLabels.kickIdle',
+  'Bad Name?': 'templates.flowLabels.badName',
+  'Kick Bad Name': 'templates.flowLabels.kickBadName',
+  'Has Protected?': 'templates.flowLabels.hasProtected',
+  'Missing Auth?': 'templates.flowLabels.missingAuth',
+  'Remove Group': 'templates.flowLabels.removeGroup',
+  'Kick Intruder': 'templates.flowLabels.kickIntruder',
+  'Broadcast Message': 'templates.flowLabels.broadcastMessage',
+  'Add to Group': 'templates.flowLabels.addToGroup',
+  'Log Result': 'templates.flowLabels.logResult',
+  'Update Channel': 'templates.flowLabels.updateChannel',
+  'Check VPN API': 'templates.flowLabels.checkVpnApi',
+  'Is VPN?': 'templates.flowLabels.isVpn',
+  'Ban VPN': 'templates.flowLabels.banVpn',
+  'Kick VPN': 'templates.flowLabels.kickVpn',
+};
+
+export function templateName(template: Pick<BotTemplate, 'id' | 'name'>, t?: TFunction<'bots'>): string {
+  return t ? t(`templates.items.${template.id}.name`, { defaultValue: template.name }) : template.name;
 }
 
-function requireNumericId(value: string | undefined, label: string): string | null {
-  if (!/^[1-9]\d*$/.test((value ?? '').trim())) return `${label} must be a numeric id`;
+export function templateDescription(template: Pick<BotTemplate, 'id' | 'description'>, t?: TFunction<'bots'>): string {
+  return t
+    ? t(`templates.items.${template.id}.description`, { defaultValue: template.description, token: '{{time.date}}' })
+    : template.description;
+}
+
+export function templateFieldLabel(field: TemplateConfigField, t?: TFunction<'bots'>): string {
+  if (!t) return field.label;
+  const key = FIELD_KEYS[field.label];
+  return key ? t(key, { placeholder: '{{ip}}' }) : field.label;
+}
+
+export function templateFieldPlaceholder(field: TemplateConfigField, t?: TFunction<'bots'>): string | undefined {
+  if (!field.placeholder) return undefined;
+  if (!t) return field.placeholder;
+  const entry = PLACEHOLDER_KEYS[field.placeholder];
+  return entry ? t(entry.key, entry.token ? { token: entry.token } : undefined) : field.placeholder;
+}
+
+export function templateOptionLabel(label: string, t?: TFunction<'bots'>): string {
+  if (!t) return label;
+  const key = OPTION_KEYS[label];
+  return key ? t(key) : label;
+}
+
+/** Resolve default node labels of a freshly built template flow at creation time. */
+export function translateFlowLabels(
+  flow: { nodes: any[]; edges: any[] },
+  t?: TFunction<'bots'>,
+): { nodes: any[]; edges: any[] } {
+  if (!t) return flow;
+  return {
+    ...flow,
+    nodes: flow.nodes.map((node) => {
+      const key = FLOW_LABEL_KEYS[node.label];
+      return key ? { ...node, label: t(key) } : node;
+    }),
+  };
+}
+
+export function templateConfigError(
+  template: BotTemplate,
+  config: Record<string, string>,
+  t?: TFunction<'bots'>,
+): string | null {
+  for (const field of template.configFields) {
+    if (field.required && !String(config[field.key] ?? '').trim()) {
+      const label = templateFieldLabel(field, t);
+      return t ? t('templates.errors.required', { label }) : `${label} is required`;
+    }
+  }
+  return template.validateConfig?.(config, t) ?? null;
+}
+
+function requireNumericId(value: string | undefined, label: string, t?: TFunction<'bots'>): string | null {
+  if (!/^[1-9]\d*$/.test((value ?? '').trim())) {
+    const resolved = t ? t(FIELD_KEYS[label] ?? label, { placeholder: '{{ip}}' }) : label;
+    return t ? t('templates.errors.numericId', { label: resolved }) : `${resolved} must be a numeric id`;
+  }
   return null;
 }
 
@@ -343,8 +543,8 @@ export const BOT_TEMPLATES: BotTemplate[] = [
       { key: 'parentChannelId', label: 'Parent Channel ID', type: 'number', placeholder: '19', required: true },
       { key: 'staffGroupId', label: 'Staff Group ID', type: 'number', placeholder: '6', required: true },
     ],
-    validateConfig: (cfg) => requireNumericId(cfg.parentChannelId, 'Parent Channel ID')
-      || requireNumericId(cfg.staffGroupId, 'Staff Group ID'),
+    validateConfig: (cfg, t) => requireNumericId(cfg.parentChannelId, 'Parent Channel ID', t)
+      || requireNumericId(cfg.staffGroupId, 'Staff Group ID', t),
     flowDataFactory: (cfg) => {
       resetIds();
       const n1 = nid(), n2 = nid(), n3 = nid(), n4 = nid(), n5 = nid(), n6 = nid(), n7 = nid();
@@ -430,11 +630,11 @@ export const BOT_TEMPLATES: BotTemplate[] = [
       ] },
       { key: 'channelId', label: 'Channel ID', type: 'number', placeholder: '12' },
     ],
-    validateConfig: (cfg) => {
+    validateConfig: (cfg, t) => {
       if (!ANNOUNCEMENT_SCHEDULES.includes((cfg.cron || '0 9 * * *').trim() as typeof ANNOUNCEMENT_SCHEDULES[number])) {
-        return 'Choose a schedule';
+        return t ? t('templates.errors.chooseSchedule') : 'Choose a schedule';
       }
-      if ((cfg.audience || 'server') === 'channel') return requireNumericId(cfg.channelId, 'Channel ID');
+      if ((cfg.audience || 'server') === 'channel') return requireNumericId(cfg.channelId, 'Channel ID', t);
       return null;
     },
     flowDataFactory: (cfg) => {
@@ -679,8 +879,8 @@ export const BOT_TEMPLATES: BotTemplate[] = [
 ];
 
 export const TEMPLATE_CATEGORIES = [
-  { id: 'info-channels', label: 'Info Channels', description: 'Dynamic channel names with live data' },
-  { id: 'moderation', label: 'Moderation', description: 'Automated moderation and protection' },
-  { id: 'automation', label: 'Automation', description: 'Welcome messages, tickets, reminders, announcements' },
-  { id: 'integration', label: 'Integration', description: 'External APIs and webhooks' },
+  { id: 'info-channels', label: 'Info Channels', labelKey: 'templates.categories.infoChannels', description: 'Dynamic channel names with live data', descriptionKey: 'templates.categories.infoChannelsDescription' },
+  { id: 'moderation', label: 'Moderation', labelKey: 'templates.categories.moderation', description: 'Automated moderation and protection', descriptionKey: 'templates.categories.moderationDescription' },
+  { id: 'automation', label: 'Automation', labelKey: 'templates.categories.automation', description: 'Welcome messages, tickets, reminders, announcements', descriptionKey: 'templates.categories.automationDescription' },
+  { id: 'integration', label: 'Integration', labelKey: 'templates.categories.integration', description: 'External APIs and webhooks', descriptionKey: 'templates.categories.integrationDescription' },
 ] as const;

@@ -59,6 +59,8 @@ export interface MusicBotSummary {
   nickname: string;
   serverPassword: string | null;
   defaultChannel: string | null;
+  /** Chat reply language; null or absent inherits the instance default. */
+  language?: 'en' | 'zh-CN' | null;
   commandChannelIds?: string[];
   virtualServerId?: number;
   channelPassword: string | null;
@@ -85,6 +87,8 @@ export interface CreateMusicBotRequest {
   nickname?: string;
   serverPassword?: string;
   defaultChannel?: string;
+  /** Chat reply language; null/absent inherits the instance default. */
+  language?: 'en' | 'zh-CN' | null;
   commandChannelIds?: string[];
   virtualServerId?: number;
   channelPassword?: string;
@@ -98,6 +102,8 @@ export interface UpdateMusicBotRequest {
   nickname?: string;
   serverPassword?: string;
   defaultChannel?: string;
+  /** Chat reply language; null inherits the instance default. */
+  language?: 'en' | 'zh-CN' | null;
   commandChannelIds?: string[];
   virtualServerId?: number;
   channelPassword?: string;
@@ -414,10 +420,27 @@ export interface VideoStreamEncoderInfo {
   note: string | null;
 }
 
+/**
+ * Stable code for a stop detail so a client can retranslate `detail` after a
+ * language change without parsing the English sentence.
+ */
+export type MediaStopDetailCode =
+  | 'video_ended'
+  | 'encoder_stopped'
+  | 'live_source_ended'
+  | 'source_unreachable'
+  | 'no_viewers'
+  | 'channel_empty';
+
 export interface MediaStopInfo {
   reason: MediaStopReason;
   at: number;
+  /** Legacy human-readable sentence; keep for compatibility. */
   detail: string | null;
+  /** Additive stable code when the producer knows it. */
+  detailCode?: MediaStopDetailCode;
+  /** Additive interpolation values for `detailCode` (e.g. seconds, error). */
+  detailParams?: Record<string, string | number>;
 }
 
 export interface VideoStreamStatus {

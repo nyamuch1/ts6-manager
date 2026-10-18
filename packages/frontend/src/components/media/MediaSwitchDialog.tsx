@@ -1,4 +1,5 @@
 import { AlertTriangle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -13,13 +14,14 @@ import { conflictIsReplaceable, describeMediaSession } from '@/lib/media-switch'
 
 /** Global confirmation for replacing an active media session (music ↔ video). */
 export function MediaSwitchDialog() {
+  const { t } = useTranslation('media');
   const pending = useMediaSwitchStore((s) => s.pending);
   const answer = useMediaSwitchStore((s) => s.answer);
   if (!pending) return null;
 
   const { conflict } = pending;
   const replaceable = conflictIsReplaceable(conflict);
-  const starting = conflict.requested === 'video' ? 'this video stream' : 'this music';
+  const target = t(conflict.requested === 'video' ? 'mediaSwitch.targetVideo' : 'mediaSwitch.targetMusic');
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) answer(false); }}>
@@ -27,12 +29,12 @@ export function MediaSwitchDialog() {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-warning" aria-hidden="true" />
-            {replaceable ? 'Replace what is playing?' : 'Media is still starting'}
+            {t(replaceable ? 'mediaSwitch.replaceTitle' : 'mediaSwitch.startingTitle')}
           </DialogTitle>
           <DialogDescription>
             {replaceable
-              ? `Music and video never play at the same time, and only one video stream runs at once. Starting ${starting} will stop:`
-              : 'Wait for this to finish starting, then try again:'}
+              ? t('mediaSwitch.replaceDescription', { target })
+              : t('mediaSwitch.startingDescription')}
           </DialogDescription>
         </DialogHeader>
         <ul className="space-y-1 text-sm">
@@ -42,11 +44,11 @@ export function MediaSwitchDialog() {
         </ul>
         <DialogFooter>
           <Button variant="ghost" onClick={() => answer(false)}>
-            {replaceable ? 'Keep playing' : 'OK'}
+            {t(replaceable ? 'mediaSwitch.keepPlaying' : 'mediaSwitch.ok')}
           </Button>
           {replaceable && (
             <Button variant="destructive" onClick={() => answer(true)}>
-              Stop and switch
+              {t('mediaSwitch.stopAndSwitch')}
             </Button>
           )}
         </DialogFooter>

@@ -1,4 +1,5 @@
 import { Navigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
@@ -25,6 +26,7 @@ import { StreamingDefaultsTab } from './StreamingDefaultsTab';
  * Bots live in the Bot Hub; old Bots, Queue, Video and Commands links redirect.
  */
 export default function MusicBots() {
+  const { t } = useTranslation('media');
   const [searchParams, setSearchParams] = useSearchParams();
   const redirect = mediaLibraryRedirect(searchParams);
   const tabParam = searchParams.get('tab');
@@ -41,19 +43,19 @@ export default function MusicBots() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Media Library"
+        title={t('page.title')}
         icon={Library}
-        description="Songs, playlists, radio stations, !play requests and streaming defaults, shared by every bot on a server."
+        description={t('page.description')}
         actions={<ActiveBotsMenu />}
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="max-w-full justify-start overflow-x-auto">
-          <TabsTrigger value="library"><FileAudio className="h-3.5 w-3.5 mr-1.5" /> Library</TabsTrigger>
-          <TabsTrigger value="playlists"><ListMusic className="h-3.5 w-3.5 mr-1.5" /> Playlists</TabsTrigger>
-          <TabsTrigger value="radio"><Radio className="h-3.5 w-3.5 mr-1.5" /> Radio stations</TabsTrigger>
-          <TabsTrigger value="requests"><Clock className="h-3.5 w-3.5 mr-1.5" /> Requests</TabsTrigger>
-          <TabsTrigger value="streaming"><Video className="h-3.5 w-3.5 mr-1.5" /> Streaming defaults</TabsTrigger>
+          <TabsTrigger value="library"><FileAudio className="h-3.5 w-3.5 mr-1.5" /> {t('page.tabLibrary')}</TabsTrigger>
+          <TabsTrigger value="playlists"><ListMusic className="h-3.5 w-3.5 mr-1.5" /> {t('page.tabPlaylists')}</TabsTrigger>
+          <TabsTrigger value="radio"><Radio className="h-3.5 w-3.5 mr-1.5" /> {t('page.tabRadio')}</TabsTrigger>
+          <TabsTrigger value="requests"><Clock className="h-3.5 w-3.5 mr-1.5" /> {t('page.tabRequests')}</TabsTrigger>
+          <TabsTrigger value="streaming"><Video className="h-3.5 w-3.5 mr-1.5" /> {t('page.tabStreaming')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="library"><LibraryTab /></TabsContent>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { filesApi } from '@/api/files.api';
 import { channelsApi } from '@/api/channels.api';
@@ -33,7 +34,6 @@ import {
   type SummaryObservation,
 } from '@/lib/demand-driven-query-policy';
 import {
-  FILE_WRITE_READ_DOES_NOT_AUTHORIZE,
   fileBrowseErrorMessage,
   fileDeleteConfirmDescription,
   fileWriteErrorMessage,
@@ -64,6 +64,8 @@ type SummaryQueryData = {
 };
 
 export default function Files() {
+  const { t } = useTranslation('admin');
+  const { t: tc } = useTranslation();
   const { selectedConfigId: c, selectedSid: s } = useServerStore();
   const qc = useQueryClient();
 
@@ -230,7 +232,7 @@ export default function Files() {
     mutationFn: (target: FileActionTarget) =>
       filesApi.createDir(target.configId, target.sid, target.cid, target.fullPath),
     onSuccess: async (_data, target) => {
-      toast.success('Directory created');
+      toast.success(t('files.directoryCreated'));
       qc.invalidateQueries({
         queryKey: ['files', target.configId, target.sid, target.cid],
       });
@@ -257,7 +259,7 @@ export default function Files() {
     mutationFn: (target: FileActionTarget) =>
       filesApi.delete(target.configId, target.sid, target.cid, target.fullPath),
     onSuccess: async (_data, target) => {
-      toast.success('File deleted');
+      toast.success(t('files.fileDeleted'));
       qc.invalidateQueries({
         queryKey: ['files', target.configId, target.sid, target.cid],
       });
@@ -313,7 +315,7 @@ export default function Files() {
     if (!canConfirmFileAction(deleteTarget, { configId: c, sid: s, cid: selectedCid })) {
       // Context switched away from the dialog owner — do not retarget to live B.
       setDeleteTarget(null);
-      toast.error('Server context changed — delete cancelled');
+      toast.error(t('files.contextChanged'));
       return;
     }
     deleteMutation.mutate(deleteTarget);
@@ -337,15 +339,15 @@ export default function Files() {
   // Breadcrumb parts
   const pathParts = currentPath.split('/').filter(Boolean);
 
-  if (!c || !s) return <NoServerSelectedState pageTitle="File Browser" icon={FolderOpen} />;
+  if (!c || !s) return <NoServerSelectedState pageTitle={t('files.title')} icon={FolderOpen} />;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">File Browser</h1>
+        <h1 className="text-xl font-semibold">{t('files.title')}</h1>
         {selectedCid && (
           <Button size="sm" onClick={() => setShowMkdir(true)}>
-            <FolderPlus className="h-4 w-4 mr-1" /> New Folder
+            <FolderPlus className="h-4 w-4 mr-1" /> {t('files.newFolder')}
           </Button>
         )}
       </div>
@@ -355,9 +357,9 @@ export default function Files() {
         <Card className="lg:col-span-3">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center justify-between text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              <span className="flex items-center gap-1.5"><Hash className="h-3.5 w-3.5" /> Channels</span>
+              <span className="flex items-center gap-1.5"><Hash className="h-3.5 w-3.5" /> {t('files.channels')}</span>
               <span className="flex items-center gap-1">
-                {fetchingSummaries && <RefreshCw className="h-3 w-3 animate-spin text-sky-400" aria-label="Scanning storage" />}
+                {fetchingSummaries && <RefreshCw className="h-3 w-3 animate-spin text-sky-400" aria-label={t('files.scanningStorage')} />}
                 <Button
                   type="button"
                   variant="ghost"
@@ -365,8 +367,8 @@ export default function Files() {
                   className="h-6 w-6"
                   onClick={refreshSummaries}
                   disabled={fetchingSummaries || channelIds.length === 0}
-                  aria-label="Refresh storage summary"
-                  title="Refresh storage summary"
+                  aria-label={t('files.refreshSummary')}
+                  title={t('files.refreshSummary')}
                 >
                   <RefreshCw className="h-3 w-3" />
                 </Button>
@@ -415,14 +417,14 @@ export default function Files() {
                         </span>
                       ) : counted ? (
                         <>
-                          <span className="flex items-center gap-0.5" title="Files"><File className="h-3 w-3" />{summary.fileCount}</span>
-                          <span className="flex items-center gap-0.5" title="Folders"><Folder className="h-3 w-3" />{summary.folderCount}</span>
-                          <span className="ml-auto flex items-center gap-0.5" title="Total size"><HardDrive className="h-3 w-3" />{formatBytes(summary.totalSize)}</span>
+                          <span className="flex items-center gap-0.5" title={t('files.files')}><File className="h-3 w-3" />{summary.fileCount}</span>
+                          <span className="flex items-center gap-0.5" title={t('files.folders')}><Folder className="h-3 w-3" />{summary.folderCount}</span>
+                          <span className="ml-auto flex items-center gap-0.5" title={t('files.totalSize')}><HardDrive className="h-3 w-3" />{formatBytes(summary.totalSize)}</span>
                           {showPartial && (
-                            <span className="text-amber-400/80" title="Scan stopped before the full tree was counted">Partial</span>
+                            <span className="text-amber-400/80" title={t('files.partialTitle')}>{t('files.partial')}</span>
                           )}
                           {display.kind === 'stale-cached' && (
-                            <span className="text-amber-400/80" title="Summary may be outdated">Stale</span>
+                            <span className="text-amber-400/80" title={t('files.staleTitle')}>{t('files.stale')}</span>
                           )}
                         </>
                       ) : statusText ? (
@@ -437,7 +439,7 @@ export default function Files() {
                   );
                 })}
                 {channels.length === 0 && (
-                  <p className="text-xs text-muted-foreground text-center py-4">No channels</p>
+                  <p className="text-xs text-muted-foreground text-center py-4">{t('files.noChannels')}</p>
                 )}
               </div>
             </ScrollArea>
@@ -450,7 +452,7 @@ export default function Files() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
                 {selectedCid && currentPath !== '/' && (
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={goUp} aria-label="Go to parent folder" title="Go to parent folder">
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={goUp} aria-label={t('files.goToParent')} title={t('files.goToParent')}>
                     <ArrowLeft className="h-3.5 w-3.5" />
                   </Button>
                 )}
@@ -472,7 +474,7 @@ export default function Files() {
               </div>
               {selectedCid && (
                 <Badge variant="secondary" className="text-[10px] font-mono-data">
-                  {files.length} item(s)
+                  {t('files.itemCount', { count: files.length })}
                 </Badge>
               )}
             </div>
@@ -480,7 +482,7 @@ export default function Files() {
           <CardContent className="p-0">
             {!selectedCid ? (
               <div className="flex h-[min(400px,50dvh)] min-h-64 items-center justify-center">
-                <p className="text-sm text-muted-foreground">Select a channel to browse files</p>
+                <p className="text-sm text-muted-foreground">{t('files.selectChannel')}</p>
               </div>
             ) : loadingFiles ? (
               <div className="flex h-[min(400px,50dvh)] min-h-64 items-center justify-center">
@@ -489,12 +491,12 @@ export default function Files() {
             ) : filesError ? (
               <div className="flex h-[min(400px,50dvh)] min-h-64 flex-col items-center justify-center gap-3 px-4 sm:px-8">
                 <AlertTriangle className="h-8 w-8 text-amber-400" />
-                <p className="text-sm font-medium text-foreground">File Browser Unavailable</p>
+                <p className="text-sm font-medium text-foreground">{t('files.unavailable')}</p>
                 <p className="text-xs text-muted-foreground text-center max-w-md" role="alert">
                   {fileBrowseErrorMessage(filesError)}
                 </p>
                 {(filesError as any)?.response?.data?.code != null && (
-                  <p className="text-[10px] text-muted-foreground/60 mt-1">TS error code: {(filesError as any).response.data.code}</p>
+                  <p className="text-[10px] text-muted-foreground/60 mt-1">{t('errorCode', { code: (filesError as any).response.data.code })}</p>
                 )}
                 <Button
                   size="sm"
@@ -503,7 +505,7 @@ export default function Files() {
                   onClick={() => { void refetchFiles(); }}
                   aria-busy={fetchingFiles}
                 >
-                  {fetchingFiles ? 'Retrying…' : 'Retry'}
+                  {fetchingFiles ? t('retrying') : tc('action.retry')}
                 </Button>
               </div>
             ) : (
@@ -511,15 +513,15 @@ export default function Files() {
                 <div className="min-w-[36rem]">
                 {/* File table header */}
                 <div className="grid grid-cols-12 gap-2 px-4 py-2 text-[10px] text-muted-foreground uppercase tracking-wider border-b border-border">
-                  <div className="col-span-6">Name</div>
-                  <div className="col-span-2 text-right">Size</div>
-                  <div className="col-span-3">Modified</div>
+                  <div className="col-span-6">{t('files.name')}</div>
+                  <div className="col-span-2 text-right">{t('files.size')}</div>
+                  <div className="col-span-3">{t('files.modified')}</div>
                   <div className="col-span-1"></div>
                 </div>
 
                 {files.length === 0 ? (
                   <div className="flex items-center justify-center h-[350px]">
-                    <EmptyState icon={FolderOpen} title="Empty directory" description="No files in this directory." />
+                    <EmptyState icon={FolderOpen} title={t('files.emptyDirectory')} description={t('files.emptyDirectoryDescription')} />
                   </div>
                 ) : (
                   <div className="divide-y divide-border/50">
@@ -550,8 +552,8 @@ export default function Files() {
                           <button
                             onClick={(e) => { e.stopPropagation(); openDelete(file); }}
                             className="touch-action-reveal flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive"
-                            aria-label={`Delete ${file.name}`}
-                            title={`Delete ${file.name}`}
+                            aria-label={t('files.deleteAria', { name: file.name })}
+                            title={t('files.deleteAria', { name: file.name })}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -569,25 +571,25 @@ export default function Files() {
 
       {/* Info notice */}
       <p className="text-xs text-muted-foreground text-center">
-        File upload/download is not available via WebQuery API. Use the TS6 client for file transfers.
+        {t('files.transferNotice')}
       </p>
 
       {/* Create Directory Dialog */}
       <Dialog open={showMkdir} onOpenChange={setShowMkdir}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Create Directory</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t('files.createTitle')}</DialogTitle></DialogHeader>
           <div className="space-y-2">
             <div>
-              <Label className="text-xs">Directory Name</Label>
-              <Input value={newDirName} onChange={(e) => setNewDirName(e.target.value)} placeholder="New Folder" autoFocus />
+              <Label className="text-xs">{t('files.directoryName')}</Label>
+              <Input value={newDirName} onChange={(e) => setNewDirName(e.target.value)} placeholder={t('files.newFolder')} autoFocus />
             </div>
             <p role="note" className="text-xs text-muted-foreground" data-testid="file-write-read-not-authorize">
-              {FILE_WRITE_READ_DOES_NOT_AUTHORIZE}
+              {tc('common:authorization.fileWriteNeedsOwnPermission')}
             </p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowMkdir(false)}>Cancel</Button>
-            <Button onClick={handleMkdir} disabled={mkdirMutation.isPending || !newDirName.trim()}>Create</Button>
+            <Button variant="outline" onClick={() => setShowMkdir(false)}>{tc('action.cancel')}</Button>
+            <Button onClick={handleMkdir} disabled={mkdirMutation.isPending || !newDirName.trim()}>{tc('action.create')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -596,13 +598,13 @@ export default function Files() {
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={() => setDeleteTarget(null)}
-        title="Delete File"
+        title={t('files.deleteTitle')}
         description={
           deleteTarget
             ? fileDeleteConfirmDescription(deleteTarget.entryName ?? deleteTarget.fullPath, deleteTarget.fullPath)
             : ''
         }
-        confirmLabel="Delete"
+        confirmLabel={tc('action.delete')}
         destructive
         onConfirm={handleDelete}
         loading={deleteLoading}

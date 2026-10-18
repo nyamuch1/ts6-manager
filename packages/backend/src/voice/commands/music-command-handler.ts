@@ -16,6 +16,8 @@ import * as summon from './summon.js';
 import * as dedupe from './dedupe.js';
 import { findSongForQuery } from '../audio/youtube.js';
 import type { ListenerRemoteService } from '../listener-remote.js';
+import { resolveChatLocale } from '../bot-locale.js';
+import { DEFAULT_LOCALE, type SupportedLocale } from '../../i18n/index.js';
 
 /** Stable facade for voice and SSH chat commands. Implementations live in the command groups. */
 export class MusicCommandHandler {
@@ -29,6 +31,8 @@ export class MusicCommandHandler {
   private activeReplyChannel = new Map<string, number>();
   /** Keep reply and movement channels local to each asynchronous command. */
   private commandChannels = new AsyncLocalStorage<Map<string, number>>();
+  /** Locale resolved once per incoming chat message, shared by all replies of that command. */
+  private commandLocale = new AsyncLocalStorage<{ value: SupportedLocale }>();
   /** Channels the roaming helper recently covered (key: configId:sid) — for mapping only. */
   private autoCommandChannels = new Map<string, number[]>();
   private mainHelperParkTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -62,6 +66,11 @@ export class MusicCommandHandler {
       get botChannelConfig() { return handler.botChannelConfig; },
       get channelToBots() { return handler.channelToBots; },
       get activeReplyChannel() { return handler.commandChannels.getStore() ?? handler.activeReplyChannel; },
+      get locale() { return handler.commandLocale.getStore()?.value ?? DEFAULT_LOCALE; },
+      set locale(value: SupportedLocale) {
+        const store = handler.commandLocale.getStore();
+        if (store) store.value = value;
+      },
       get autoCommandChannels() { return handler.autoCommandChannels; },
       get mainHelperParkTimers() { return handler.mainHelperParkTimers; },
       get mainHelperRebalanceTimers() { return handler.mainHelperRebalanceTimers; },
@@ -222,27 +231,33 @@ export class MusicCommandHandler {
     return channelOwnership.syncMusicSessionOwnership(this.context);
   }
 
-  private onCrossChannelTextMessage(
+  private async onCrossChannelTextMessage(
     configId: number,
     sid: number,
     channelId: number,
     data: Record<string, string>,
   ): Promise<void> {
-    return routing.onCrossChannelTextMessage(this.context, configId, sid, channelId, data);
+    // No specific bot owns this line yet; use the instance default. A handler that
+    // picks a replying bot can replace `context.locale` before it sends anything.
+    const locale = await resolveChatLocale(this.prisma);
+    return this.commandLocale.run({ value: locale }, () =>
+      routing.onCrossChannelTextMessage(this.context, configId, sid, channelId, data));
   }
 
   getNeededCommandChannelIds(_configId: number, _sid: number): number[] {
     return channelOwnership.getNeededCommandChannelIds(this.context, _configId, _sid);
   }
 
-  private onTextMessage(
+  private async onTextMessage(
     botId: number,
     bot: VoiceBot,
     data: Record<string, string>,
     replyChannelId?: number,
   ): Promise<void> {
+    const locale = await resolveChatLocale(this.prisma, bot.currentConfig.language);
     return this.commandChannels.run(new Map(this.activeReplyChannel), () =>
-      routing.onTextMessage(this.context, botId, bot, data, replyChannelId));
+      this.commandLocale.run({ value: locale }, () =>
+        routing.onTextMessage(this.context, botId, bot, data, replyChannelId)));
   }
 
   private replyChannelForDedupe(botId: number, userClid: number, bot: VoiceBot): number {

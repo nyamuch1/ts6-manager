@@ -46,12 +46,17 @@ logRoutes.get('/', requireRole('admin'), async (req: Request, res: Response, nex
     const configId = parseInt(String(req.params.configId), 10);
     const sid = getSid(req);
     if (!Number.isInteger(configId) || configId < 1 || !Number.isInteger(sid) || sid < 1) {
-      throw new AppError(400, 'Invalid server context');
+      throw new AppError(400, 'Invalid server context', undefined, {
+        messageKey: 'errors.invalid_server_context',
+      });
     }
 
     const parsed = parseLogQuery(req.query as Record<string, unknown>);
     if (!parsed.ok) {
-      throw new AppError(400, parsed.message);
+      throw new AppError(400, parsed.message, undefined, {
+        messageKey: parsed.messageKey,
+        messageParams: parsed.messageParams,
+      });
     }
 
     const params: Record<string, string | number> = {

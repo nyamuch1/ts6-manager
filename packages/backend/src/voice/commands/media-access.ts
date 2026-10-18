@@ -4,6 +4,7 @@ import { resolveMediaIdentity, listHumanMediaListeners, VoteSkip } from '../medi
 import type { VoiceBot } from '../voice-bot.js';
 import type { CommandContext } from './context.js';
 import { tryClaimChatInfoReply } from './dedupe.js';
+import { translateChat } from '../bot-locale.js';
 
 const votes = new VoteSkip();
 
@@ -53,7 +54,7 @@ export async function checkMediaCommand(
   } catch {
     // A failed settings or identity lookup must not grant media rights.
   }
-  privateReply(context, bot, clid, 'You are not allowed to use this command.');
+  privateReply(context, bot, clid, translateChat(context.locale, 'bot.media.not_allowed'));
   return false;
 }
 
@@ -62,12 +63,12 @@ export async function handleVoteSkip(
 ): Promise<void> {
   const token = bot.playbackToken;
   if (!bot.nowPlaying || !token) {
-    privateReply(context, bot, clid, 'Nothing is playing.');
+    privateReply(context, bot, clid, translateChat(context.locale, 'bot.voteskip.nothing_playing'));
     return;
   }
   let scope;
   try { scope = await mediaScope(context, bot); } catch {
-    privateReply(context, bot, clid, 'Could not verify listeners right now.');
+    privateReply(context, bot, clid, translateChat(context.locale, 'bot.voteskip.verify_failed'));
     return;
   }
   const { configId, sid } = scope;
@@ -80,13 +81,21 @@ export async function handleVoteSkip(
   if (bot.floodHoldActive || bot.playbackToken !== token || bot.getCurrentChannelId() !== channelId || !bot.nowPlaying) return;
   const voter = listeners?.find(peer => peer.clid === clid && (!expectedUid || peer.uid === expectedUid));
   if (!voter) {
-    privateReply(context, bot, clid, 'Vote-skip needs a verified listener in the bot channel.');
+    privateReply(context, bot, clid, translateChat(context.locale, 'bot.voteskip.needs_listener'));
     return;
   }
   const result = votes.vote(bot, token, voter.uid, listeners!.map(peer => peer.uid))!;
   if (result.passed) {
     await context.handleSkip(bot, clid);
   } else {
-    privateReply(context, bot, clid, `Vote-skip: ${result.votes}/${result.required} votes needed.`);
+    privateReply(
+      context,
+      bot,
+      clid,
+      translateChat(context.locale, 'bot.voteskip.progress', {
+        votes: result.votes,
+        required: result.required,
+      }),
+    );
   }
 }

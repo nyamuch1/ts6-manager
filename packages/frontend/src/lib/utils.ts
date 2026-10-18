@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import i18n from '../i18n';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -35,11 +36,11 @@ export function formatDuration(seconds: number): string {
   return parts.join(' ') || '< 1m';
 }
 
+/** `timestamp` is epoch seconds, matching TeamSpeak's timestamps. */
 export function timeAgo(timestamp: number): string {
-  const now = Math.floor(Date.now() / 1000);
-  const diff = now - timestamp;
-  if (diff < 60) return 'Just now';
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
+  const diff = Math.floor(Date.now() / 1000) - timestamp;
+  if (diff < 60) return i18n.t('common:time.justNow');
+  if (diff < 3600) return i18n.t('common:time.minutesAgo', { count: Math.floor(diff / 60) });
+  if (diff < 86400) return i18n.t('common:time.hoursAgo', { count: Math.floor(diff / 3600) });
+  return i18n.t('common:time.daysAgo', { count: Math.floor(diff / 86400) });
 }

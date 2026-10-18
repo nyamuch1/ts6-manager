@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { SkipForward, Trash2 } from 'lucide-react';
@@ -17,11 +18,12 @@ const NO_ITEMS: VideoQueueItemInfo[] = [];
 function KeptStrip({ text, label, disabled, starting, onPlay }: {
   text: string; label?: string; disabled: boolean; starting: boolean; onPlay(): void;
 }) {
+  const { t } = useTranslation('bots');
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed p-2 text-sm text-muted-foreground">
       <span>{text}</span>
       <Button variant="outline" size="sm" className="h-9" disabled={disabled} aria-label={label} onClick={onPlay}>
-        {starting ? 'Starting…' : 'Play queue'}
+        {starting ? t('videoQueue.starting') : t('queue.playQueue')}
       </Button>
     </div>
   );
@@ -29,15 +31,16 @@ function KeptStrip({ text, label, disabled, starting, onPlay }: {
 
 /** Up next before the video queue has loaded, or when it could not be. */
 function QueueNotLoaded({ loadError }: { loadError: unknown }) {
+  const { t } = useTranslation('bots');
   return (
     <section aria-labelledby="up-next" className="space-y-3 border-t pt-4">
-      <h2 id="up-next" className="text-sm font-semibold">Up next</h2>
+      <h2 id="up-next" className="text-sm font-semibold">{t('queue.heading')}</h2>
       {loadError ? (
         <p role="alert" className="text-sm text-destructive">
-          Could not load the video queue. {apiErrorMessage(loadError, 'Try again in a moment.')}
+          {t('videoQueue.loadError', { detail: apiErrorMessage(loadError, t('queue.tryAgain')) })}
         </p>
       ) : (
-        <p className="text-sm text-muted-foreground">Loading the queue…</p>
+        <p className="text-sm text-muted-foreground">{t('queue.loading')}</p>
       )}
     </section>
   );
@@ -57,6 +60,7 @@ export function VideoUpNext({ botId, state, streaming, loadError, stripOnly = fa
   /** The music lane owns Up next: show this queue as its one-line kept strip only. */
   stripOnly?: boolean;
 }) {
+  const { t } = useTranslation('bots');
   const move = useMoveQueuedVideo();
   const remove = useRemoveQueuedVideo();
   const playAt = usePlayQueuedVideo();
@@ -90,8 +94,8 @@ export function VideoUpNext({ botId, state, streaming, loadError, stripOnly = fa
   if (stripOnly) {
     if (items.length === 0) return null;
     return (
-      <KeptStrip text={items.length === 1 ? '1 queued video is kept.' : `${items.length} queued videos are kept.`}
-        label="Play video queue" disabled={busy} starting={playQueue.isPending} onPlay={startQueue} />
+      <KeptStrip text={t('videoQueue.kept', { count: items.length })}
+        label={t('videoQueue.playAria')} disabled={busy} starting={playQueue.isPending} onPlay={startQueue} />
     );
   }
 
@@ -106,45 +110,45 @@ export function VideoUpNext({ botId, state, streaming, loadError, stripOnly = fa
     <section aria-labelledby="up-next" className="space-y-3 border-t pt-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-baseline gap-2">
-          <h2 id="up-next" className="text-sm font-semibold">Up next ({items.length})</h2>
-          {items.length > 1 && <span className="text-xs text-muted-foreground">Drag to reorder</span>}
+          <h2 id="up-next" className="text-sm font-semibold">{t('queue.headingCount', { count: items.length })}</h2>
+          {items.length > 1 && <span className="text-xs text-muted-foreground">{t('queue.dragHint')}</span>}
         </div>
         <div className="flex flex-wrap gap-1">
           <Button variant="outline" size="sm" className="h-9" disabled={!streaming || busy}
-            aria-label="Skip to the next video" onClick={() => skip.mutate({ botId })}>
-            <SkipForward className="mr-1 h-3.5 w-3.5" aria-hidden="true" /> {skip.isPending ? 'Skipping…' : 'Skip'}
+            aria-label={t('videoQueue.skipAria')} onClick={() => skip.mutate({ botId })}>
+            <SkipForward className="mr-1 h-3.5 w-3.5" aria-hidden="true" /> {skip.isPending ? t('videoQueue.skipping') : t('common:action.skip')}
           </Button>
           <Button variant="ghost" size="sm" className="h-9" disabled={items.length === 0 || busy}
             onClick={() => clear.mutate({ botId })}>
-            <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" /> Clear
+            <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" /> {t('common:action.clear')}
           </Button>
         </div>
       </div>
 
       {loadError != null && (
         <p role="alert" className="text-sm text-destructive">
-          Could not refresh the video queue. {apiErrorMessage(loadError, 'Try again in a moment.')}
+          {t('videoQueue.refreshError', { detail: apiErrorMessage(loadError, t('queue.tryAgain')) })}
         </p>
       )}
       {failed != null && (
         <p role="alert" className="text-sm text-destructive">
-          {apiErrorMessage(failed, 'That change to the video queue did not go through.')}
+          {apiErrorMessage(failed, t('videoQueue.changeFailed'))}
         </p>
       )}
 
       {state.kept && items.length > 0 && (
-        <KeptStrip text={`Up next (${items.length}) is kept. Nothing is streaming.`}
+        <KeptStrip text={t('videoQueue.keptIdle', { count: items.length })}
           disabled={busy} starting={playQueue.isPending} onPlay={startQueue} />
       )}
 
       {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No more videos queued. Add one from the Link tab.</p>
+        <p className="text-sm text-muted-foreground">{t('videoQueue.empty')}</p>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={keys} strategy={verticalListSortingStrategy}>
-            <ol aria-label="Up next" className="max-h-[28rem] space-y-1.5 overflow-y-auto">
+            <ol aria-label={t('queue.heading')} className="max-h-[28rem] space-y-1.5 overflow-y-auto">
               {items.map((item, i) => (
-                <Row key={keys[i]} rowKey={keys[i]} item={{ title: item.title, artist: videoRowDetail(item) }}
+                <Row key={keys[i]} rowKey={keys[i]} item={{ title: item.title, artist: videoRowDetail(item, t) }}
                   disabled={busy} dragDisabled={move.isPending}
                   onPlay={() => playAt.mutate({ botId, index: i })}
                   onRemove={() => remove.mutate({ botId, index: i })} />

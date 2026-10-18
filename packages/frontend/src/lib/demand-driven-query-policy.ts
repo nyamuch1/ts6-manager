@@ -12,6 +12,8 @@
  * opportunity.
  */
 
+import i18n from '../i18n';
+
 export const EXPENSIVE_DIAGNOSTIC_QUERY_ROOTS = [
   'file-summaries',
   'runtime-media-diagnostics',
@@ -334,15 +336,15 @@ export function channelSummaryDisplay(input: {
 export function channelSummaryLabelText(display: ChannelSummaryDisplay): string | null {
   switch (display.kind) {
     case 'not-checked':
-      return 'Not checked.';
+      return i18n.t('common:fileSummary.notChecked');
     case 'scanning':
-      return 'Scanning…';
+      return i18n.t('common:fileSummary.scanning');
     case 'not-scanned':
       return 'Not scanned.';
     case 'unavailable':
-      return 'Unavailable';
+      return i18n.t('common:fileSummary.unavailable');
     case 'partial':
-      return 'Partial';
+      return i18n.t('common:fileSummary.partial');
     case 'error':
       return 'Check failed.';
     case 'stale-cached':

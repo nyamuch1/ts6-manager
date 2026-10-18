@@ -5,6 +5,17 @@
  */
 
 import type { BotAutomationOverview } from '@ts6/common';
+import { translate, type MessageKey, type SupportedLocale } from '../i18n/index.js';
+
+type ChatVariables = Record<string, string | number | boolean | null | undefined>;
+
+function chatTranslate(
+  locale: SupportedLocale | null | undefined,
+  key: MessageKey,
+  variables?: ChatVariables,
+): string {
+  return translate(locale, key, variables);
+}
 
 export interface TrackLine {
   title: string;
@@ -55,8 +66,12 @@ function trackDurationSuffix(duration?: number): string {
 }
 
 /** Rich now-playing block for !np / !nowplaying. */
-export function formatNowPlayingMessage(input: NowPlayingFormatInput): string {
-  const lines: string[] = ['## 🎵 Now Playing', ''];
+export function formatNowPlayingMessage(
+  input: NowPlayingFormatInput,
+  locale?: SupportedLocale | null,
+): string {
+  const t = (key: MessageKey, vars?: ChatVariables) => chatTranslate(locale, key, vars);
+  const lines: string[] = [t('bot.chat.now_playing_heading'), ''];
   const title = escapeMarkdownInline(input.title);
   const artistPart = input.artist ? ` — *${escapeMarkdownInline(input.artist)}*` : '';
   lines.push(`**${title}**${artistPart}`);
@@ -67,12 +82,12 @@ export function formatNowPlayingMessage(input: NowPlayingFormatInput): string {
 
   if (input.paused) {
     lines.push('');
-    lines.push('> ⏸ Paused');
+    lines.push(t('bot.chat.paused'));
   }
 
   if (input.upcoming && input.upcoming.length > 0) {
     lines.push('');
-    lines.push('### Up Next');
+    lines.push(t('bot.chat.up_next'));
     input.upcoming.forEach((item, i) => {
       const artist = item.artist ? ` — ${escapeMarkdownInline(item.artist)}` : '';
       lines.push(
@@ -85,21 +100,21 @@ export function formatNowPlayingMessage(input: NowPlayingFormatInput): string {
         : 0;
     const extra = afterCurrent > input.upcoming.length ? afterCurrent - input.upcoming.length : 0;
     if (extra > 0) {
-      lines.push(`_… and ${extra} more in queue_`);
+      lines.push(t('bot.chat.more_in_queue', { count: extra }));
     }
   }
 
   if (input.includeControls) {
     lines.push('');
     lines.push('<details>');
-    lines.push('<summary>Playback controls</summary>');
+    lines.push(`<summary>${t('bot.chat.controls_heading')}</summary>`);
     lines.push('');
-    lines.push('Type in channel chat (not clickable buttons):');
-    lines.push('- `!pause` — pause / resume');
-    lines.push('- `!skip` or `!next` — skip track');
-    lines.push('- `!prev` — previous track');
-    lines.push('- `!stop` — stop playback and clear the queue');
-    lines.push('- `!queue show` — full queue');
+    lines.push(t('bot.chat.controls_intro'));
+    lines.push(t('bot.chat.controls_pause'));
+    lines.push(t('bot.chat.controls_skip'));
+    lines.push(t('bot.chat.controls_prev'));
+    lines.push(t('bot.chat.controls_stop'));
+    lines.push(t('bot.chat.controls_queue'));
     lines.push('</details>');
   }
 
@@ -111,19 +126,21 @@ export function formatHelpMessage(
   builtin: HelpCommandLine[],
   custom: CustomHelpLine[],
   automation?: BotAutomationOverview | null,
+  locale?: SupportedLocale | null,
 ): string {
-  const lines: string[] = ['## Music bot commands', '', '### Built-in'];
+  const t = (key: MessageKey, vars?: ChatVariables) => chatTranslate(locale, key, vars);
+  const lines: string[] = [t('bot.chat.help_heading'), '', t('bot.chat.builtin_heading')];
   for (const entry of builtin) {
     lines.push(`- **${entry.usage}** — ${entry.blurb}`);
   }
   lines.push('');
-  lines.push('_Several bots in one channel? Add a bot\'s name: **!next Bot 2** or **!vol 30 @Bot 2**._');
+  lines.push(t('bot.chat.bot_name_hint'));
 
   if (custom.length > 0) {
     lines.push('');
-    lines.push('### Custom');
+    lines.push(t('bot.chat.custom_heading'));
     for (const c of custom) {
-      const blurb = c.description?.trim() || 'Custom reply';
+      const blurb = c.description?.trim() || t('bot.chat.custom_reply_default');
       lines.push(`- **!${c.name}** — ${blurb}`);
     }
   }
@@ -131,13 +148,17 @@ export function formatHelpMessage(
   // Auto-DJ and 24/7 have no chat command, so say here when the answering bot has them on.
   if (automation?.autoDj || automation?.stayInChannel) {
     lines.push('');
-    lines.push('### This bot');
+    lines.push(t('bot.chat.this_bot_heading'));
     if (automation.autoDj) {
-      const source = automation.sourceKind === 'radio' ? 'a radio station' : 'a saved playlist';
-      lines.push(`- **Auto-DJ is on** — when nothing is queued it plays ${source}. Your requests always play first.`);
+      const source = t(
+        automation.sourceKind === 'radio'
+          ? 'bot.chat.auto_dj_source_radio'
+          : 'bot.chat.auto_dj_source_playlist',
+      );
+      lines.push(t('bot.chat.auto_dj_on', { source }));
     }
     if (automation.stayInChannel) {
-      lines.push('- **24/7 is on** — the bot stays in its channel.');
+      lines.push(t('bot.chat.stay_247_on'));
     }
   }
 
@@ -145,18 +166,22 @@ export function formatHelpMessage(
 }
 
 /** Compact list of enabled custom commands for !commands. */
-export function formatCustomCommandsMessage(custom: CustomHelpLine[]): string {
+export function formatCustomCommandsMessage(
+  custom: CustomHelpLine[],
+  locale?: SupportedLocale | null,
+): string {
+  const t = (key: MessageKey, vars?: ChatVariables) => chatTranslate(locale, key, vars);
   if (custom.length === 0) {
-    return '_No custom chat commands are enabled. Ask an admin to seed presets in Music Bots → Commands._';
+    return t('bot.chat.no_custom_commands');
   }
 
-  const lines: string[] = ['## Custom commands', ''];
+  const lines: string[] = [t('bot.chat.custom_commands_heading'), ''];
   for (const c of custom) {
-    const blurb = c.description?.trim() || 'Custom reply';
+    const blurb = c.description?.trim() || t('bot.chat.custom_reply_default');
     lines.push(`- **!${c.name}** — ${blurb}`);
   }
   lines.push('');
-  lines.push('_Type `!help` for built-in music commands._');
+  lines.push(t('bot.chat.custom_commands_footer'));
   return lines.join('\n');
 }
 
@@ -167,11 +192,13 @@ export function formatQueueMessage(
   maxLines = 15,
   /** `start`: first position shown. `numberOffset`: added to every track number. */
   { start = 0, numberOffset = 0 }: { start?: number; numberOffset?: number } = {},
+  locale?: SupportedLocale | null,
 ): string {
-  if (items.length === 0) return '_Queue is empty._';
+  const t = (key: MessageKey, vars?: ChatVariables) => chatTranslate(locale, key, vars);
+  if (items.length === 0) return t('bot.chat.queue_empty');
 
-  const lines: string[] = [`## Queue (${items.length} tracks)`, ''];
-  if (start > 0) lines.push(`_… ${start} earlier_`);
+  const lines: string[] = [t('bot.chat.queue_heading', { count: items.length }), ''];
+  if (start > 0) lines.push(t('bot.chat.queue_earlier', { count: start }));
   const shown = items.slice(start, start + maxLines);
   shown.forEach((item, offset) => {
     const i = start + offset;
@@ -184,7 +211,7 @@ export function formatQueueMessage(
 
   const after = items.length - start - shown.length;
   if (after > 0) {
-    lines.push('', `_… and ${after} more_`);
+    lines.push('', t('bot.chat.queue_more', { count: after }));
   }
 
   return lines.join('\n');
@@ -193,20 +220,30 @@ export function formatQueueMessage(
 /** Short formatted radio station list. */
 export function formatRadioListMessage(
   stations: Array<{ id: number; name: string; genre?: string | null }>,
+  locale?: SupportedLocale | null,
 ): string {
-  const lines: string[] = ['## Radio stations', ''];
+  const t = (key: MessageKey, vars?: ChatVariables) => chatTranslate(locale, key, vars);
+  const lines: string[] = [t('bot.chat.radio_heading'), ''];
   for (const s of stations) {
     const genre = s.genre ? ` _(${escapeMarkdownInline(s.genre)})_` : '';
     lines.push(`- **${s.id}** — ${escapeMarkdownInline(s.name)}${genre}`);
   }
   lines.push('');
-  lines.push('_Play with `!radio <id>`_');
+  lines.push(t('bot.chat.radio_play_hint'));
   return lines.join('\n');
 }
 
 /** Reply for a `!command` no bot, custom command or flow handles. */
-export function formatUnknownCommandMessage(command: string, suggestion: string | null): string {
+export function formatUnknownCommandMessage(
+  command: string,
+  suggestion: string | null,
+  locale?: SupportedLocale | null,
+): string {
   const shown = command.length > 32 ? `${command.slice(0, 32)}…` : command;
-  const hint = suggestion ? ` Did you mean **!${suggestion}**?` : '';
-  return `Unknown command **!${shown}**.${hint} Type **!help** for music commands or **!commands** for custom ones.`;
+  return suggestion
+    ? chatTranslate(locale, 'bot.chat.unknown_command_suggestion', {
+        command: shown,
+        suggestion,
+      })
+    : chatTranslate(locale, 'bot.chat.unknown_command', { command: shown });
 }

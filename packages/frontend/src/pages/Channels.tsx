@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useChannels, useCreateChannel, useDeleteChannel, useEditChannel, useMoveChannel } from '@/hooks/use-channels';
 import { useClients } from '@/hooks/use-clients';
 import { channelsApi } from '@/api/channels.api';
@@ -141,6 +142,7 @@ function findChannel(nodes: ChannelNode[], cid: number): ChannelNode | undefined
 }
 
 function ClientEntry({ client, depth, configId, sid }: { client: ClientInfo; depth: number; configId: number; sid: number }) {
+  const { t } = useTranslation('admin');
   const isQuery = client.client_type === '1';
   return (
     <div
@@ -149,7 +151,7 @@ function ClientEntry({ client, depth, configId, sid }: { client: ClientInfo; dep
     >
       {isQuery ? (
         <div className="relative flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted">
-          <Terminal className="h-3 w-3 text-muted-foreground" aria-label="ServerQuery client" />
+          <Terminal className="h-3 w-3 text-muted-foreground" aria-label={t('channels.serverQueryClient')} />
         </div>
       ) : (
         <div className="relative flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-[8px] font-mono-data text-primary">
@@ -162,10 +164,10 @@ function ClientEntry({ client, depth, configId, sid }: { client: ClientInfo; dep
         </div>
       )}
       {!isQuery && (
-        <span className="flex min-w-4 shrink-0 items-center justify-center gap-0.5" aria-label="Client voice status">
-          {client.client_away === 1 && <Clock3 className="h-3 w-3 text-amber-400" aria-label={client.client_away_message || 'Away'} />}
-          {(client.client_output_muted === 1 || client.client_output_hardware === 0) && <VolumeX className="h-3 w-3 text-rose-400" aria-label="Output muted" />}
-          {(client.client_input_muted === 1 || client.client_input_hardware === 0) && <MicOff className="h-3 w-3 text-rose-400" aria-label="Microphone muted" />}
+        <span className="flex min-w-4 shrink-0 items-center justify-center gap-0.5" aria-label={t('channels.voiceStatus')}>
+          {client.client_away === 1 && <Clock3 className="h-3 w-3 text-amber-400" aria-label={client.client_away_message || t('channels.away')} />}
+          {(client.client_output_muted === 1 || client.client_output_hardware === 0) && <VolumeX className="h-3 w-3 text-rose-400" aria-label={t('channels.outputMuted')} />}
+          {(client.client_input_muted === 1 || client.client_input_hardware === 0) && <MicOff className="h-3 w-3 text-rose-400" aria-label={t('channels.micMuted')} />}
           {client.client_away !== 1
             && client.client_output_muted !== 1
             && client.client_output_hardware !== 0
@@ -174,13 +176,13 @@ function ClientEntry({ client, depth, configId, sid }: { client: ClientInfo; dep
             && (
               <span
                 className={cn('h-2 w-2 rounded-full bg-sky-400', client.client_flag_talking === 1 && 'bg-emerald-400')}
-                title={client.client_flag_talking === 1 ? 'Talking' : 'Available'}
+                title={client.client_flag_talking === 1 ? t('channels.talking') : t('channels.available')}
               />
             )}
         </span>
       )}
       <span className="truncate">{client.client_nickname}</span>
-      {isQuery && <Badge variant="outline" className="h-3.5 px-1 py-0 text-[8px]">Query</Badge>}
+      {isQuery && <Badge variant="outline" className="h-3.5 px-1 py-0 text-[8px]">{t('channels.queryBadge')}</Badge>}
     </div>
   );
 }
@@ -204,6 +206,7 @@ interface TreeNodeProps {
 const channelActionClass = 'flex h-9 w-9 items-center justify-center rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-7 sm:w-7';
 
 function ChannelTreeNode({ node, depth = 0, isAdmin, configId, sid, showQueryClients, clientsByChannel, onDelete, onEdit, onMove, onDrop, draggedCid, setDraggedCid }: TreeNodeProps) {
+  const { t } = useTranslation('admin');
   const [expanded, setExpanded] = useState(true);
   const [dropOver, setDropOver] = useState(false);
   const hasChildren = node.children.length > 0;
@@ -268,7 +271,7 @@ function ChannelTreeNode({ node, depth = 0, isAdmin, configId, sid, showQueryCli
         onDragEnd={handleDragEnd}
       >
         {hasContent ? (
-          <button onClick={() => setExpanded(!expanded)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded hover:bg-muted sm:h-5 sm:w-5" aria-label={expanded ? `Collapse ${node.channel_name}` : `Expand ${node.channel_name}`}>
+          <button onClick={() => setExpanded(!expanded)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded hover:bg-muted sm:h-5 sm:w-5" aria-label={expanded ? t('channels.collapse', { name: node.channel_name }) : t('channels.expand', { name: node.channel_name })}>
             {expanded ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
           </button>
         ) : (
@@ -286,16 +289,16 @@ function ChannelTreeNode({ node, depth = 0, isAdmin, configId, sid, showQueryCli
             <button
               onClick={() => onMove(node)}
               className={cn(channelActionClass, 'text-muted-foreground hover:bg-muted hover:text-foreground')}
-              aria-label={`Move ${node.channel_name}`}
-              title={`Move ${node.channel_name}`}
+              aria-label={t('channels.moveAria', { name: node.channel_name })}
+              title={t('channels.moveAria', { name: node.channel_name })}
             >
               <MoveRight className="h-3 w-3" />
             </button>
             <button
               onClick={() => onEdit(node)}
               className={cn(channelActionClass, 'text-muted-foreground hover:bg-muted hover:text-foreground')}
-              aria-label={`Edit ${node.channel_name}`}
-              title={`Edit ${node.channel_name}`}
+              aria-label={t('channels.editAria', { name: node.channel_name })}
+              title={t('channels.editAria', { name: node.channel_name })}
             >
               <Pencil className="h-3 w-3" />
             </button>
@@ -303,8 +306,8 @@ function ChannelTreeNode({ node, depth = 0, isAdmin, configId, sid, showQueryCli
             <button
               onClick={() => onDelete(node.cid, node.channel_name)}
               className={cn(channelActionClass, 'text-destructive/70 hover:bg-destructive/15 hover:text-destructive')}
-              aria-label={`Delete ${node.channel_name}`}
-              title={`Delete ${node.channel_name}`}
+              aria-label={t('channels.deleteAria', { name: node.channel_name })}
+              title={t('channels.deleteAria', { name: node.channel_name })}
             >
               <Trash2 className="h-3 w-3" />
             </button>
@@ -314,7 +317,7 @@ function ChannelTreeNode({ node, depth = 0, isAdmin, configId, sid, showQueryCli
         <div className="flex items-center gap-1.5 ml-1">
           {node.channel_flag_password === 1 && <Lock className="h-3 w-3 text-amber-400/60" />}
           {humanClients.length > 0 && (
-            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground font-mono-data" title="Human clients">
+            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground font-mono-data" title={t('channels.humanClients')}>
               <Users className="h-3 w-3" />
               {humanClients.length}
             </span>
@@ -331,16 +334,16 @@ function ChannelTreeNode({ node, depth = 0, isAdmin, configId, sid, showQueryCli
             <div
               className="my-1 border-l border-border/60 text-muted-foreground"
               style={{ marginLeft: `${(depth + 1) * 16 + 12}px` }}
-              aria-label={`Query sessions in ${node.channel_name}`}
+              aria-label={t('channels.querySessionsIn', { name: node.channel_name })}
             >
               <div className="px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
-                Query sessions ({queryClients.length})
+                {t('channels.querySessionsCount', { count: queryClients.length })}
               </div>
               {queryClients.map((client) => (
                 <ClientEntry key={client.clid} client={client} depth={depth + 1} configId={configId} sid={sid} />
               ))}
               {queryClients.length > 1 && (
-                <div className="px-2 pb-1 text-[10px]">Multiple Query sessions</div>
+                <div className="px-2 pb-1 text-[10px]">{t('channels.multipleQuerySessions')}</div>
               )}
             </div>
           )}
@@ -369,6 +372,8 @@ function ChannelTreeNode({ node, depth = 0, isAdmin, configId, sid, showQueryCli
 }
 
 export default function Channels() {
+  const { t } = useTranslation('admin');
+  const { t: tc } = useTranslation();
   const { selectedConfigId, selectedSid } = useServerStore();
   const isAdmin = useAuthStore((s) => s.isAdmin());
   const storedShowQueryClients = useUiStore((s) => s.showQueryClients);
@@ -440,7 +445,7 @@ export default function Channels() {
     return map;
   }, [clientData]);
 
-  if (!selectedConfigId || !selectedSid) return <NoServerSelectedState pageTitle="Channels" icon={Hash} />;
+  if (!selectedConfigId || !selectedSid) return <NoServerSelectedState pageTitle={t('channels.title')} icon={Hash} />;
   const hasChannelData = Array.isArray(channelData);
   const gateError = channelsError || virtualServersError;
   const contextIsValid = !!virtualServers?.some((server: any) => Number(server.virtualserver_id) === selectedSid);
@@ -461,13 +466,13 @@ export default function Channels() {
           description={apiErrorMessage(
             gateError,
             isTeamSpeakStarting(gateError)
-              ? 'TeamSpeak Query is still coming up after startup. Wait a moment and retry.'
-              : 'Could not load channels from the TeamSpeak server.',
+              ? t('channels.queryStartingLoad')
+              : t('channels.loadFailed'),
           )}
         />
         <div className="flex justify-center">
           <Button size="sm" variant="outline" onClick={retryGate} disabled={isFetchingGate}>
-            {isFetchingGate ? 'Retrying…' : 'Retry'}
+            {isFetchingGate ? t('retrying') : tc('action.retry')}
           </Button>
         </div>
       </div>
@@ -480,16 +485,16 @@ export default function Channels() {
   const handleCreate = () => {
     if (!newName.trim()) return;
     createChannel.mutate({ channel_name: newName, channel_flag_permanent: 1 }, {
-      onSuccess: () => { toast.success('Channel created'); setShowCreate(false); setNewName(''); },
-      onError: () => toast.error('Failed to create channel'),
+      onSuccess: () => { toast.success(t('channels.created')); setShowCreate(false); setNewName(''); },
+      onError: () => toast.error(t('channels.createFailed')),
     });
   };
 
   const handleDelete = () => {
     if (!deleteTarget) return;
     deleteChannel.mutate(deleteTarget.cid, {
-      onSuccess: () => { toast.success('Channel deleted'); setDeleteTarget(null); },
-      onError: () => toast.error('Failed to delete channel'),
+      onSuccess: () => { toast.success(t('channels.deleted')); setDeleteTarget(null); },
+      onError: () => toast.error(t('channels.deleteFailed')),
     });
   };
 
@@ -525,7 +530,7 @@ export default function Channels() {
       setEditForm(fromInfo);
       setEditLoaded(fromInfo);
     } catch {
-      toast.error('Failed to load full channel details');
+      toast.error(t('channels.loadDetailsFailed'));
     } finally {
       setEditLoading(false);
     }
@@ -547,8 +552,8 @@ export default function Channels() {
     if (editForm.channel_password) data.channel_password = editForm.channel_password;
     if (Object.keys(data).length === 0) { setEditTarget(null); return; }
     editChannel.mutate({ cid: editTarget.cid, data }, {
-      onSuccess: () => { toast.success('Channel updated'); setEditTarget(null); },
-      onError: (error) => toast.error(apiErrorMessage(error, 'Failed to update channel')),
+      onSuccess: () => { toast.success(t('channels.updated')); setEditTarget(null); },
+      onError: (error) => toast.error(apiErrorMessage(error, t('channels.updateFailed'))),
     });
   };
 
@@ -570,11 +575,11 @@ export default function Channels() {
       data: { cpid: destinationCid },
     }, {
       onSuccess: () => {
-        toast.success('Channel moved');
+        toast.success(t('channels.moved'));
         setMoveTarget(null);
         setMoveDestination('');
       },
-      onError: (error) => toast.error(apiErrorMessage(error, 'Could not move the channel. Check the destination and try again.')),
+      onError: (error) => toast.error(apiErrorMessage(error, t('channels.moveFailed'))),
     });
   };
 
@@ -582,12 +587,12 @@ export default function Channels() {
     if (!dragContext || dragContext.cid !== draggedCid || moveChannel.isPending) return;
     const source = findChannel(tree, draggedCid);
     if (!source || source.pid === targetCid || collectDescendantCids(source).has(targetCid)) {
-      toast.error('Choose a different parent channel. A channel cannot move into itself, a descendant, or its current parent.');
+      toast.error(t('channels.moveInvalid'));
       return;
     }
     moveChannel.mutate({ ...dragContext, data: { cpid: targetCid } }, {
-      onSuccess: () => toast.success('Channel moved'),
-      onError: (error) => toast.error(apiErrorMessage(error, 'Could not move the channel. Check the destination and try again.')),
+      onSuccess: () => toast.success(t('channels.moved')),
+      onError: (error) => toast.error(apiErrorMessage(error, t('channels.moveFailed'))),
     });
   };
 
@@ -600,8 +605,8 @@ export default function Channels() {
     ? apiErrorMessage(
       gateError,
       isTeamSpeakStarting(gateError)
-        ? 'TeamSpeak Query is still starting. Channel data may be incomplete until it comes online.'
-        : 'Channel refresh failed. The last successful channel tree is still displayed.',
+        ? t('channels.queryStartingBackground')
+        : t('channels.refreshFailed'),
     )
     : null;
   const refreshTone = teamSpeakRefreshTone(gateError);
@@ -609,22 +614,31 @@ export default function Channels() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Channels"
+        title={t('channels.title')}
         icon={Hash}
-        description={`${formatNumber(hasChannelData ? channelData.length : 0)} channels · ${formatNumber(totalClients)} users online${showQueryClients && totalQuerySessions > 0 ? ` · ${formatNumber(totalQuerySessions)} query session${totalQuerySessions === 1 ? '' : 's'}` : ''}`}
+        description={showQueryClients && totalQuerySessions > 0
+          ? t('channels.descriptionWithQuery', {
+            channels: formatNumber(hasChannelData ? channelData.length : 0),
+            clients: formatNumber(totalClients),
+            count: totalQuerySessions,
+          })
+          : t('channels.description', {
+            channels: formatNumber(hasChannelData ? channelData.length : 0),
+            clients: formatNumber(totalClients),
+          })}
         actions={isAdmin ? (
           <Button size="sm" onClick={() => setShowCreate(true)}>
-            <Plus className="h-4 w-4 mr-1" /> Create Channel
+            <Plus className="h-4 w-4 mr-1" /> {t('channels.createChannel')}
           </Button>
         ) : undefined}
         metadata={(
           <RefreshStatus
             isRefreshing={isFetchingGate}
             tone={refreshTone}
-            idleLabel="Live channel updates active"
-            refreshingLabel="Refreshing channels…"
-            degradedLabel="Channel updates interrupted"
-            startingLabel="Waiting for TeamSpeak Query…"
+            idleLabel={t('channels.idleLabel')}
+            refreshingLabel={t('channels.refreshingLabel')}
+            degradedLabel={t('channels.degradedLabel')}
+            startingLabel={t('channels.startingLabel')}
           />
         )}
       />
@@ -640,19 +654,19 @@ export default function Channels() {
       <Card>
         <CardHeader className="flex-row items-center justify-between gap-3 space-y-0 pb-2">
           <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            <Volume2 className="h-4 w-4 text-primary" /> Channel Tree
+            <Volume2 className="h-4 w-4 text-primary" /> {t('channels.channelTree')}
           </CardTitle>
           {isAdmin && (
             <div className="flex min-w-0 items-center gap-2">
-              <Label htmlFor="show-query-clients" className="truncate text-xs text-muted-foreground" title="Show ServerQuery sessions for diagnostics">
-                Show Query clients
+              <Label htmlFor="show-query-clients" className="truncate text-xs text-muted-foreground" title={t('channels.showQueryClientsTitle')}>
+                {t('channels.showQueryClients')}
               </Label>
               <Switch
                 id="show-query-clients"
                 checked={showQueryClients}
                 onCheckedChange={setShowQueryClients}
-                aria-label="Show Query clients"
-                title="Show ServerQuery sessions for diagnostics"
+                aria-label={t('channels.showQueryClients')}
+                title={t('channels.showQueryClientsTitle')}
               />
             </div>
           )}
@@ -697,60 +711,65 @@ export default function Channels() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Move Channel</DialogTitle>
+            <DialogTitle>{t('channels.moveTitle')}</DialogTitle>
             <DialogDescription>
-              Choose a new parent for {moveTarget?.node.channel_name} (CID {moveTarget?.node.cid}).
+              <Trans
+                i18nKey="admin:channels.moveDescription"
+                values={{ name: moveTarget?.node.channel_name, cid: moveTarget?.node.cid }}
+              />
             </DialogDescription>
           </DialogHeader>
           {moveTarget && (
             <div className="space-y-4">
               <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 rounded-md border border-border/70 bg-muted/20 p-3 text-sm">
-                <dt className="text-muted-foreground">Source</dt>
+                <dt className="text-muted-foreground">{t('channels.source')}</dt>
                 <dd className="truncate font-medium">{moveTarget.node.channel_name} (#{moveTarget.node.cid})</dd>
-                <dt className="text-muted-foreground">Current parent</dt>
+                <dt className="text-muted-foreground">{t('channels.currentParent')}</dt>
                 <dd className="truncate">
                   {moveTarget.node.pid === 0
-                    ? 'Top level'
+                    ? t('channels.topLevel')
                     : channelDestinations.find((destination) => destination.cid === moveTarget.node.pid)?.label ?? `CID ${moveTarget.node.pid}`}
                 </dd>
               </dl>
               <div className="space-y-1.5">
-                <Label htmlFor="move-channel-destination">Destination channel</Label>
+                <Label htmlFor="move-channel-destination">{t('channels.destinationChannel')}</Label>
                 <Select value={moveDestination} onValueChange={setMoveDestination} disabled={moveChannel.isPending}>
-                  <SelectTrigger id="move-channel-destination" aria-label="Destination channel">
-                    <SelectValue placeholder="Select a new parent" />
+                  <SelectTrigger id="move-channel-destination" aria-label={t('channels.destinationChannel')}>
+                    <SelectValue placeholder={t('channels.selectNewParent')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="0" disabled={moveTarget.node.pid === 0}>Top level / root</SelectItem>
+                    <SelectItem value="0" disabled={moveTarget.node.pid === 0}>{t('channels.topLevelRoot')}</SelectItem>
                     {validMoveDestinations.map((destination) => (
                       <SelectItem
                         key={destination.cid}
                         value={String(destination.cid)}
                         disabled={destination.cid === moveTarget.node.pid}
                       >
-                        {destination.label}{destination.cid === moveTarget.node.pid ? ' (current parent)' : ''}
+                        {destination.cid === moveTarget.node.pid
+                          ? t('channels.destinationOptionCurrent', { label: destination.label })
+                          : t('channels.destinationOption', { label: destination.label })}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 {moveDestination !== '' && Number(moveDestination) === moveTarget.node.pid && (
-                  <p className="text-xs text-muted-foreground">This channel is already under that parent.</p>
+                  <p className="text-xs text-muted-foreground">{t('channels.alreadyUnderParent')}</p>
                 )}
               </div>
               {moveChannel.isError && (
                 <p role="alert" className="text-sm text-destructive">
-                  {apiErrorMessage(moveChannel.error, 'Could not move the channel. Check the destination and try again.')}
+                  {apiErrorMessage(moveChannel.error, t('channels.moveFailed'))}
                 </p>
               )}
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setMoveTarget(null)} disabled={moveChannel.isPending}>Cancel</Button>
+            <Button variant="outline" onClick={() => setMoveTarget(null)} disabled={moveChannel.isPending}>{tc('action.cancel')}</Button>
             <Button
               onClick={handleMoveConfirm}
               disabled={moveChannel.isPending || moveDestination === '' || Number(moveDestination) === moveTarget?.node.pid}
             >
-              {moveChannel.isPending ? 'Moving…' : 'Move Channel'}
+              {moveChannel.isPending ? t('channels.moving') : t('channels.moveButton')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -760,17 +779,17 @@ export default function Channels() {
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create Channel</DialogTitle>
+            <DialogTitle>{t('channels.createTitle')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label className="text-xs">Channel Name</Label>
-              <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New Channel" autoFocus />
+              <Label className="text-xs">{t('channels.channelName')}</Label>
+              <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={t('channels.newChannelPlaceholder')} autoFocus />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={createChannel.isPending}>Create</Button>
+            <Button variant="outline" onClick={() => setShowCreate(false)}>{tc('action.cancel')}</Button>
+            <Button onClick={handleCreate} disabled={createChannel.isPending}>{tc('action.create')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -779,42 +798,42 @@ export default function Channels() {
       <Dialog open={!!editTarget} onOpenChange={(v) => { if (!v) setEditTarget(null); }}>
         <DialogContent className="max-w-lg [--dialog-max-height:90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit Channel{editTarget ? ` #${editTarget.cid}` : ''}</DialogTitle>
+            <DialogTitle>{editTarget ? t('channels.editTitleWithId', { cid: editTarget.cid }) : t('channels.editTitle')}</DialogTitle>
           </DialogHeader>
           {editLoading ? (
             <div className="flex items-center justify-center py-10 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading channel details…
+              <Loader2 className="h-5 w-5 animate-spin mr-2" /> {t('channels.loadingDetails')}
             </div>
           ) : (
             <div className="space-y-3">
               <div>
-                <Label className="text-xs">Channel Name</Label>
+                <Label className="text-xs">{t('channels.channelName')}</Label>
                 <Input value={editForm.channel_name} onChange={(e) => setEditForm({ ...editForm, channel_name: e.target.value })} />
               </div>
               <div>
-                <Label className="text-xs">Topic</Label>
-                <Input value={editForm.channel_topic} onChange={(e) => setEditForm({ ...editForm, channel_topic: e.target.value })} placeholder="Optional" />
+                <Label className="text-xs">{t('channels.topic')}</Label>
+                <Input value={editForm.channel_topic} onChange={(e) => setEditForm({ ...editForm, channel_topic: e.target.value })} placeholder={t('channels.optionalPlaceholder')} />
               </div>
               <div>
-                <Label className="text-xs">Description</Label>
+                <Label className="text-xs">{t('channels.descriptionLabel')}</Label>
                 <Textarea
                   value={editForm.channel_description}
                   onChange={(e) => setEditForm({ ...editForm, channel_description: e.target.value })}
-                  placeholder="Optional channel description (supports BBCode)"
+                  placeholder={t('channels.descriptionPlaceholder')}
                   rows={4}
                 />
               </div>
               <div>
-                <Label htmlFor="channel-icon-id" className="text-xs">Icon ID</Label>
+                <Label htmlFor="channel-icon-id" className="text-xs">{t('channels.iconId')}</Label>
                 <Input
                   className="font-mono-data"
                   value={editForm.channel_icon_id}
                   onChange={(e) => setEditForm({ ...editForm, channel_icon_id: e.target.value })}
                   id="channel-icon-id"
-                  placeholder="0 = no icon"
+                  placeholder={t('channels.iconIdPlaceholder')}
                 />
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  The number TeamSpeak uses for the chosen icon; picking an icon below fills it in. <span className="font-mono">0</span> means no icon.
+                  <Trans i18nKey="admin:channels.iconIdHelp" components={{ code: <span className="font-mono" /> }} />
                 </p>
                 <ServerIconPicker
                   value={(Number.parseInt(editForm.channel_icon_id, 10) || 0) >>> 0}
@@ -822,14 +841,14 @@ export default function Channels() {
                 />
               </div>
               <div>
-                <Label className="text-xs">Banner image URL</Label>
+                <Label className="text-xs">{t('channels.bannerUrl')}</Label>
                 <Input
                   value={editForm.channel_banner_gfx_url}
                   onChange={(e) => setEditForm({ ...editForm, channel_banner_gfx_url: e.target.value })}
-                  placeholder="https://… or ts3image://…"
+                  placeholder={t('channels.bannerUrlPlaceholder')}
                 />
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  The image TS6 shows for this channel. Paste any image link (<span className="font-mono">https://</span> or <span className="font-mono">ts3image://</span>), or pick an uploaded image below to fill this in.
+                  <Trans i18nKey="admin:channels.bannerUrlHelp" components={{ code: <span className="font-mono" /> }} />
                 </p>
                 <HostedBannerPicker
                   value={editForm.channel_banner_gfx_url}
@@ -837,29 +856,29 @@ export default function Channels() {
                 />
               </div>
               <div>
-                <Label className="text-xs">Banner mode</Label>
+                <Label className="text-xs">{t('channels.bannerMode')}</Label>
                 <Select
                   value={editForm.channel_banner_mode}
                   onValueChange={(v) => setEditForm({ ...editForm, channel_banner_mode: v })}
                 >
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="0">0 — Stretch</SelectItem>
-                    <SelectItem value="1">1 — Keep aspect ratio</SelectItem>
-                    <SelectItem value="2">2 — Ignore aspect / fill</SelectItem>
+                    <SelectItem value="0">{t('channels.bannerStretch')}</SelectItem>
+                    <SelectItem value="1">{t('channels.bannerKeepAspect')}</SelectItem>
+                    <SelectItem value="2">{t('channels.bannerIgnoreAspect')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label className="text-xs">Password</Label>
-                <Input type="password" value={editForm.channel_password} onChange={(e) => setEditForm({ ...editForm, channel_password: e.target.value })} placeholder="Leave empty to keep current" />
+                <Label className="text-xs">{t('channels.password')}</Label>
+                <Input type="password" value={editForm.channel_password} onChange={(e) => setEditForm({ ...editForm, channel_password: e.target.value })} placeholder={t('channels.passwordPlaceholder')} />
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditTarget(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setEditTarget(null)}>{tc('action.cancel')}</Button>
             <Button onClick={handleEditSave} disabled={editLoading || !editForm.channel_name.trim() || editChannel.isPending}>
-              {editChannel.isPending ? 'Saving...' : 'Save'}
+              {editChannel.isPending ? t('channels.saving') : tc('action.save')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -869,9 +888,9 @@ export default function Channels() {
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={() => setDeleteTarget(null)}
-        title="Delete Channel"
-        description={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
-        confirmLabel="Delete"
+        title={t('channels.deleteTitle')}
+        description={t('channels.deleteDescription', { name: deleteTarget?.name })}
+        confirmLabel={tc('action.delete')}
         destructive
         onConfirm={handleDelete}
         loading={deleteChannel.isPending}

@@ -1,5 +1,11 @@
 import { TeamSpeakFloodError, TSApiError } from '../middleware/error-handler.js';
 import { validateTsQueryServerId } from '../utils/validate-ts-host.js';
+import {
+  DEFAULT_LOCALE,
+  translate,
+  type MessageKey,
+  type SupportedLocale,
+} from '../i18n/index.js';
 
 /** Staged WebQuery connection diagnostic stages (#91 Slice 2). */
 export const DIAGNOSTIC_STAGE_IDS = [
@@ -38,6 +44,8 @@ export interface DiagnoseConnectionOptions {
   sid?: number;
   /** Hard deadline for the whole diagnose run (default 20s). */
   overallTimeoutMs?: number;
+  /** Response language for stage messages (default English). */
+  locale?: SupportedLocale;
 }
 
 /** Minimal client surface used by diagnostics (real + demo + mocks). */
@@ -54,11 +62,11 @@ export interface DiagnosticWebQueryClient {
  * `testWebqueryDraft` use CONNECTION_DIAGNOSTICS_TIMEOUT_MS (30s) so the
  * axios client does not abort before this deadline returns a staged report. */
 const DEFAULT_OVERALL_TIMEOUT_MS = 20_000;
-const STAGE_LABEL: Record<DiagnosticStageId, string> = {
-  reachability: 'Endpoint reachability',
-  authentication: 'Authentication',
-  permissions: 'Management read permissions',
-  virtual_server: 'Virtual server access',
+const STAGE_LABEL_KEY: Record<DiagnosticStageId, MessageKey> = {
+  reachability: 'diagnostics.connection.stage.reachability',
+  authentication: 'diagnostics.connection.stage.authentication',
+  permissions: 'diagnostics.connection.stage.permissions',
+  virtual_server: 'diagnostics.connection.stage.virtual_server',
 };
 
 const SENSITIVE_SUBSTRINGS = [
@@ -166,7 +174,10 @@ function isPermissionError(error: unknown): boolean {
 }
 
 /** Map thrown errors to stable operator-safe codes (no secrets / raw bodies). */
-export function classifyDiagnosticError(error: unknown): ClassifiedError {
+export function classifyDiagnosticError(
+  error: unknown,
+  locale: SupportedLocale = DEFAULT_LOCALE,
+): ClassifiedError {
   if (isFloodLikeError(error)) {
     const retry =
       error instanceof TeamSpeakFloodError
@@ -176,8 +187,8 @@ export function classifyDiagnosticError(error: unknown): ClassifiedError {
       kind: 'flood',
       code: 'flood',
       message: retry
-        ? `TeamSpeak flood protection is active. Retry in about ${retry}s.`
-        : 'TeamSpeak flood protection is active. Wait before retrying.',
+        ? translate(locale, 'diagnostics.connection.flood_retry', { seconds: retry })
+        : translate(locale, 'diagnostics.connection.flood_wait'),
     };
   }
 
@@ -185,7 +196,7 @@ export function classifyDiagnosticError(error: unknown): ClassifiedError {
     return {
       kind: 'timeout',
       code: 'timeout',
-      message: 'The TeamSpeak endpoint did not respond in time.',
+      message: translate(locale, 'diagnostics.connection.timeout'),
     };
   }
 
@@ -193,7 +204,7 @@ export function classifyDiagnosticError(error: unknown): ClassifiedError {
     return {
       kind: 'network',
       code: 'unreachable',
-      message: 'Could not reach the TeamSpeak WebQuery endpoint.',
+      message: translate(locale, 'diagnostics.connection.unreachable'),
     };
   }
 
@@ -201,7 +212,7 @@ export function classifyDiagnosticError(error: unknown): ClassifiedError {
     return {
       kind: 'auth',
       code: 'invalid_apikey',
-      message: 'The WebQuery API key was rejected.',
+      message: translate(locale, 'diagnostics.connection.invalid_apikey'),
     };
   }
 
@@ -209,14 +220,14 @@ export function classifyDiagnosticError(error: unknown): ClassifiedError {
     return {
       kind: 'permission',
       code: 'permission_denied',
-      message: 'The API key lacks the required management permissions.',
+      message: translate(locale, 'diagnostics.connection.permission_denied'),
     };
   }
 
   return {
     kind: 'unknown',
     code: 'query_failed',
-    message: 'The TeamSpeak Query command failed.',
+    message: translate(locale, 'diagnostics.connection.query_failed'),
   };
 }
 
@@ -273,24 +284,38 @@ export function assertReportHasNoSecrets(
   }
 }
 
-export function buildFloodDiagnosticReport(retryAfterSeconds?: number): ConnectionDiagnosticReport {
+export function buildFloodDiagnosticReport(
+  retryAfterSeconds?: number,
+  locale: SupportedLocale = DEFAULT_LOCALE,
+): ConnectionDiagnosticReport {
   const message = retryAfterSeconds
-    ? `TeamSpeak flood protection is active. Retry in about ${retryAfterSeconds}s.`
-    : 'TeamSpeak flood protection is active. Wait before retrying.';
+    ? translate(locale, 'diagnostics.connection.flood_retry', { seconds: retryAfterSeconds })
+    : translate(locale, 'diagnostics.connection.flood_wait');
+  const skippedMessage = translate(locale, 'diagnostics.connection.skipped_flood');
   const stages: DiagnosticStageResult[] = DIAGNOSTIC_STAGE_IDS.map((id, index) =>
     index === 0
       ? { id, status: 'fail', message, code: 'flood' }
-      : { id, status: 'skipped', message: 'Skipped after flood protection.', code: 'skipped' },
+      : { id, status: 'skipped', message: skippedMessage, code: 'skipped' },
   );
   return finalizeReport(stages);
 }
 
-export function buildFullSuccessReport(version = 'Demo mode'): ConnectionDiagnosticReport {
+export function buildFullSuccessReport(
+  version = 'Demo mode',
+  locale: SupportedLocale = DEFAULT_LOCALE,
+): ConnectionDiagnosticReport {
+  const confirmed = (id: DiagnosticStageId): DiagnosticStageResult => ({
+    id,
+    status: 'ok',
+    message: translate(locale, 'diagnostics.connection.stage_confirmed', {
+      stage: translate(locale, STAGE_LABEL_KEY[id]),
+    }),
+  });
   const stages: DiagnosticStageResult[] = [
-    { id: 'reachability', status: 'ok', message: `${STAGE_LABEL.reachability} confirmed.` },
-    { id: 'authentication', status: 'ok', message: `${STAGE_LABEL.authentication} confirmed.` },
-    { id: 'permissions', status: 'ok', message: `${STAGE_LABEL.permissions} confirmed.` },
-    { id: 'virtual_server', status: 'ok', message: `${STAGE_LABEL.virtual_server} confirmed.` },
+    confirmed('reachability'),
+    confirmed('authentication'),
+    confirmed('permissions'),
+    confirmed('virtual_server'),
   ];
   return finalizeReport(stages, sanitizeVersionString(version) ?? version);
 }
@@ -371,6 +396,9 @@ export async function diagnoseConnection(
         return parsed > 0 ? parsed : 1;
       })();
   const deadline = Date.now() + (options.overallTimeoutMs ?? DEFAULT_OVERALL_TIMEOUT_MS);
+  const locale = options.locale ?? DEFAULT_LOCALE;
+  const t = (key: MessageKey, variables?: Record<string, string | number>) =>
+    translate(locale, key, variables);
   const stages: DiagnosticStageResult[] = [];
   let version: string | undefined;
 
@@ -401,23 +429,23 @@ export async function diagnoseConnection(
       id: 'reachability',
       status: 'ok',
       message: version
-        ? `Endpoint reachable (${version}).`
-        : 'Endpoint reachable and responded to version.',
+        ? t('diagnostics.connection.endpoint_reachable_version', { version })
+        : t('diagnostics.connection.endpoint_reachable'),
     });
   } catch (error) {
-    const classified = classifyDiagnosticError(error);
+    const classified = classifyDiagnosticError(error, locale);
 
     // Auth rejection still proves the HTTP endpoint is reachable.
     if (classified.kind === 'auth') {
       stages.push({
         id: 'reachability',
         status: 'ok',
-        message: 'Endpoint reachable (TeamSpeak rejected the API key).',
+        message: t('diagnostics.connection.endpoint_reachable_auth_rejected'),
       });
       return pushFailAndSkip(
         'authentication',
         classified,
-        'Skipped after authentication failed.',
+        t('diagnostics.connection.skipped_auth'),
       );
     }
 
@@ -425,7 +453,7 @@ export async function diagnoseConnection(
       return pushFailAndSkip(
         'reachability',
         classified,
-        'Skipped after flood protection.',
+        t('diagnostics.connection.skipped_flood'),
       );
     }
 
@@ -439,10 +467,10 @@ export async function diagnoseConnection(
               kind: 'network',
               code: classified.code === 'query_failed' ? 'unreachable' : classified.code,
               message: classified.kind === 'unknown'
-                ? 'Could not complete the reachability probe.'
+                ? t('diagnostics.connection.reachability_probe_failed')
                 : classified.message,
             },
-      'Skipped after reachability failed.',
+      t('diagnostics.connection.skipped_reachability'),
     );
   }
 
@@ -455,15 +483,19 @@ export async function diagnoseConnection(
     stages.push({
       id: 'authentication',
       status: 'ok',
-      message: 'Authenticated Query identity confirmed.',
+      message: t('diagnostics.connection.authenticated'),
     });
   } catch (error) {
-    const classified = classifyDiagnosticError(error);
+    const classified = classifyDiagnosticError(error, locale);
     if (classified.kind === 'flood') {
-      return pushFailAndSkip('authentication', classified, 'Skipped after flood protection.');
+      return pushFailAndSkip('authentication', classified, t('diagnostics.connection.skipped_flood'));
     }
     if (classified.kind === 'timeout' || classified.kind === 'network') {
-      return pushFailAndSkip('authentication', classified, 'Skipped after authentication probe failed.');
+      return pushFailAndSkip(
+        'authentication',
+        classified,
+        t('diagnostics.connection.skipped_auth_probe'),
+      );
     }
     return pushFailAndSkip(
       'authentication',
@@ -474,9 +506,9 @@ export async function diagnoseConnection(
             code: classified.kind === 'permission' ? 'permission_denied' : 'invalid_apikey',
             message: classified.kind === 'permission'
               ? classified.message
-              : 'Could not confirm an authenticated Query identity.',
+              : t('diagnostics.connection.authenticated_identity_unconfirmed'),
           },
-      'Skipped after authentication failed.',
+      t('diagnostics.connection.skipped_auth'),
     );
   }
 
@@ -489,22 +521,26 @@ export async function diagnoseConnection(
     stages.push({
       id: 'permissions',
       status: 'ok',
-      message: 'Instance-level management read permissions confirmed.',
+      message: t('diagnostics.connection.permissions_confirmed'),
     });
   } catch (error) {
-    const classified = classifyDiagnosticError(error);
+    const classified = classifyDiagnosticError(error, locale);
     if (classified.kind === 'flood') {
-      return pushFailAndSkip('permissions', classified, 'Skipped after flood protection.');
+      return pushFailAndSkip('permissions', classified, t('diagnostics.connection.skipped_flood'));
     }
     if (classified.kind === 'auth') {
       return pushFailAndSkip('permissions', {
         kind: 'auth',
         code: 'invalid_apikey',
         message: classified.message,
-      }, 'Skipped after authentication failed.');
+      }, t('diagnostics.connection.skipped_auth'));
     }
     if (classified.kind === 'timeout' || classified.kind === 'network') {
-      return pushFailAndSkip('permissions', classified, 'Skipped after permissions probe failed.');
+      return pushFailAndSkip(
+        'permissions',
+        classified,
+        t('diagnostics.connection.skipped_permissions_probe'),
+      );
     }
     return pushFailAndSkip(
       'permissions',
@@ -513,9 +549,9 @@ export async function diagnoseConnection(
         : {
             kind: 'permission',
             code: 'permission_denied',
-            message: 'The API key lacks required management read permissions.',
+            message: t('diagnostics.connection.permissions_missing'),
           },
-      'Skipped after permissions failed.',
+      t('diagnostics.connection.skipped_permissions'),
     );
   }
 
@@ -528,18 +564,18 @@ export async function diagnoseConnection(
     stages.push({
       id: 'virtual_server',
       status: 'ok',
-      message: `Virtual server ${virtualSid} is accessible.`,
+      message: t('diagnostics.connection.virtual_server_accessible', { sid: virtualSid }),
     });
   } catch (error) {
-    const classified = classifyDiagnosticError(error);
+    const classified = classifyDiagnosticError(error, locale);
     if (classified.kind === 'flood') {
-      return pushFailAndSkip('virtual_server', classified, 'Skipped after flood protection.');
+      return pushFailAndSkip('virtual_server', classified, t('diagnostics.connection.skipped_flood'));
     }
     stages.push({
       id: 'virtual_server',
       status: 'fail',
       message: classified.kind === 'permission' || classified.kind === 'unknown'
-        ? `Virtual server ${virtualSid} is not accessible with this API key.`
+        ? t('diagnostics.connection.virtual_server_inaccessible', { sid: virtualSid })
         : classified.message,
       code: classified.kind === 'timeout'
         ? 'timeout'
@@ -555,18 +591,21 @@ export async function diagnoseConnection(
 }
 
 /** Toast / UI helper shared with route tests. */
-export function summarizeDiagnosticToast(report: ConnectionDiagnosticReport): string {
+export function summarizeDiagnosticToast(
+  report: ConnectionDiagnosticReport,
+  locale: SupportedLocale = DEFAULT_LOCALE,
+): string {
   if (report.success) {
     return report.version
-      ? `WebQuery read stages OK (${report.version}) — write actions still need their own permissions`
-      : 'WebQuery read stages succeeded — write actions still need their own permissions';
+      ? translate(locale, 'diagnostics.connection.toast_success_version', { version: report.version })
+      : translate(locale, 'diagnostics.connection.toast_success');
   }
   const failed = report.stages.find((s) => s.status === 'fail');
   if (report.partial && failed) {
-    return `Partial: ${failed.message}`;
+    return translate(locale, 'diagnostics.connection.toast_partial', { message: failed.message });
   }
   if (failed) {
     return failed.message;
   }
-  return 'Connection diagnostics failed';
+  return translate(locale, 'diagnostics.connection.toast_failed');
 }

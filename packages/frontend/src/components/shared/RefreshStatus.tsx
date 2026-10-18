@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -17,17 +18,18 @@ interface RefreshStatusProps {
 export function RefreshStatus({
   isRefreshing,
   tone = 'live',
-  idleLabel = 'Up to date',
-  refreshingLabel = 'Refreshing…',
-  degradedLabel = 'Updates interrupted',
-  startingLabel = 'Waiting for TeamSpeak Query…',
+  idleLabel,
+  refreshingLabel,
+  degradedLabel,
+  startingLabel,
 }: RefreshStatusProps) {
+  const { t } = useTranslation();
   const effective: 'refreshing' | RefreshStatusTone = isRefreshing ? 'refreshing' : tone;
   const label =
-    effective === 'refreshing' ? refreshingLabel
-      : effective === 'starting' ? startingLabel
-        : effective === 'degraded' ? degradedLabel
-          : idleLabel;
+    effective === 'refreshing' ? refreshingLabel ?? t('common:refresh.refreshing')
+      : effective === 'starting' ? startingLabel ?? t('common:refresh.waiting')
+        : effective === 'degraded' ? degradedLabel ?? t('common:refresh.interrupted')
+          : idleLabel ?? t('common:refresh.upToDate');
 
   return (
     <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground" aria-live="polite">
@@ -63,8 +65,9 @@ export function StaleDataNotice({
   message,
   onRetry,
   isRetrying,
-  retryLabel = 'Retry refresh',
+  retryLabel,
 }: StaleDataNoticeProps) {
+  const { t } = useTranslation();
   return (
     <div role="status" className="flex min-w-0 flex-col gap-3 rounded-lg border border-warning/35 bg-warning/10 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
       <div className="flex min-w-0 items-start gap-2">
@@ -72,7 +75,7 @@ export function StaleDataNotice({
         <p className="min-w-0 break-words text-foreground">{message}</p>
       </div>
       <Button size="sm" variant="outline" onClick={onRetry} disabled={isRetrying} aria-busy={isRetrying} className="shrink-0">
-        {isRetrying ? 'Retrying…' : retryLabel}
+        {isRetrying ? t('common:refresh.retrying') : retryLabel ?? t('common:refresh.retry')}
       </Button>
     </div>
   );

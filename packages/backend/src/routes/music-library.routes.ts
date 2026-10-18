@@ -2,6 +2,8 @@ import { downloadJobs } from '../voice/audio/download-progress.js';
 import { Router, Request, Response } from 'express';
 import { requireRole } from '../middleware/rbac.js';
 import { AppError } from '../middleware/error-handler.js';
+import { translate } from '../i18n/index.js';
+import { requestLocale } from '../i18n/middleware.js';
 import {
   downloadYouTube,
   searchYouTube,
@@ -74,7 +76,8 @@ async function resolveAppleMusicAsYouTubeInfo(url: string, cap = APPLE_MUSIC_INF
   try {
     am = await resolveAppleMusicTracks(url);
   } catch (err: any) {
-    throw new AppError(502, err?.message || 'Could not resolve that Apple Music URL');
+    throw new AppError(502, err?.message || 'Could not resolve that Apple Music URL', undefined,
+      err?.message ? undefined : { messageKey: 'errors.apple_music_resolve_failed' });
   }
   return matchCollectionAsYouTubeInfo(am, 'Apple Music', cap);
 }
@@ -86,7 +89,10 @@ async function matchCollectionAsYouTubeInfo(
   cap = APPLE_MUSIC_INFO_CAP,
 ): Promise<CollectionInfo> {
   if (!am.tracks.length) {
-    throw new AppError(502, `Could not resolve any tracks from that ${source} URL`);
+    throw new AppError(502, `Could not resolve any tracks from that ${source} URL`, undefined, {
+      messageKey: 'errors.collection_no_tracks',
+      messageParams: { source },
+    });
   }
 
   const tracks = am.tracks.slice(0, cap);
@@ -118,7 +124,10 @@ async function matchCollectionAsYouTubeInfo(
   );
 
   if (!items.length) {
-    throw new AppError(502, `No YouTube matches found for that ${source} URL`);
+    throw new AppError(502, `No YouTube matches found for that ${source} URL`, undefined, {
+      messageKey: 'errors.collection_no_youtube_matches',
+      messageParams: { source },
+    });
   }
 
   console.log(`[MusicLibrary] ${source} match complete: ${items.length}/${tracks.length} YouTube hits`);
@@ -138,7 +147,8 @@ async function resolveSpotifyForYouTube(url: string): Promise<string> {
   try {
     return await resolveSpotifyToYouTube(url);
   } catch (err: any) {
-    throw new AppError(502, err?.message || 'Could not resolve that Spotify URL');
+    throw new AppError(502, err?.message || 'Could not resolve that Spotify URL', undefined,
+      err?.message ? undefined : { messageKey: 'errors.spotify_resolve_failed' });
   }
 }
 
@@ -147,7 +157,8 @@ async function resolveSpotifyCollectionOrThrow(url: string) {
   try {
     return await resolveSpotifyCollection(url);
   } catch (err: any) {
-    throw new AppError(502, err?.message || 'Could not resolve that Spotify URL');
+    throw new AppError(502, err?.message || 'Could not resolve that Spotify URL', undefined,
+      err?.message ? undefined : { messageKey: 'errors.spotify_resolve_failed' });
   }
 }
 
@@ -157,6 +168,8 @@ async function resolveMediaUrlForYouTubeDownload(url: string): Promise<string> {
       throw new AppError(
         400,
         'Spotify playlists and albums cannot be downloaded as a single track — Load the URL first, then download selected songs or use !play / Play URL',
+        undefined,
+        { messageKey: 'errors.spotify_collection_single_track' },
       );
     }
     return resolveSpotifyForYouTube(url);
@@ -166,15 +179,20 @@ async function resolveMediaUrlForYouTubeDownload(url: string): Promise<string> {
   try {
     am = await resolveAppleMusicTracks(url);
   } catch (err: any) {
-    throw new AppError(502, err?.message || 'Could not resolve that Apple Music URL');
+    throw new AppError(502, err?.message || 'Could not resolve that Apple Music URL', undefined,
+      err?.message ? undefined : { messageKey: 'errors.apple_music_resolve_failed' });
   }
   if (!am.tracks.length) {
-    throw new AppError(502, 'Could not resolve any tracks from that Apple Music URL');
+    throw new AppError(502, 'Could not resolve any tracks from that Apple Music URL', undefined, {
+      messageKey: 'errors.apple_music_no_tracks',
+    });
   }
   if (am.tracks.length > 1) {
     throw new AppError(
       400,
       'Apple Music playlists cannot be downloaded as a single track — Load the URL first, then download selected songs or use !play / Play URL',
+      undefined,
+      { messageKey: 'errors.apple_music_collection_single_track' },
     );
   }
   const ytUrl = await appleMusicTrackToYouTubeUrl(am.tracks[0]);
@@ -182,6 +200,11 @@ async function resolveMediaUrlForYouTubeDownload(url: string): Promise<string> {
     throw new AppError(
       502,
       `No YouTube match for Apple Music track: ${am.tracks[0].artist} - ${am.tracks[0].title}`,
+      undefined,
+      {
+        messageKey: 'errors.apple_music_track_no_match',
+        messageParams: { artist: am.tracks[0].artist, title: am.tracks[0].title },
+      },
     );
   }
   return ytUrl;
@@ -277,7 +300,7 @@ const heavyMusicOpLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many library scan/import requests, please try again later' },
+  message: (req: Request) => ({ error: translate(requestLocale(req), 'errors.rate_limited_library_scan') }),
 });
 
 /** Slightly higher budget for single downloads / uploads. */
@@ -286,7 +309,7 @@ const musicWriteLimiter = rateLimit({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many library write requests, please try again later' },
+  message: (req: Request) => ({ error: translate(requestLocale(req), 'errors.rate_limited_library_write') }),
 });
 
 /** Polling is expected every ~2s while a job is active, but still needs an abuse ceiling. */
@@ -295,7 +318,7 @@ const downloadStatusLimiter = rateLimit({
   max: 180,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many download status requests, please try again shortly' },
+  message: (req: Request) => ({ error: translate(requestLocale(req), 'errors.rate_limited_download_status') }),
 });
 
 export const musicLibraryRoutes: Router = Router({ mergeParams: true });
@@ -320,7 +343,9 @@ function parsePositivePageInt(raw: unknown, fallback: number): number {
   if (raw === undefined || raw === null || raw === '') return fallback;
   const n = typeof raw === 'number' ? raw : Number(String(raw));
   if (!Number.isSafeInteger(n) || n < 1) {
-    throw new AppError(400, 'page and pageSize must be positive whole numbers');
+    throw new AppError(400, 'page and pageSize must be positive whole numbers', undefined, {
+      messageKey: 'errors.page_positive_numbers',
+    });
   }
   return n;
 }
@@ -536,7 +561,9 @@ musicLibraryRoutes.post('/upload', musicWriteLimiter, upload.single('file'), asy
     const configId = parseInt(req.params.configId as string);
     const file = req.file;
     const paths = uploadPaths.get(req);
-    if (!file || !paths) throw new AppError(400, 'No file uploaded');
+    if (!file || !paths) {
+      throw new AppError(400, 'No file uploaded', undefined, { messageKey: 'errors.no_file_uploaded' });
+    }
 
     const tags = await probeAudioTags(paths.temp);
     const fromName = parseTitleArtistFromFilename(file.originalname);
@@ -610,11 +637,11 @@ musicLibraryRoutes.delete('/songs/:id', musicWriteLimiter, async (req: Request, 
     const song = id !== null && configId !== null
       ? await prisma.song.findFirst({ where: scope })
       : null;
-    if (!song) throw new AppError(404, 'Song not found');
+    if (!song) throw new AppError(404, 'Song not found', undefined, { messageKey: 'errors.song_not_found' });
 
     const { count } = await prisma.song.deleteMany({ where: scope });
     // Removed by a concurrent request in the meantime.
-    if (count === 0) throw new AppError(404, 'Song not found');
+    if (count === 0) throw new AppError(404, 'Song not found', undefined, { messageKey: 'errors.song_not_found' });
     // The file goes too, unless something else still uses it (see removeSongFileIfUnused).
     try {
       const outcome = await removeSongFileIfUnused({
@@ -640,7 +667,9 @@ musicLibraryRoutes.delete('/songs/:id', musicWriteLimiter, async (req: Request, 
 musicLibraryRoutes.post('/youtube/search', async (req: Request, res: Response, next) => {
   try {
     const { query } = req.body;
-    if (!query) throw new AppError(400, 'query is required');
+    if (!query) {
+      throw new AppError(400, 'query is required', undefined, { messageKey: 'errors.query_required' });
+    }
     const results = await searchYouTube(query, 10);
     res.json(results);
   } catch (err) { next(err); }
@@ -652,19 +681,34 @@ musicLibraryRoutes.post('/youtube/download-jobs', heavyMusicOpLimiter, async (re
     const configId = Number(req.params.configId);
     const { urls } = req.body;
     if (!Array.isArray(urls) || !urls.length || urls.length > 250 || urls.some(url => typeof url !== 'string' || url.length > 4096)) {
-      throw new AppError(400, 'urls must contain 1–250 URLs');
+      throw new AppError(400, 'urls must contain 1–250 URLs', undefined, {
+        messageKey: 'errors.urls_range',
+      });
     }
-    if (!Number.isSafeInteger(configId) || configId < 1) throw new AppError(400, 'Invalid server config ID');
+    if (!Number.isSafeInteger(configId) || configId < 1) {
+      throw new AppError(400, 'Invalid server config ID', undefined, {
+        messageKey: 'errors.invalid_server_config',
+      });
+    }
     let job;
     try { job = downloadJobs.create(configId, req.user!.id, urls.length); }
-    catch { throw new AppError(429, 'Download capacity reached; try again later'); }
+    catch {
+      throw new AppError(429, 'Download capacity reached; try again later', undefined, {
+        messageKey: 'errors.download_capacity',
+        retryable: true,
+      });
+    }
     const prisma = req.app.locals.prisma;
     void downloadJobs.run(job, urls, async (url, progress, signal) => {
       const resolvedUrl = await resolveMediaUrlForYouTubeDownload(url);
       const parsed = parseYouTubeUrl(resolvedUrl);
       // Explicit download jobs accept canonical YouTube videos only, never arbitrary
       // extractor URLs, local files, option-like inputs or redirecting user hosts.
-      if (!parsed.watchUrl) throw new AppError(400, 'A YouTube video URL is required');
+      if (!parsed.watchUrl) {
+        throw new AppError(400, 'A YouTube video URL is required', undefined, {
+          messageKey: 'errors.youtube_video_url_required',
+        });
+      }
       const mediaUrl = parsed.watchUrl;
       signal.throwIfAborted();
       const { filePath, info } = await downloadYouTube(mediaUrl, MUSIC_DIR, progress, signal);
@@ -680,7 +724,11 @@ musicLibraryRoutes.post('/youtube/download-jobs', heavyMusicOpLimiter, async (re
 
 musicLibraryRoutes.get('/youtube/download-jobs/:jobId', downloadStatusLimiter, (req: Request, res: Response, next) => {
   const job = downloadJobs.get(String(req.params.jobId), Number(req.params.configId), req.user!.id);
-  if (!job) return next(new AppError(404, 'Download job not found or expired'));
+  if (!job) {
+    return next(new AppError(404, 'Download job not found or expired', undefined, {
+      messageKey: 'errors.download_job_not_found',
+    }));
+  }
   res.json(job);
 });
 
@@ -690,7 +738,7 @@ musicLibraryRoutes.post('/youtube/download', musicWriteLimiter, async (req: Requ
     const prisma = req.app.locals.prisma;
     const configId = parseInt(req.params.configId as string);
     const { url } = req.body;
-    if (!url) throw new AppError(400, 'url is required');
+    if (!url) throw new AppError(400, 'url is required', undefined, { messageKey: 'errors.url_required' });
 
     const mediaUrl = await resolveMediaUrlForYouTubeDownload(url);
     const { filePath, info } = await downloadYouTube(mediaUrl, MUSIC_DIR);
@@ -725,7 +773,7 @@ musicLibraryRoutes.post('/youtube/download', musicWriteLimiter, async (req: Requ
 musicLibraryRoutes.post('/youtube/info', async (req: Request, res: Response, next) => {
   try {
     const { url } = req.body;
-    if (!url || typeof url !== 'string') throw new AppError(400, 'url is required');
+    if (!url || typeof url !== 'string') throw new AppError(400, 'url is required', undefined, { messageKey: 'errors.url_required' });
     const trimmed = url.trim();
     if (isAppleMusicShareUrl(trimmed)) {
       const prisma = req.app.locals.prisma;
@@ -745,7 +793,8 @@ musicLibraryRoutes.post('/youtube/info', async (req: Request, res: Response, nex
     res.json(info);
   } catch (err: any) {
     if (err instanceof AppError) return next(err);
-    next(new AppError(502, err?.message || 'Failed to load URL info'));
+    next(new AppError(502, err?.message || 'Failed to load URL info', undefined,
+      err?.message ? undefined : { messageKey: 'errors.failed_load_url_info' }));
   }
 });
 
@@ -755,7 +804,7 @@ musicLibraryRoutes.post('/youtube/import-playlist', heavyMusicOpLimiter, async (
     const prisma = req.app.locals.prisma;
     const configId = parseInt(req.params.configId as string);
     const { url, playlistName, playlistId, reimport, musicBotId, clearFirst } = req.body;
-    if (!url) throw new AppError(400, 'url is required');
+    if (!url) throw new AppError(400, 'url is required', undefined, { messageKey: 'errors.url_required' });
 
     const voiceBotManager = req.app.locals.voiceBotManager as VoiceBotManager | undefined;
     const jobId = await startYouTubePlaylistImport(
@@ -779,7 +828,11 @@ musicLibraryRoutes.post('/youtube/import-playlist', heavyMusicOpLimiter, async (
 musicLibraryRoutes.get('/youtube/import/:jobId', async (req: Request, res: Response, next) => {
   try {
     const job = getImportJob(req.params.jobId as string);
-    if (!job) throw new AppError(404, 'Import job not found');
+    if (!job) {
+      throw new AppError(404, 'Import job not found', undefined, {
+        messageKey: 'errors.import_job_not_found',
+      });
+    }
     res.json(job);
   } catch (err) { next(err); }
 });
@@ -790,7 +843,11 @@ musicLibraryRoutes.post('/youtube/download-batch', heavyMusicOpLimiter, async (r
     const prisma = req.app.locals.prisma;
     const configId = parseInt(req.params.configId as string);
     const { urls } = req.body;
-    if (!Array.isArray(urls) || urls.length === 0) throw new AppError(400, 'urls array is required');
+    if (!Array.isArray(urls) || urls.length === 0) {
+      throw new AppError(400, 'urls array is required', undefined, {
+        messageKey: 'errors.urls_array_required',
+      });
+    }
 
     const results: any[] = [];
     const errors: string[] = [];
@@ -842,10 +899,14 @@ musicLibraryRoutes.post('/youtube/register', musicWriteLimiter, async (req: Requ
     const configId = parseInt(req.params.configId as string);
     const rawItems = req.body?.items;
     if (!Array.isArray(rawItems) || rawItems.length === 0) {
-      throw new AppError(400, 'items array is required');
+      throw new AppError(400, 'items array is required', undefined, {
+        messageKey: 'errors.items_array_required',
+      });
     }
     if (rawItems.length > 200) {
-      throw new AppError(400, 'At most 200 items per register request');
+      throw new AppError(400, 'At most 200 items per register request', undefined, {
+        messageKey: 'errors.register_items_limit',
+      });
     }
 
     const results: any[] = [];
@@ -854,12 +915,12 @@ musicLibraryRoutes.post('/youtube/register', musicWriteLimiter, async (req: Requ
     for (const raw of rawItems) {
       const url = typeof raw?.url === 'string' ? raw.url.trim() : '';
       if (!url) {
-        errors.push('missing url');
+        errors.push(translate(requestLocale(req), 'errors.register_missing_url'));
         continue;
       }
       try {
         if (isAppleMusicShareUrl(url)) {
-          errors.push(`${url}: resolve Apple Music to YouTube first (Load URL)`);
+          errors.push(translate(requestLocale(req), 'errors.register_apple_music_first', { url }));
           continue;
         }
         let watchUrl = url;

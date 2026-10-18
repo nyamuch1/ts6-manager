@@ -61,6 +61,18 @@ npx prisma db seed
 
 Docker production startup uses `docker-commands/apply-schema.sh` instead of requiring a manual migration step.
 
+## Localization
+
+The web interface, public widget output, HTTP API errors, and bot chat replies ship in English (source) and Simplified Chinese. Visitors choose the interface language in Settings → Appearance or on the public pages; the choice is stored in the browser. Each media bot can also choose its own chat language, with an instance default.
+
+Frontend strings live in `packages/frontend/src/i18n/locales/<locale>/<namespace>.json`. Backend API and bot-chat strings live in `packages/backend/src/i18n/locales`. To add a language:
+
+1. Add the frontend locale directory and register it in `src/i18n/index.ts`, `src/i18n/languages.ts`, and the parity test.
+2. Extend the backend `SUPPORTED_LOCALES` and add the matching backend dictionaries.
+3. Translate every key and run `python3 scripts/ci/check-i18n.py`.
+
+The checker enforces identical keys and `{{placeholders}}` across locales and runs in repo hygiene. English remains the fallback and keeps the existing UI/API wording.
+
 ## Containers
 
 **Full local stack with TeamSpeak 6 (beta13)** — preferred clone / PR happy path:

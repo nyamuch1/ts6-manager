@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMusicBots } from '@/hooks/use-music-bots';
 import {
@@ -75,6 +76,7 @@ import { ImportQueueOptions } from './ImportQueueOptions';
 // ─── Playlists Tab ───────────────────────────────────────────────────────────
 
 export function PlaylistsTab() {
+  const { t } = useTranslation('media');
   const qc = useQueryClient();
   const { selectedConfigId } = useServerStore();
   const { data, isLoading } = usePlaylists(selectedConfigId ?? undefined);
@@ -229,7 +231,7 @@ export function PlaylistsTab() {
       { name: newName, mode: newMode, serverConfigId: selectedConfigId ?? undefined },
       {
         onSuccess: (created: { id?: number } | undefined) => {
-          toast.success('Playlist created');
+          toast.success(t('playlists.created'));
           if (createRequestIdRef.current !== requestId) return;
           if (addAfterCreateForRequest && created?.id && shownConfigId.current === createdOnConfigId) addSongsTo(created.id);
           setAddAfterCreate(false);
@@ -237,7 +239,7 @@ export function PlaylistsTab() {
           setNewName('');
           setNewMode('local');
         },
-        onError: () => toast.error('Failed to create playlist'),
+        onError: () => toast.error(t('playlists.createFailed')),
       },
     );
   };
@@ -262,13 +264,13 @@ export function PlaylistsTab() {
       },
       {
         onSuccess: () => {
-          toast.success('Playlist updated');
+          toast.success(t('playlists.updated'));
           if (modeChanging && (detail?.songs?.length ?? 0) > 0) {
-            toast.message('Mode changed — remove songs that no longer match the new mode if needed');
+            toast.message(t('playlists.modeChanged'));
           }
           setShowEdit(false);
         },
-        onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to update playlist'),
+        onError: (err: any) => toast.error(err?.response?.data?.error || t('playlists.updateFailed')),
       },
     );
   };
@@ -318,7 +320,12 @@ export function PlaylistsTab() {
     let alreadyInPlaylist = 0;
     const report = () =>
       toast.success(
-        playlistAddMessage({ added, alreadyInPlaylist, playlistName: detail?.name || 'the playlist', stream }),
+        playlistAddMessage({
+          added,
+          alreadyInPlaylist,
+          playlistName: detail?.name || t('playlists.thePlaylist'),
+          stream,
+        }),
       );
     for (const batch of chunk(ids, ADD_SONGS_BATCH_SIZE)) {
       try {
@@ -329,9 +336,11 @@ export function PlaylistsTab() {
         // Earlier batches already landed; say so before reporting what is left.
         const handled = added + alreadyInPlaylist;
         if (handled > 0) report();
-        const reason = err?.response?.data?.error || err?.message || 'request failed';
+        const reason = err?.response?.data?.error || err?.message || t('playlists.requestFailed');
         throw new Error(
-          handled > 0 ? `${ids.length - handled} tracks were not added: ${reason}` : reason,
+          handled > 0
+            ? t('playlists.tracksNotAdded', { count: ids.length - handled, reason })
+            : reason,
         );
       }
     }
@@ -346,7 +355,10 @@ export function PlaylistsTab() {
       if (playlistMode === 'stream') {
         // Stream playlists save each URL as a library entry; the audio is fetched when it plays.
         for (const [i, batch] of chunk(items, REGISTER_BATCH_SIZE).entries()) {
-          setAddBatchProgress(`Saving ${i * REGISTER_BATCH_SIZE}/${items.length}…`);
+          setAddBatchProgress(t('playlists.savingProgress', {
+            current: i * REGISTER_BATCH_SIZE,
+            total: items.length,
+          }));
           const data = await ytRegister.mutateAsync({
             configId: selectedConfigId,
             items: batch.map((i) => ({ url: watchUrl(i.id), title: i.title, artist: i.artist, duration: i.duration })),
@@ -355,24 +367,24 @@ export function PlaylistsTab() {
           if (Array.isArray(data?.errors)) errors.push(...data.errors);
         }
       } else if (items.length === 1) {
-        setAddBatchProgress('Downloading…');
+        setAddBatchProgress(t('playlists.downloading'));
         const song = await ytDownload.mutateAsync({ configId: selectedConfigId, url: watchUrl(items[0].id) });
         if (song?.id) songIds.push(song.id);
       } else {
-        setAddBatchProgress('Downloading…');
+        setAddBatchProgress(t('playlists.downloading'));
         const data = await ytBatchDownload.mutateAsync({ configId: selectedConfigId, urls: items.map((i) => watchUrl(i.id)) });
         for (const song of Array.isArray(data?.results) ? data.results : []) if (song?.id) songIds.push(song.id);
         if (Array.isArray(data?.errors)) errors.push(...data.errors);
       }
       if (songIds.length > 0) await addSongIdsToPlaylist(songIds, playlistMode === 'stream');
       if (errors.length > 0) {
-        toast.error(`${errors.length} track${errors.length === 1 ? '' : 's'} could not be added`, {
+        toast.error(t('playlists.tracksCouldNotBeAdded', { count: errors.length }), {
           description: errors[0],
         });
       }
       if (songIds.length > 0) resetAddUrlState();
     } catch (err: any) {
-      toast.error(err?.response?.data?.error || err?.message || 'Failed to add tracks');
+      toast.error(err?.response?.data?.error || err?.message || t('playlists.addTracksFailed'));
     } finally {
       setAddBatchProgress(null);
     }
@@ -386,7 +398,7 @@ export function PlaylistsTab() {
   const handleSendToQueue = () => {
     if (!selectedConfigId || !addYtUrl.trim()) return;
     if (!importQueueBotId) {
-      toast.error('Select a running media bot to send to its queue');
+      toast.error(t('playlists.selectRunningBot'));
       return;
     }
     ytImportPlaylist.mutate(
@@ -399,11 +411,12 @@ export function PlaylistsTab() {
       {
         onSuccess: (data: any) => {
           setAddImportJobId(data.jobId);
-          toast.success('Sending to the bot queue', {
-            description: `Keeps going if you close this dialog. ${importCapHint(maxPlaylistImport)}`,
+          toast.success(t('playlists.sendingToQueue'), {
+            description: t('playlists.keepsGoing', { hint: importCapHint(maxPlaylistImport) }),
           });
         },
-        onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to start queue import'),
+        onError: (err: any) =>
+          toast.error(err?.response?.data?.error || t('playlists.queueImportFailedToStart')),
       },
     );
   };
@@ -420,7 +433,7 @@ export function PlaylistsTab() {
       }
       setAddImportJobId(null);
     } else if (addImportJob?.status === 'failed') {
-      toast.error(addImportJob.errors?.[0] || 'Queue import failed');
+      toast.error(addImportJob.errors?.[0] || t('playlists.queueImportFailed'));
       setAddImportJobId(null);
     }
   }, [addImportJob?.status, selectedConfigId, selectedId, qc, addImportJob]);
@@ -431,7 +444,7 @@ export function PlaylistsTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          {playlists.length} playlist{playlists.length !== 1 ? 's' : ''}
+          {t('playlists.count', { count: playlists.length })}
         </p>
         <div className="flex items-center gap-2">
           <Button
@@ -448,7 +461,7 @@ export function PlaylistsTab() {
               }
             }}
           >
-            <Music className="h-4 w-4 mr-1" /> Add songs
+            <Music className="h-4 w-4 mr-1" /> {t('playlists.addSongs')}
           </Button>
           <Button
             size="sm"
@@ -459,7 +472,7 @@ export function PlaylistsTab() {
               setShowCreate(true);
             }}
           >
-            <Plus className="h-4 w-4 mr-1" /> New Playlist
+            <Plus className="h-4 w-4 mr-1" /> {t('playlists.newPlaylist')}
           </Button>
         </div>
       </div>
@@ -469,8 +482,8 @@ export function PlaylistsTab() {
           {playlists.length === 0 ? (
             <EmptyState
               icon={ListMusic}
-              title="No playlists"
-              description="Create a local or stream playlist to organize your songs."
+              title={t('playlists.emptyTitle')}
+              description={t('playlists.emptyDescription')}
             />
           ) : (
             playlists.map((pl) => (
@@ -493,10 +506,10 @@ export function PlaylistsTab() {
                   <p className="text-sm font-medium truncate">{pl.name}</p>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <Badge variant="outline" className="text-[9px] h-4 px-1">
-                      {pl.mode === 'stream' ? 'stream' : 'local'}
+                      {t(pl.mode === 'stream' ? 'playlists.modeStream' : 'playlists.modeLocal')}
                     </Badge>
                     <p className="text-[10px] text-muted-foreground">
-                      {pl.songCount} song{pl.songCount !== 1 ? 's' : ''}
+                      {t('playlists.songCount', { count: pl.songCount })}
                     </p>
                   </div>
                 </div>
@@ -504,7 +517,7 @@ export function PlaylistsTab() {
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6 text-destructive hover:text-destructive shrink-0"
-                  aria-label={`Delete playlist ${pl.name}`}
+                  aria-label={t('playlists.deletePlaylistAria', { name: pl.name })}
                   onClick={(e) => {
                     e.stopPropagation();
                     setDeleteId(pl.id);
@@ -524,14 +537,14 @@ export function PlaylistsTab() {
                 <div className="min-w-0">
                   <CardTitle className="text-sm truncate">{detail.name}</CardTitle>
                   <p className="text-[10px] text-muted-foreground mt-0.5">
-                    {playlistMode === 'local'
-                      ? 'Local only — library uploads / scanned local files'
-                      : 'Stream only — YouTube / URL tracks'}
+                    {t(playlistMode === 'local'
+                      ? 'playlists.localDescription'
+                      : 'playlists.streamDescription')}
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <Button variant="outline" size="sm" className="h-7 text-xs" onClick={openEdit}>
-                    <Pencil className="h-3 w-3 mr-1" /> Edit
+                    <Pencil className="h-3 w-3 mr-1" /> {t('playlists.edit')}
                   </Button>
                   <Button
                     variant="outline"
@@ -539,7 +552,7 @@ export function PlaylistsTab() {
                     className="h-7 text-xs"
                     onClick={() => openAddSongs(playlistMode)}
                   >
-                    <Plus className="h-3 w-3 mr-1" /> Add Songs
+                    <Plus className="h-3 w-3 mr-1" /> {t('playlists.addSongsButton')}
                   </Button>
                 </div>
               </div>
@@ -547,7 +560,7 @@ export function PlaylistsTab() {
             <CardContent className="p-0">
               {detail.songs.length === 0 ? (
                 <div className="py-8 text-center text-xs text-muted-foreground">
-                  No songs in this playlist
+                  {t('playlists.noSongsInPlaylist')}
                 </div>
               ) : (
                 <div className="max-h-[400px] overflow-y-auto">
@@ -571,11 +584,11 @@ export function PlaylistsTab() {
                         variant="ghost"
                         size="icon"
                         className="h-6 w-6 text-destructive hover:text-destructive"
-                        aria-label={`Remove ${song.title} from playlist`}
+                        aria-label={t('playlists.removeSongAria', { title: song.title })}
                         onClick={() =>
                           removeSong.mutate(
                             { playlistId: selectedId, songId: song.id },
-                            { onSuccess: () => toast.success('Song removed') },
+                            { onSuccess: () => toast.success(t('playlists.songRemoved')) },
                           )
                         }
                       >
@@ -589,7 +602,7 @@ export function PlaylistsTab() {
           </Card>
         ) : (
           <div className="flex items-center justify-center text-xs text-muted-foreground py-16">
-            Select a playlist to view its songs
+            {t('playlists.selectPlaylist')}
           </div>
         )}
       </div>
@@ -600,11 +613,8 @@ export function PlaylistsTab() {
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add songs to…</DialogTitle>
-            <DialogDescription>
-              Pick a playlist to add to, or start a new one. To send a link straight to a running bot&apos;s
-              queue, use the Library tab.
-            </DialogDescription>
+            <DialogTitle>{t('playlists.addSongsTitle')}</DialogTitle>
+            <DialogDescription>{t('playlists.addSongsDescription')}</DialogDescription>
           </DialogHeader>
           <ScrollArea className="max-h-72">
             <div className="space-y-1">
@@ -619,7 +629,10 @@ export function PlaylistsTab() {
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">{pl.name}</span>
                     <span className="block text-[10px] text-muted-foreground">
-                      {pl.mode === 'stream' ? 'stream' : 'local'} · {pl.songCount} song{pl.songCount !== 1 ? 's' : ''}
+                      {t('playlists.songCountAndMode', {
+                        count: pl.songCount,
+                        mode: t(pl.mode === 'stream' ? 'playlists.modeStream' : 'playlists.modeLocal'),
+                      })}
                     </span>
                   </span>
                 </button>
@@ -637,7 +650,7 @@ export function PlaylistsTab() {
                 setShowCreate(true);
               }}
             >
-              <Plus className="h-4 w-4 mr-1" /> New playlist…
+              <Plus className="h-4 w-4 mr-1" /> {t('playlists.newPlaylistEllipsis')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -652,40 +665,38 @@ export function PlaylistsTab() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>New Playlist</DialogTitle>
-            <DialogDescription>
-              Local playlists hold uploaded/scanned files. Stream playlists hold YouTube / URL tracks.
-            </DialogDescription>
+            <DialogTitle>{t('playlists.newPlaylist')}</DialogTitle>
+            <DialogDescription>{t('playlists.newPlaylistDescription')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label className="text-xs">Name</Label>
+              <Label className="text-xs">{t('playlists.name')}</Label>
               <Input
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="My Playlist"
+                placeholder={t('playlists.playlistNamePlaceholder')}
                 onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
               />
             </div>
             <div>
-              <Label className="text-xs">Mode</Label>
+              <Label className="text-xs">{t('playlists.mode')}</Label>
               <Select value={newMode} onValueChange={(v) => setNewMode(v as PlaylistMode)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="local">Local only</SelectItem>
-                  <SelectItem value="stream">Stream only</SelectItem>
+                  <SelectItem value="local">{t('playlists.modeLocalOnly')}</SelectItem>
+                  <SelectItem value="stream">{t('playlists.modeStreamOnly')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={cancelCreate}>
-              Cancel
+              {t('playlists.cancel')}
             </Button>
             <Button onClick={handleCreate} disabled={!newName || createPlaylist.isPending}>
-              {addAfterCreate ? 'Create and add songs' : 'Create'}
+              {t(addAfterCreate ? 'playlists.createAndAdd' : 'playlists.create')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -694,23 +705,21 @@ export function PlaylistsTab() {
       <Dialog open={showEdit} onOpenChange={setShowEdit}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Playlist</DialogTitle>
-            <DialogDescription>
-              Rename this playlist or change whether it holds local or stream tracks.
-            </DialogDescription>
+            <DialogTitle>{t('playlists.editPlaylist')}</DialogTitle>
+            <DialogDescription>{t('playlists.editPlaylistDescription')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label className="text-xs">Name</Label>
+              <Label className="text-xs">{t('playlists.name')}</Label>
               <Input
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                placeholder="My Playlist"
+                placeholder={t('playlists.playlistNamePlaceholder')}
                 onKeyDown={(e) => e.key === 'Enter' && editName.trim() && handleEditSave()}
               />
             </div>
             <div>
-              <Label className="text-xs">Mode</Label>
+              <Label className="text-xs">{t('playlists.mode')}</Label>
               <Select
                 value={editMode}
                 onValueChange={(v) => setEditMode(v as PlaylistMode)}
@@ -720,26 +729,26 @@ export function PlaylistsTab() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="local">Local only</SelectItem>
-                  <SelectItem value="stream">Stream only</SelectItem>
+                  <SelectItem value="local">{t('playlists.modeLocalOnly')}</SelectItem>
+                  <SelectItem value="stream">{t('playlists.modeStreamOnly')}</SelectItem>
                 </SelectContent>
               </Select>
               {isYtLinked && (
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  YouTube-imported playlists stay in stream mode.
+                  {t('playlists.youtubeStaysStream')}
                 </p>
               )}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEdit(false)}>
-              Cancel
+              {t('playlists.cancel')}
             </Button>
             <Button
               onClick={handleEditSave}
               disabled={!editName.trim() || updatePlaylist.isPending}
             >
-              Save
+              {t('playlists.save')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -758,11 +767,13 @@ export function PlaylistsTab() {
       >
         <DialogContent className="max-w-lg grid-cols-[minmax(0,1fr)]">
           <DialogHeader>
-            <DialogTitle>Add to {detail?.name || 'playlist'}</DialogTitle>
+            <DialogTitle>{detail?.name
+              ? t('playlists.addTo', { playlist: detail.name })
+              : t('playlists.addToFallback')}</DialogTitle>
             <DialogDescription>
-              {playlistMode === 'local'
-                ? 'Add local library songs, or copy matching songs from another playlist.'
-                : 'Add tracks from a link, from your stream library, or from another playlist. Stream tracks play on demand, nothing downloads until played.'}
+              {t(playlistMode === 'local'
+                ? 'playlists.addDescriptionLocal'
+                : 'playlists.addDescriptionStream')}
             </DialogDescription>
           </DialogHeader>
 
@@ -773,7 +784,7 @@ export function PlaylistsTab() {
               className="h-7 text-xs"
               onClick={() => setAddTab('songs')}
             >
-              <FileAudio className="h-3 w-3 mr-1" /> Songs
+              <FileAudio className="h-3 w-3 mr-1" /> {t('playlists.tabSongs')}
             </Button>
             <Button
               variant={addTab === 'playlists' ? 'default' : 'outline'}
@@ -781,7 +792,7 @@ export function PlaylistsTab() {
               className="h-7 text-xs"
               onClick={() => setAddTab('playlists')}
             >
-              <ListMusic className="h-3 w-3 mr-1" /> From playlist
+              <ListMusic className="h-3 w-3 mr-1" /> {t('playlists.tabFromPlaylist')}
             </Button>
             {playlistMode === 'stream' && (
               <Button
@@ -790,7 +801,7 @@ export function PlaylistsTab() {
                 className="h-7 text-xs"
                 onClick={() => setAddTab('url')}
               >
-                <Link className="h-3 w-3 mr-1" /> URL
+                <Link className="h-3 w-3 mr-1" /> {t('playlists.tabUrl')}
               </Button>
             )}
           </div>
@@ -800,12 +811,16 @@ export function PlaylistsTab() {
               <Input
                 value={songFilter}
                 onChange={(e) => setSongFilter(e.target.value)}
-                placeholder="Filter songs..."
+                placeholder={t('playlists.filterSongs')}
               />
               <ScrollArea className="max-h-72">
                 {availableSongs.length === 0 ? (
                   <p className="text-xs text-muted-foreground text-center py-8">
-                    No matching {playlistMode === 'local' ? 'local' : 'stream'} songs available.
+                    {t('playlists.noMatchingSongs', {
+                      mode: t(playlistMode === 'local'
+                        ? 'playlists.modeLocal'
+                        : 'playlists.modeStream'),
+                    })}
                   </p>
                 ) : (
                   availableSongs.map((song) => (
@@ -831,14 +846,14 @@ export function PlaylistsTab() {
                             addSong.mutate(
                               { playlistId: selectedId, songId: song.id },
                               {
-                                onSuccess: () => toast.success('Song added'),
+                                onSuccess: () => toast.success(t('playlists.songAdded')),
                                 onError: (err: any) =>
-                                  toast.error(err?.response?.data?.error || 'Failed to add song'),
+                                  toast.error(err?.response?.data?.error || t('playlists.addSongFailed')),
                               },
                             );
                         }}
                       >
-                        <Plus className="h-3 w-3 mr-0.5" /> Add
+                        <Plus className="h-3 w-3 mr-0.5" /> {t('playlists.add')}
                       </Button>
                     </div>
                   ))
@@ -849,7 +864,7 @@ export function PlaylistsTab() {
             <ScrollArea className="max-h-72">
               {otherPlaylists.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-8">
-                  No other playlists to import from.
+                  {t('playlists.noOtherPlaylists')}
                 </p>
               ) : (
                 otherPlaylists.map((pl) => (
@@ -860,7 +875,12 @@ export function PlaylistsTab() {
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-medium truncate">{pl.name}</p>
                       <p className="text-[10px] text-muted-foreground">
-                        {pl.songCount} song{pl.songCount !== 1 ? 's' : ''} · {pl.mode === 'stream' ? 'stream' : 'local'}
+                        {t('playlists.songCountAndMode', {
+                          count: pl.songCount,
+                          mode: t(pl.mode === 'stream'
+                            ? 'playlists.modeStream'
+                            : 'playlists.modeLocal'),
+                        })}
                       </p>
                     </div>
                     <Button
@@ -877,17 +897,20 @@ export function PlaylistsTab() {
                               const added = res?.added ?? 0;
                               toast.success(
                                 added > 0
-                                  ? `Added ${added} song${added === 1 ? '' : 's'} from “${pl.name}”`
-                                  : 'No new matching songs to add',
+                                  ? t('playlists.addedFromPlaylist', {
+                                    count: added,
+                                    playlist: pl.name,
+                                  })
+                                  : t('playlists.nothingNewToAdd'),
                               );
                             },
                             onError: (err: any) =>
-                              toast.error(err?.response?.data?.error || 'Failed to import playlist'),
+                              toast.error(err?.response?.data?.error || t('playlists.playlistImportFailed')),
                           },
                         );
                       }}
                     >
-                      <Plus className="h-3 w-3 mr-0.5" /> Add all matching
+                      <Plus className="h-3 w-3 mr-0.5" /> {t('playlists.addAllMatching')}
                     </Button>
                   </div>
                 ))
@@ -897,7 +920,7 @@ export function PlaylistsTab() {
             <div className="min-w-0 space-y-3">
               {!selectedConfigId ? (
                 <p className="text-xs text-muted-foreground text-center py-6">
-                  Select a server in the sidebar to add from a URL.
+                  {t('playlists.selectServerForUrl')}
                 </p>
               ) : (
                 <>
@@ -912,8 +935,8 @@ export function PlaylistsTab() {
                           setAddUrlInfo(null);
                         }}
                         onKeyDown={(e) => e.key === 'Enter' && handleAddLoadUrl()}
-                        placeholder="Paste a YouTube, YouTube Music or Apple Music link"
-                        aria-label="Track or playlist URL"
+                        placeholder={t('playlists.urlPlaceholder')}
+                        aria-label={t('playlists.urlAria')}
                         className="pl-9"
                       />
                     </div>
@@ -929,18 +952,17 @@ export function PlaylistsTab() {
                       ) : (
                         <Youtube className="h-4 w-4 mr-1" />
                       )}
-                      Load
+                      {t('playlists.load')}
                     </Button>
                   </div>
                   {ytInfo.isPending ? (
                     <p className="text-[10px] text-muted-foreground">
-                      Loading tracks… large Apple Music playlists can take 1–2 minutes.
+                      {t('playlists.loadingTracks')}
                     </p>
                   ) : (
                     !addUrlInfo && (
                       <p className="text-[10px] text-muted-foreground">
-                        Load the link, pick the tracks you want, then add them. Tracks are saved as links and
-                        stream when played, so nothing downloads now.
+                        {t('playlists.urlHelp')}
                       </p>
                     )
                   )}
@@ -959,7 +981,7 @@ export function PlaylistsTab() {
                               className="h-6 text-[10px]"
                               onClick={() => setAddSelectedUrlIds(allUrlItemKeys(addUrlInfo.items.length))}
                             >
-                              Select all
+                              {t('playlists.selectAll')}
                             </Button>
                             <Button
                               variant="ghost"
@@ -967,7 +989,7 @@ export function PlaylistsTab() {
                               className="h-6 text-[10px]"
                               onClick={() => setAddSelectedUrlIds(new Set())}
                             >
-                              Select none
+                              {t('playlists.selectNone')}
                             </Button>
                           </>
                         )}
@@ -989,7 +1011,7 @@ export function PlaylistsTab() {
                                 checked={addSelectedUrlIds.has(urlItemSelectKey(index))}
                                 onClick={(e) => e.stopPropagation()}
                                 onChange={() => toggleAddUrlSelect(index)}
-                                aria-label={`Select ${item.title}`}
+                                aria-label={t('playlists.selectTrackAria', { title: item.title })}
                                 className="shrink-0 accent-primary"
                               />
                             )}
@@ -1014,14 +1036,23 @@ export function PlaylistsTab() {
                         {addBusy ? (
                           <>
                             <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                            {ytDownload.progress || ytBatchDownload.progress || addBatchProgress || 'Adding…'}
+                            {ytDownload.progress || ytBatchDownload.progress || addBatchProgress || t('playlists.adding')}
                           </>
                         ) : (
                           <>
                             <Plus className="h-4 w-4 mr-1" />
                             {addUrlInfo.type === 'playlist'
-                              ? `Add ${addSelectedUrlIds.size} track${addSelectedUrlIds.size === 1 ? '' : 's'} to ${detail?.name || 'playlist'}`
-                              : `Add to ${detail?.name || 'playlist'}`}
+                              ? (detail?.name
+                                ? t('playlists.addTracksTo', {
+                                  count: addSelectedUrlIds.size,
+                                  playlist: detail.name,
+                                })
+                                : t('playlists.addTracksToFallback', {
+                                  count: addSelectedUrlIds.size,
+                                }))
+                              : (detail?.name
+                                ? t('playlists.addTo', { playlist: detail.name })
+                                : t('playlists.addToFallback'))}
                           </>
                         )}
                       </Button>
@@ -1030,7 +1061,7 @@ export function PlaylistsTab() {
 
                   <div className="space-y-2 border-t border-border pt-3">
                     <p className="text-[10px] text-muted-foreground">
-                      Or send a whole playlist link straight to a running bot&apos;s queue instead of this playlist.
+                      {t('playlists.queueInstead')}
                     </p>
                     <div className="flex items-center gap-2 flex-wrap">
                       <ImportQueueOptions
@@ -1055,7 +1086,7 @@ export function PlaylistsTab() {
                             </>
                           ) : (
                             <>
-                              <ListMusic className="h-3 w-3 mr-1" /> Send to queue
+                              <ListMusic className="h-3 w-3 mr-1" /> {t('playlists.sendToQueue')}
                             </>
                           )}
                         </Button>
@@ -1076,7 +1107,7 @@ export function PlaylistsTab() {
                 resetAddUrlState();
               }}
             >
-              Done
+              {t('playlists.done')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1085,13 +1116,13 @@ export function PlaylistsTab() {
       <ConfirmDialog
         open={deleteId !== null}
         onOpenChange={() => setDeleteId(null)}
-        title="Delete Playlist?"
-        description="This will permanently delete this playlist."
+        title={t('playlists.deletePlaylistTitle')}
+        description={t('playlists.deletePlaylistDescription')}
         onConfirm={() => {
           if (deleteId)
             deletePlaylist.mutate(deleteId, {
               onSuccess: () => {
-                toast.success('Playlist deleted');
+                toast.success(t('playlists.playlistDeleted'));
                 if (selectedId === deleteId) setSelectedId(null);
                 setDeleteId(null);
               },

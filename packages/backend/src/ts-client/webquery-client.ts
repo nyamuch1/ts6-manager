@@ -105,7 +105,7 @@ export function createWebQueryClient(
   useHttps: boolean = false,
 ): WebQueryClient {
   if (!isAllowedTsServerHost(host)) {
-    throw new AppError(400, 'Invalid TeamSpeak server host');
+    throw new AppError(400, 'Invalid TeamSpeak server host', undefined, { messageKey: 'errors.ts_host_invalid' });
   }
   const endpoint = createValidatedTsServerEndpoint(host, port, useHttps, port || 10080);
   return new WebQueryClient(endpoint, apiKey);

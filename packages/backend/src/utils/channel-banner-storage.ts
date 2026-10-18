@@ -22,13 +22,13 @@ export interface StoredBanner {
 export const channelBannerDataDir = botAvatarDataDir;
 
 export function bannerImageType(image: Buffer): { extension: BannerExtension; mime: string } {
-  if (image.length > MAX_BANNER_BYTES) throw new AppError(400, 'Banner must be at most 5 MB');
+  if (image.length > MAX_BANNER_BYTES) throw new AppError(400, 'Banner must be at most 5 MB', undefined, { messageKey: 'errors.banner_too_large' });
   let extension: BannerExtension | null = null;
   if (image.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) extension = 'png';
   else if (image[0] === 255 && image[1] === 216 && image[2] === 255) extension = 'jpg';
   else if (['GIF87a', 'GIF89a'].includes(image.subarray(0, 6).toString('ascii'))) extension = 'gif';
   else if (image.subarray(0, 4).toString('ascii') === 'RIFF' && image.subarray(8, 12).toString('ascii') === 'WEBP') extension = 'webp';
-  if (!extension) throw new AppError(400, 'Banner must be a PNG, JPEG, GIF or WebP image');
+  if (!extension) throw new AppError(400, 'Banner must be a PNG, JPEG, GIF or WebP image', undefined, { messageKey: 'errors.banner_type_invalid' });
   return { extension, mime: BANNER_MIME[extension] };
 }
 
@@ -61,7 +61,7 @@ export async function listChannelBanners(dataDir = channelBannerDataDir()): Prom
 export async function saveChannelBanner(image: Buffer, dataDir = channelBannerDataDir()): Promise<StoredBanner> {
   const { extension } = bannerImageType(image);
   if ((await listChannelBanners(dataDir)).length >= MAX_BANNERS) {
-    throw new AppError(400, `At most ${MAX_BANNERS} banners can be hosted; delete one first`);
+    throw new AppError(400, `At most ${MAX_BANNERS} banners can be hosted; delete one first`, undefined, { messageKey: 'errors.banner_limit', messageParams: { max: MAX_BANNERS } });
   }
   const name = `${randomUUID().replace(/-/g, '')}.${extension}`;
   await mkdir(path.join(dataDir, BANNER_DIR), { recursive: true });

@@ -6,6 +6,7 @@ import type { EventBridge } from '../../bot-engine/event-bridge.js';
 import type { findSongForQuery } from '../audio/youtube.js';
 import type { ChatMediaRequest } from './queue.js';
 import type { ListenerRemoteService } from '../listener-remote.js';
+import type { SupportedLocale } from '../../i18n/index.js';
 
 /** Whether a running flow answers this raw chat line from the base or dedicated listener. */
 export type FlowCommandLookup = (
@@ -169,6 +170,8 @@ export interface CommandContext extends CommandMethods {
   botChannelConfig: Map<number, BotChannelConfig>;
   channelToBots: Map<string, Set<number>>;
   activeReplyChannel: Map<string, number>;
+  /** Locale resolved once for the chat command currently being handled. */
+  locale: SupportedLocale;
   autoCommandChannels: Map<string, number[]>;
   mainHelperParkTimers: Map<string, ReturnType<typeof setTimeout>>;
   mainHelperRebalanceTimers: Map<string, ReturnType<typeof setTimeout>>;

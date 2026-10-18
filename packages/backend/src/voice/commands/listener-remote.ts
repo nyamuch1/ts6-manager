@@ -3,6 +3,7 @@ import { resolveMediaIdentity, listHumanMediaListeners } from '../media-listener
 import type { VoiceBot } from '../voice-bot.js';
 import type { CommandContext } from './context.js';
 import { tryClaimChatInfoReply } from './dedupe.js';
+import { translateChat } from '../bot-locale.js';
 import { createHash } from 'node:crypto';
 import { runRemoteAudited } from '../../audit/index.js';
 import { AppError } from '../../middleware/error-handler.js';
@@ -53,17 +54,20 @@ export async function handleListenerRemote(
   try {
     if (!context.listenerRemote || !context.eventBridge || !expectedUid || !connected(bot)
       || config?.serverConfigId !== configId || !Number.isSafeInteger(sid) || sid <= 0) {
-      reply('Listener remote needs a verified listener in the bot channel.');
+      reply(translateChat(context.locale, 'bot.remote.needs_listener'));
       return;
     }
     const state = revisionState(context), revision = state.value;
     const channelId = bot.getCurrentChannelId();
     const { publicUrl } = await loadPublicUrl(context.prisma);
-    if (!publicUrl) { reply('Listener remote is unavailable: an admin must configure Public URL.'); return; }
+    if (!publicUrl) {
+      reply(translateChat(context.locale, 'bot.remote.no_public_url'));
+      return;
+    }
     const url = new URL(publicUrl);
     const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
     if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback && process.env.NODE_ENV !== 'production')) {
-      reply('Listener remote requires an HTTPS Public URL.');
+      reply(translateChat(context.locale, 'bot.remote.https_required'));
       return;
     }
     const query = (command: string) => context.eventBridge!.executeCommand(configId, sid, command);
@@ -74,7 +78,7 @@ export async function handleListenerRemote(
     if (!identity || !listeners?.some(peer => peer.clid === clid && peer.uid === identity.uid)
       || bot.getCurrentChannelId() !== channelId || !connected(bot)
       || state.value !== revision) {
-      reply('Listener remote needs a verified listener in the bot channel.');
+      reply(translateChat(context.locale, 'bot.remote.needs_listener'));
       return;
     }
     if (bot.floodHoldActive) { bot.noteIgnoredCommand(); return; }
@@ -85,15 +89,17 @@ export async function handleListenerRemote(
     }, () => {
       // The pending audit write yields: invalidate a leave/rejoin or bot move in that gap.
       if (state.value !== revision || bot.getCurrentChannelId() !== channelId || !connected(bot)) {
-        throw new AppError(401, 'Listener remote access expired');
+        throw new AppError(401, 'Listener remote access expired', undefined, { messageKey: 'errors.remote_access_expired' });
       }
-      if (bot.floodHoldActive) { bot.noteIgnoredCommand(); throw new AppError(429, 'TeamSpeak flood hold'); }
+      if (bot.floodHoldActive) { bot.noteIgnoredCommand(); throw new AppError(429, 'TeamSpeak flood hold', undefined, { messageKey: 'errors.ts_flood_hold' }); }
       const grant = context.listenerRemote!.issue({ botId, serverConfigId: configId, virtualServerId: sid, channelId, clid, uid: identity.uid });
       // Delivery stays in this synchronous section; audit completion must not delay it.
-      reply(`Your private one-time listener remote link: ${publicUrl}/remote#token=${grant.token}`);
+      reply(translateChat(context.locale, 'bot.remote.link', {
+        url: `${publicUrl}/remote#token=${grant.token}`,
+      }));
     });
   } catch {
     // Query/service errors may contain command text or credentials: never echo them.
-    reply('Listener remote is unavailable right now. Try again shortly.');
+    reply(translateChat(context.locale, 'bot.remote.unavailable'));
   }
 }

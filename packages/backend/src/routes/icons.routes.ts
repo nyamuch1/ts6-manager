@@ -64,10 +64,22 @@ function queued<T>(req: Request, task: () => Promise<T>): Promise<T> {
 async function transferTarget(req: Request, start: Record<string, string> | undefined): Promise<{ host: string; port: number; ftkey: string }> {
   const server = await req.app.locals.prisma.tsServerConfig.findUnique({ where: { id: getConfigId(req) }, select: { host: true, isDemo: true } });
   // The demo connection simulates file listings only; there is no transfer port behind it.
-  if (server?.isDemo) throw new AppError(400, 'Icon previews and uploads are not available on the demo connection');
+  if (server?.isDemo) {
+    throw new AppError(400, 'Icon previews and uploads are not available on the demo connection', undefined, {
+      messageKey: 'errors.icons_demo_unavailable',
+    });
+  }
   if (start?.status && start.status !== '0') throw new TSApiError(Number(start.status), start.msg || 'file transfer refused');
-  if (!start?.ftkey) throw new AppError(502, 'TeamSpeak did not start the icon transfer');
-  if (!server?.host) throw new AppError(404, 'Server connection not found');
+  if (!start?.ftkey) {
+    throw new AppError(502, 'TeamSpeak did not start the icon transfer', undefined, {
+      messageKey: 'errors.icon_transfer_not_started',
+    });
+  }
+  if (!server?.host) {
+    throw new AppError(404, 'Server connection not found', undefined, {
+      messageKey: 'errors.server_connection_not_found',
+    });
+  }
   return { host: server.host, port: Number(start.port) || DEFAULT_TRANSFER_PORT, ftkey: start.ftkey };
 }
 
@@ -104,7 +116,7 @@ iconRoutes.get('/', async (req: Request, res: Response, next) => {
 iconRoutes.get('/:id', async (req: Request, res: Response, next) => {
   try {
     const id = parseIconId(String(req.params.id));
-    if (id === null) throw new AppError(404, 'Icon not found');
+    if (id === null) throw new AppError(404, 'Icon not found', undefined, { messageKey: 'errors.icon_not_found' });
     const key = cacheKey(req, id);
     let image = previewCache.get(key);
     if (!image) {
@@ -114,20 +126,26 @@ iconRoutes.get('/:id', async (req: Request, res: Response, next) => {
         const [start] = await sshExecute(req, 'ftinitdownload', { clientftfid: transferId(), name: `/icon_${id}`, cid: '0', cpw: '', seekpos: '0' });
         const target = await transferTarget(req, start);
         const size = Number(start.size);
-        if (!Number.isInteger(size) || size <= 0 || size > MAX_ICON_BYTES) throw new AppError(404, 'Icon not found');
+        if (!Number.isInteger(size) || size <= 0 || size > MAX_ICON_BYTES) throw new AppError(404, 'Icon not found', undefined, { messageKey: 'errors.icon_not_found' });
         return downloadTransfer(target.host, target.port, target.ftkey, size);
       });
       cachePreview(key, image);
     }
     const mime = iconImageMime(image);
-    if (!mime) throw new AppError(415, 'This icon is not a PNG, JPEG or GIF image');
+    if (!mime) {
+      throw new AppError(415, 'This icon is not a PNG, JPEG or GIF image', undefined, {
+        messageKey: 'errors.icon_not_image',
+      });
+    }
     res.setHeader('Cache-Control', 'private, max-age=86400, immutable');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
     res.type(mime).send(image);
   } catch (err) {
     // 2051 / 781-style "file not found" replies mean the icon is gone.
-    if (err instanceof TSApiError && /not found|invalid file/i.test(err.message)) return next(new AppError(404, 'Icon not found'));
+    if (err instanceof TSApiError && /not found|invalid file/i.test(err.message)) {
+      return next(new AppError(404, 'Icon not found', undefined, { messageKey: 'errors.icon_not_found' }));
+    }
     next(mapIconError(err, 'browse', req));
   }
 });
@@ -138,16 +156,34 @@ const UPLOAD_HINT = 'Upload exactly one PNG, JPEG or GIF image';
 // POST .../icons — upload one image (multipart field `file`); responds with its icon id.
 iconRoutes.post('/', requireRole('admin'), (req, res, next) => {
   iconUpload(req, res, (error) => {
-    if (error) return next(new AppError(400, error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE' ? `Icon must be at most ${MAX_ICON_BYTES / 1024} KB` : UPLOAD_HINT));
+    if (error) {
+      const tooLarge = error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE';
+      return next(new AppError(400,
+        tooLarge ? `Icon must be at most ${MAX_ICON_BYTES / 1024} KB` : UPLOAD_HINT,
+        undefined,
+        tooLarge
+          ? { messageKey: 'errors.icon_too_large', messageParams: { kb: MAX_ICON_BYTES / 1024 } }
+          : { messageKey: 'errors.upload_icon_hint' }));
+    }
     next();
   });
 }, async (req: Request, res: Response, next) => {
   try {
     const image = req.file?.buffer;
-    if (!image || image.length === 0) throw new AppError(400, UPLOAD_HINT);
-    if (!iconImageMime(image)) throw new AppError(400, 'Icon must be a PNG, JPEG or GIF image');
+    if (!image || image.length === 0) {
+      throw new AppError(400, UPLOAD_HINT, undefined, { messageKey: 'errors.upload_icon_hint' });
+    }
+    if (!iconImageMime(image)) {
+      throw new AppError(400, 'Icon must be a PNG, JPEG or GIF image', undefined, {
+        messageKey: 'errors.icon_must_be_image',
+      });
+    }
     const id = crc32(image);
-    if (id === 0) throw new AppError(400, 'This image cannot be used as an icon');
+    if (id === 0) {
+      throw new AppError(400, 'This image cannot be used as an icon', undefined, {
+        messageKey: 'errors.icon_unusable',
+      });
+    }
     const sid = getSid(req);
     await runRemoteAudited(req.app.locals.prisma, {
       actor: actorFromRequest(req.user), action: 'server_icon.upload', connectionId: getConfigId(req), virtualServerId: sid,
@@ -170,7 +206,7 @@ iconRoutes.post('/', requireRole('admin'), (req, res, next) => {
 iconRoutes.delete('/:id', requireRole('admin'), async (req: Request, res: Response, next) => {
   try {
     const id = parseIconId(String(req.params.id));
-    if (id === null) throw new AppError(404, 'Icon not found');
+    if (id === null) throw new AppError(404, 'Icon not found', undefined, { messageKey: 'errors.icon_not_found' });
     const sid = getSid(req);
     await runRemoteAudited(req.app.locals.prisma, {
       actor: actorFromRequest(req.user), action: 'server_icon.delete', connectionId: getConfigId(req), virtualServerId: sid,

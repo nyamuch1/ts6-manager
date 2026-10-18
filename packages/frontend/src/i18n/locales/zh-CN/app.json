@@ -1,0 +1,101 @@
+{
+  "auth": {
+    "login": {
+      "subtitle": "服务器管理面板",
+      "heading": "登录以继续",
+      "username": "用户名",
+      "password": "密码",
+      "invalidCredentials": "用户名或密码错误，请重试。",
+      "unavailable": "无法登录。请检查网络连接后重试。",
+      "signingIn": "正在登录…",
+      "signIn": "登录"
+    },
+    "setup": {
+      "subtitle": "首次设置 · 创建管理员账户",
+      "heading": "这是首次设置。创建一个管理员账户以开始使用。",
+      "username": "用户名",
+      "displayName": "显示名称",
+      "displayNamePlaceholder": "管理员",
+      "password": "密码",
+      "passwordPlaceholder": "至少 8 位，包含大写、小写字母和数字",
+      "confirmPassword": "确认密码",
+      "confirmPlaceholder": "再次输入密码",
+      "passwordMismatch": "两次输入的密码不一致",
+      "failed": "设置失败",
+      "creating": "正在创建账户…",
+      "createAccount": "创建管理员账户"
+    }
+  },
+  "nav": {
+    "sections": {
+      "overview": "概览",
+      "management": "管理",
+      "security": "安全",
+      "content": "内容",
+      "system": "系统",
+      "automation": "自动化"
+    },
+    "items": {
+      "dashboard": "仪表盘",
+      "virtualServers": "虚拟服务器",
+      "channels": "频道",
+      "clients": "客户端",
+      "serverGroups": "服务器组",
+      "channelGroups": "频道组",
+      "permissions": "权限",
+      "bans": "封禁",
+      "tokens": "令牌",
+      "files": "文件",
+      "complaints": "投诉",
+      "messages": "消息",
+      "serverLogs": "服务器日志",
+      "adminAudit": "管理审计",
+      "activityJournal": "活动记录",
+      "instance": "实例",
+      "diagnostics": "诊断",
+      "botHub": "机器人中心",
+      "botFlows": "机器人流程",
+      "mediaLibrary": "媒体库",
+      "iptv": "IPTV",
+      "settings": "设置"
+    },
+    "primary": "主导航",
+    "mobile": "移动端导航",
+    "expandSection": "展开 {{section}} 分区",
+    "collapseSection": "收起 {{section}} 分区",
+    "openMenu": "打开导航菜单",
+    "navigation": "TS6 Manager 导航",
+    "navigationDescription": "选择一个页面进行导航。",
+    "collapse": "收起",
+    "expandSidebar": "展开侧边栏",
+    "collapseSidebar": "收起侧边栏",
+    "dashboardLabel": "TS6 Manager 仪表盘",
+    "repository": "在 GitHub 上打开 TS6 Manager 仓库",
+    "repositoryTitle": "在 GitHub 上查看 TS6 Manager",
+    "documentation": "打开 TS6 Manager 文档",
+    "documentationTitle": "打开 TS6 Manager 文档"
+  },
+  "notFound": {
+    "title": "页面未找到",
+    "description": "你查找的页面不存在或已被移动。",
+    "back": "返回仪表盘"
+  },
+  "header": {
+    "accountMenu": "账户菜单",
+    "openAccountMenu": "打开账户菜单",
+    "logOut": "退出登录",
+    "role": {
+      "admin": "管理员",
+      "viewer": "查看者"
+    }
+  },
+  "serverSelector": {
+    "connection": "连接",
+    "selectConnection": "选择服务器连接",
+    "selectServer": "选择服务器…",
+    "virtualServer": "虚拟服务器",
+    "selectVirtualServer": "选择虚拟服务器",
+    "loadingVirtualServers": "正在加载虚拟服务器…",
+    "noVirtualServer": "无虚拟服务器"
+  }
+}

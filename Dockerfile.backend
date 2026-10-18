@@ -45,6 +45,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       openssl \
       ffmpeg \
+      fonts-noto-cjk \
       python3 \
       python3-pip \
       ca-certificates \

@@ -5,6 +5,7 @@
 
 import { toast } from 'sonner';
 import type { BotMediaOverview, MediaStopInfo, MediaStopReason } from '@ts6/common';
+import i18n from '../i18n';
 import { lastStopLabel } from './video-streaming';
 
 /** Reasons that deserve a toast (failures / unexpected auto-stops). */
@@ -75,26 +76,22 @@ export function toastMediaStopped(opts: {
   now?: number;
 }): void {
   const label = lastStopLabel(opts.stop, opts.now ?? Date.now()) ?? opts.stop.reason;
-  const kindLabel = opts.kind === 'video' ? 'Stream' : 'Music';
-  const message = `${opts.botName}: ${kindLabel} stopped — ${label}`;
+  const kindLabel = i18n.t(opts.kind === 'video' ? 'media:kind.stream' : 'media:kind.music');
+  const message = i18n.t('media:toast.stopped', {
+    bot: opts.botName,
+    kind: kindLabel,
+    label,
+  });
+  const action = {
+    label: i18n.t('media:toast.openBotHub'),
+    onClick: () => {
+      window.location.assign('/bot-hub');
+    },
+  };
   if (ERROR_REASONS.has(opts.stop.reason)) {
-    toast.error(message, {
-      action: {
-        label: 'Open Bot Hub',
-        onClick: () => {
-          window.location.assign('/bot-hub');
-        },
-      },
-    });
+    toast.error(message, { action });
   } else {
-    toast.message(message, {
-      action: {
-        label: 'Open Bot Hub',
-        onClick: () => {
-          window.location.assign('/bot-hub');
-        },
-      },
-    });
+    toast.message(message, { action });
   }
 }
 

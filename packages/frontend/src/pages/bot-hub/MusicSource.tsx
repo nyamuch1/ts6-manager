@@ -3,6 +3,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ListMusic, Play, Plus } from 'lucide-react';
 import type { PlaylistSummary, SongInfo } from '@ts6/common';
 import { Pager } from '@/components/shared/Pager';
@@ -23,10 +24,10 @@ import type { ConsoleSourceContext } from './SourcePicker';
 type MusicView = 'songs' | 'playlists' | 'recent';
 
 /** Each view, with the Media Library shortcut shown beside the view chips. */
-const VIEWS: { id: MusicView; label: string; add: { to: string; label: string } }[] = [
-  { id: 'songs', label: 'Songs', add: { to: '/media-bots', label: 'Add songs' } },
-  { id: 'playlists', label: 'Playlists', add: { to: '/media-bots?tab=playlists', label: 'Add playlist' } },
-  { id: 'recent', label: 'Recent requests', add: { to: '/media-bots?tab=requests', label: 'Manage requests' } },
+const VIEWS: { id: MusicView; labelKey: string; add: { to: string; labelKey: string } }[] = [
+  { id: 'songs', labelKey: 'musicSource.views.songs', add: { to: '/media-bots', labelKey: 'musicSource.addSongs' } },
+  { id: 'playlists', labelKey: 'musicSource.views.playlists', add: { to: '/media-bots?tab=playlists', labelKey: 'musicSource.addPlaylist' } },
+  { id: 'recent', labelKey: 'musicSource.views.recent', add: { to: '/media-bots?tab=requests', labelKey: 'musicSource.manageRequests' } },
 ];
 
 function useListPaging(listKey: string, search: string) {
@@ -37,14 +38,21 @@ function useListPaging(listKey: string, search: string) {
 }
 
 export function MusicSource(ctx: ConsoleSourceContext) {
+  const { t } = useTranslation('bots');
   const [view, setView] = useState<MusicView>('songs');
   const [search, setSearch] = useState('');
   const add = (VIEWS.find((v) => v.id === view) ?? VIEWS[0]).add;
+  const searchPlaceholder = view === 'songs'
+    ? t('musicSource.searchSongsPlaceholder')
+    : view === 'playlists' ? t('musicSource.searchPlaylistsPlaceholder') : t('musicSource.searchRecentPlaceholder');
+  const searchAria = view === 'songs'
+    ? t('musicSource.searchSongsAria')
+    : view === 'playlists' ? t('musicSource.searchPlaylistsAria') : t('musicSource.searchRecentAria');
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div role="tablist" aria-label="Music views" className="flex flex-wrap gap-1">
+        <div role="tablist" aria-label={t('musicSource.viewsAria')} className="flex flex-wrap gap-1">
           {VIEWS.map((v) => (
             <button
               key={v.id}
@@ -57,17 +65,17 @@ export function MusicSource(ctx: ConsoleSourceContext) {
               )}
               onClick={() => { setView(v.id); setSearch(''); }}
             >
-              {v.label}
+              {t(v.labelKey)}
             </button>
           ))}
         </div>
-        <AddMediaLink to={add.to} label={add.label} />
+        <AddMediaLink to={add.to} label={t(add.labelKey)} />
       </div>
       <Input
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder={view === 'songs' ? 'Search songs…' : view === 'playlists' ? 'Search playlists…' : 'Search recent requests…'}
-        aria-label={view === 'songs' ? 'Search songs' : view === 'playlists' ? 'Search playlists' : 'Search recent requests'}
+        placeholder={searchPlaceholder}
+        aria-label={searchAria}
         className="h-11"
       />
       {view === 'songs' && <SongsView ctx={ctx} search={search} />}
@@ -78,6 +86,7 @@ export function MusicSource(ctx: ConsoleSourceContext) {
 }
 
 function SongsView({ ctx, search }: { ctx: ConsoleSourceContext; search: string }) {
+  const { t } = useTranslation('bots');
   const { page, setPage, pageSize, setPageSize } = useListPaging('console-songs', search);
   const [debouncedSearch, setDebouncedSearch] = useState(search.trim());
   useEffect(() => {
@@ -94,11 +103,11 @@ function SongsView({ ctx, search }: { ctx: ConsoleSourceContext; search: string 
 
   return (
     <div className="space-y-3">
-      {error && <p role="alert" className="text-sm text-destructive">{apiErrorMessage(error, 'Could not load songs')}</p>}
+      {error && <p role="alert" className="text-sm text-destructive">{apiErrorMessage(error, t('musicSource.songsLoadError'))}</p>}
       {query.isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading songs…</p>
+        <p className="text-sm text-muted-foreground">{t('musicSource.songsLoading')}</p>
       ) : songs.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No songs found.</p>
+        <p className="text-sm text-muted-foreground">{t('musicSource.songsEmpty')}</p>
       ) : (
         <ul className="space-y-1">
           {songs.map((song) => (
@@ -113,7 +122,7 @@ function SongsView({ ctx, search }: { ctx: ConsoleSourceContext; search: string 
                 size="icon"
                 className="h-11 w-11 shrink-0"
                 disabled={pending}
-                aria-label={`Play ${song.title}`}
+                aria-label={t('musicSource.playAria', { title: song.title })}
                 onClick={() => play.mutate({ botId: ctx.botId, songId: song.id })}
               >
                 <Play className="h-4 w-4" aria-hidden="true" />
@@ -123,7 +132,7 @@ function SongsView({ ctx, search }: { ctx: ConsoleSourceContext; search: string 
                 size="icon"
                 className="h-11 w-11 shrink-0"
                 disabled={pending}
-                aria-label={`Queue ${song.title}`}
+                aria-label={t('musicSource.queueAria', { title: song.title })}
                 onClick={() => enqueue.mutate({ botId: ctx.botId, songId: song.id })}
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
@@ -137,7 +146,7 @@ function SongsView({ ctx, search }: { ctx: ConsoleSourceContext; search: string 
         total={total}
         page={page}
         pageSize={pageSize}
-        noun="songs"
+        noun={t('common:units.songs')}
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
       />
@@ -146,6 +155,7 @@ function SongsView({ ctx, search }: { ctx: ConsoleSourceContext; search: string 
 }
 
 function PlaylistsView({ ctx, search }: { ctx: ConsoleSourceContext; search: string }) {
+  const { t } = useTranslation('bots');
   const { page, setPage, pageSize, setPageSize } = useListPaging('console-playlists', search);
   const query = usePlaylists(ctx.serverConfigId);
   const load = useLoadPlaylist();
@@ -161,11 +171,11 @@ function PlaylistsView({ ctx, search }: { ctx: ConsoleSourceContext; search: str
 
   return (
     <div className="space-y-3">
-      {error && <p role="alert" className="text-sm text-destructive">{apiErrorMessage(error, 'Could not load playlists')}</p>}
+      {error && <p role="alert" className="text-sm text-destructive">{apiErrorMessage(error, t('musicSource.playlistsLoadError'))}</p>}
       {query.isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading playlists…</p>
+        <p className="text-sm text-muted-foreground">{t('musicSource.playlistsLoading')}</p>
       ) : pageItems.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No playlists found.</p>
+        <p className="text-sm text-muted-foreground">{t('musicSource.playlistsEmpty')}</p>
       ) : (
         <ul className="space-y-1">
           {pageItems.map((pl) => (
@@ -174,7 +184,7 @@ function PlaylistsView({ ctx, search }: { ctx: ConsoleSourceContext; search: str
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{pl.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {pl.songCount} song{pl.songCount !== 1 ? 's' : ''}
+                  {t('musicSource.songCount', { count: pl.songCount })}
                 </p>
               </div>
               <Button
@@ -182,7 +192,7 @@ function PlaylistsView({ ctx, search }: { ctx: ConsoleSourceContext; search: str
                 size="icon"
                 className="h-11 w-11 shrink-0"
                 disabled={pending}
-                aria-label={`Play ${pl.name}`}
+                aria-label={t('musicSource.playAria', { title: pl.name })}
                 onClick={() => load.mutate({ botId: ctx.botId, playlistId: pl.id, clearFirst: true })}
               >
                 <Play className="h-4 w-4" aria-hidden="true" />
@@ -192,7 +202,7 @@ function PlaylistsView({ ctx, search }: { ctx: ConsoleSourceContext; search: str
                 size="icon"
                 className="h-11 w-11 shrink-0"
                 disabled={pending}
-                aria-label={`Queue ${pl.name}`}
+                aria-label={t('musicSource.queueAria', { title: pl.name })}
                 onClick={() => load.mutate({ botId: ctx.botId, playlistId: pl.id, clearFirst: false })}
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
@@ -206,7 +216,7 @@ function PlaylistsView({ ctx, search }: { ctx: ConsoleSourceContext; search: str
         total={filtered.length}
         page={page}
         pageSize={pageSize}
-        noun="playlists"
+        noun={t('common:units.playlists')}
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
       />
@@ -215,6 +225,7 @@ function PlaylistsView({ ctx, search }: { ctx: ConsoleSourceContext; search: str
 }
 
 function RecentView({ ctx, search }: { ctx: ConsoleSourceContext; search: string }) {
+  const { t } = useTranslation('bots');
   const { page, setPage, pageSize, setPageSize } = useListPaging('console-recent', search);
   const query = useMusicRequests(ctx.serverConfigId, ctx.botId);
   const replay = useReplayMusicRequest();
@@ -230,11 +241,11 @@ function RecentView({ ctx, search }: { ctx: ConsoleSourceContext; search: string
 
   return (
     <div className="space-y-3">
-      {error && <p role="alert" className="text-sm text-destructive">{apiErrorMessage(error, 'Could not load recent requests')}</p>}
+      {error && <p role="alert" className="text-sm text-destructive">{apiErrorMessage(error, t('musicSource.recentLoadError'))}</p>}
       {query.isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading recent requests…</p>
+        <p className="text-sm text-muted-foreground">{t('musicSource.recentLoading')}</p>
       ) : pageItems.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No recent requests.</p>
+        <p className="text-sm text-muted-foreground">{t('musicSource.recentEmpty')}</p>
       ) : (
         <ul className="space-y-1">
           {pageItems.map((req) => (
@@ -245,7 +256,7 @@ function RecentView({ ctx, search }: { ctx: ConsoleSourceContext; search: string
                   {[req.artist, req.duration != null ? formatTime(req.duration) : null].filter(Boolean).join(' · ')}
                 </p>}
                 <p className="text-xs text-muted-foreground">
-                  {musicRequestSourceLabel(req.source)} · {req.status === 'unavailable' ? 'Unavailable' : 'Available'}
+                  {musicRequestSourceLabel(req.source)} · {req.status === 'unavailable' ? t('musicSource.unavailable') : t('musicSource.available')}
                 </p>
                 <time dateTime={req.requestedAt} className="block text-xs text-muted-foreground">
                   {new Date(req.requestedAt).toLocaleString()}
@@ -256,7 +267,7 @@ function RecentView({ ctx, search }: { ctx: ConsoleSourceContext; search: string
                 size="icon"
                 className="h-11 w-11 shrink-0"
                 disabled={pending || !ctx.botOnline || req.status === 'unavailable'}
-                aria-label={`Play ${req.title}`}
+                aria-label={t('musicSource.playAria', { title: req.title })}
                 onClick={() => replay.mutate({ configId: ctx.serverConfigId, requestId: req.id, botId: ctx.botId, enqueue: false })}
               >
                 <Play className="h-4 w-4" aria-hidden="true" />
@@ -266,7 +277,7 @@ function RecentView({ ctx, search }: { ctx: ConsoleSourceContext; search: string
                 size="icon"
                 className="h-11 w-11 shrink-0"
                 disabled={pending || !ctx.botOnline || req.status === 'unavailable'}
-                aria-label={`Queue again ${req.title}`}
+                aria-label={t('musicSource.queueAgainAria', { title: req.title })}
                 onClick={() => replay.mutate({ configId: ctx.serverConfigId, requestId: req.id, botId: ctx.botId, enqueue: true })}
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
@@ -280,7 +291,7 @@ function RecentView({ ctx, search }: { ctx: ConsoleSourceContext; search: string
         total={filtered.length}
         page={page}
         pageSize={pageSize}
-        noun="requests"
+        noun={t('common:units.requests')}
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
       />

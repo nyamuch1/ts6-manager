@@ -153,6 +153,8 @@ model MusicBot {
   serverConfigId  Int
   serverConfig    TsServerConfig @relation(fields: [serverConfigId], references: [id], onDelete: Cascade)
   nickname        String    @default("MusicBot")
+  /// Chat reply language ('en' / 'zh-CN'); null inherits the instance default.
+  language        String?
   serverPassword  String?
   defaultChannel  String?
   channelPassword String?

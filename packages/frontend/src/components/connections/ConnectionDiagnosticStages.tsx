@@ -1,16 +1,17 @@
+import { useTranslation } from 'react-i18next';
 import { Check, Circle, Loader2, X } from 'lucide-react';
 import type { ConnectionDiagnosticReport, DiagnosticStageId, DiagnosticStageResult } from '@ts6/common';
 import {
-  DIAGNOSTIC_READ_DOES_NOT_AUTHORIZE_WRITES,
   diagnosticSuccessToastMessage,
 } from '@/lib/action-guidance';
+import { adminOpsText } from '@/lib/api-error';
 import { cn } from '@/lib/utils';
 
-const STAGE_LABELS: Record<DiagnosticStageId, string> = {
-  reachability: 'Reachability',
-  authentication: 'Authentication',
-  permissions: 'Read permissions',
-  virtual_server: 'Virtual server',
+const STAGE_LABEL_KEYS: Record<DiagnosticStageId, string> = {
+  reachability: 'connectionDiagnostics.stage.reachability',
+  authentication: 'connectionDiagnostics.stage.authentication',
+  permissions: 'connectionDiagnostics.stage.permissions',
+  virtual_server: 'connectionDiagnostics.stage.virtual_server',
 };
 
 const STAGE_ORDER: DiagnosticStageId[] = [
@@ -26,9 +27,14 @@ export function diagnosticToastMessage(report: ConnectionDiagnosticReport): stri
   }
   const failed = report.stages.find((s) => s.status === 'fail');
   if (report.partial && failed) {
-    return `Partial: ${failed.message}`;
+    return adminOpsText(
+      'connectionDiagnostics.partial',
+      `Partial: ${failed.message}`,
+      { message: failed.message },
+    );
   }
-  return failed?.message || 'Connection diagnostics failed';
+  return failed?.message
+    || adminOpsText('connectionDiagnostics.failed', 'Connection diagnostics failed');
 }
 
 function StageIcon({ status, pending }: { status?: DiagnosticStageResult['status']; pending?: boolean }) {
@@ -51,6 +57,7 @@ export function ConnectionDiagnosticStages({
   className,
   compact = false,
 }: ConnectionDiagnosticStagesProps) {
+  const { t } = useTranslation('adminOps');
   const byId = new Map((report?.stages ?? []).map((s) => [s.id, s]));
   const readPermissionsOk = byId.get('permissions')?.status === 'ok';
 
@@ -61,7 +68,7 @@ export function ConnectionDiagnosticStages({
           'grid gap-1.5 text-[11px]',
           compact ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-1',
         )}
-        aria-label="WebQuery diagnostic stages"
+        aria-label={t('connectionDiagnostics.stagesLabel')}
       >
         {STAGE_ORDER.map((id) => {
           const stage = byId.get(id);
@@ -80,7 +87,7 @@ export function ConnectionDiagnosticStages({
                 <StageIcon status={status} pending={pending && !status} />
               </span>
               <span className="min-w-0">
-                <span className="block font-medium text-foreground">{STAGE_LABELS[id]}</span>
+                <span className="block font-medium text-foreground">{t(STAGE_LABEL_KEYS[id])}</span>
                 {!compact && stage?.message && (
                   <span className="block text-muted-foreground leading-snug">{stage.message}</span>
                 )}
@@ -95,7 +102,7 @@ export function ConnectionDiagnosticStages({
           className="text-[11px] leading-snug text-muted-foreground"
           data-testid="diagnostic-read-not-write"
         >
-          {DIAGNOSTIC_READ_DOES_NOT_AUTHORIZE_WRITES}
+          {t('guidance.diagnosticReadDoesNotAuthorizeWrites')}
         </p>
       )}
     </div>

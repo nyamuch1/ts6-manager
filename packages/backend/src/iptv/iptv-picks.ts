@@ -50,7 +50,7 @@ export async function listIptvPicks(prisma: PrismaClient, serverConfigId: number
 export async function recordIptvRecent(prisma: PrismaClient, serverConfigId: number, channel: IptvChannel): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const playlist = await tx.iptvPlaylist.findFirst({ where: { id: channel.playlistId, serverConfigId }, select: { id: true } });
-    if (!playlist) throw new AppError(404, 'Channel not found');
+    if (!playlist) throw new AppError(404, 'Channel not found', undefined, { messageKey: 'errors.channel_not_found' });
     const previous = await tx.iptvChannelPick.findFirst({
       where: { serverConfigId, lastStreamedAt: { not: null } }, orderBy: { lastStreamedAt: 'desc' }, select: { lastStreamedAt: true },
     });

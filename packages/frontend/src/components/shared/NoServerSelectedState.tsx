@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { AlertCircle, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -33,8 +34,9 @@ interface NoServerSelectedStateProps {
 export function NoServerSelectedState({
   pageTitle,
   icon,
-  selectDescription = 'Choose a server connection from the selector in the header.',
+  selectDescription,
 }: NoServerSelectedStateProps) {
+  const { t } = useTranslation();
   const isAdmin = useAuthStore((state) => state.isAdmin());
   const selectedConfigId = useServerStore((state) => state.selectedConfigId);
   const { isPending: connectionsPending, hasNoConnections } = useConnectionAvailability();
@@ -52,23 +54,23 @@ export function NoServerSelectedState({
     || (selectedConfigId !== null && (!virtualServersResolved || hasVirtualServers));
   if (resolving) return <div className="space-y-5">{header}</div>;
 
-  let title = 'No server selected';
-  let description = selectDescription;
+  let title = t('common:noServer.selected');
+  let description = selectDescription ?? t('common:noServer.chooseConnection');
   let action: ReactNode = null;
   if (hasNoConnections) {
-    title = isAdmin ? 'No server connection configured' : 'No server connection available';
+    title = isAdmin ? t('common:noServer.noneConfigured') : t('common:noServer.noneAvailable');
     description = isAdmin
-      ? 'Use the setup wizard in Settings → Connections to add your TeamSpeak server.'
-      : 'Ask an administrator to add a TeamSpeak connection or grant you access to one.';
-    if (isAdmin) action = <Link to={CONNECTION_SETUP_PATH}>Open connection setup</Link>;
+      ? t('common:noServer.setupHint')
+      : t('common:noServer.askAdmin');
+    if (isAdmin) action = <Link to={CONNECTION_SETUP_PATH}>{t('common:noServer.openSetup')}</Link>;
   } else if (selectedConfigId !== null && virtualServersFailed) {
-    title = 'Virtual servers unavailable';
-    description = 'Virtual servers for the selected connection could not be loaded. Open Virtual Servers for details.';
-    if (isAdmin) action = <Link to="/servers">View virtual servers</Link>;
+    title = t('common:noServer.virtualUnavailable');
+    description = t('common:noServer.virtualUnavailableHint');
+    if (isAdmin) action = <Link to="/servers">{t('common:noServer.viewVirtual')}</Link>;
   } else if (selectedConfigId !== null) {
-    title = 'No virtual server available';
-    description = 'The selected connection has no virtual server to manage. Start one or choose another connection in the header.';
-    if (isAdmin) action = <Link to="/servers">View virtual servers</Link>;
+    title = t('common:noServer.noVirtual');
+    description = t('common:noServer.noVirtualHint');
+    if (isAdmin) action = <Link to="/servers">{t('common:noServer.viewVirtual')}</Link>;
   }
 
   return (
@@ -83,6 +85,7 @@ export function NoServerSelectedState({
 
 /** Explains disabled create actions on pages that still list existing items. */
 export function ConnectionRequiredNotice({ children }: { children: ReactNode }) {
+  const { t } = useTranslation();
   const isAdmin = useAuthStore((state) => state.isAdmin());
   return (
     <div role="status" className="flex flex-col items-start gap-3 rounded-lg border border-warning/40 bg-warning/5 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
@@ -92,7 +95,7 @@ export function ConnectionRequiredNotice({ children }: { children: ReactNode }) 
       </p>
       {isAdmin && (
         <Button size="sm" variant="outline" asChild>
-          <Link to={CONNECTION_SETUP_PATH}>Open connection setup</Link>
+          <Link to={CONNECTION_SETUP_PATH}>{t('common:noServer.openSetup')}</Link>
         </Button>
       )}
     </div>

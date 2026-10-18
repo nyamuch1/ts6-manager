@@ -30,14 +30,20 @@ import {
   type CommandProbeResult,
   type DiagnoseRuntimeMediaOptions,
 } from './runtime-media-diagnostics.js';
+import {
+  DEFAULT_LOCALE,
+  translate,
+  type SupportedLocale,
+} from '../../i18n/index.js';
+
+function imageRemediation(locale: SupportedLocale): string {
+  return translate(locale, 'diagnostics.media.image_remediation');
+}
 
 export const MEDIA_ADMIN_TIMEOUT_MS = 8_000;
 const SMOKE_TIMEOUT_MS = 2_000;
 const TOOL_TIMEOUT_MS = 1_500;
 const ENCODER_WAIT_MS = 2_500;
-
-const IMAGE_REMEDIATION =
-  'Pull or rebuild the TS6 Manager image. Diagnostics do not install binaries into a running container.';
 
 const FFMPEG_SMOKE_ARGS = [
   '-hide_banner',
@@ -74,18 +80,24 @@ export interface DiagnoseMediaAdminOptions extends DiagnoseRuntimeMediaOptions {
   loadEncoders?: (timeoutMs: number) => Promise<VideoEncoderCapabilities>;
 }
 
-export function probeMusicOpus(): { ok: true } | { ok: false; message: string } {
+export function probeMusicOpus(
+  locale: SupportedLocale = DEFAULT_LOCALE,
+): { ok: true } | { ok: false; message: string } {
   try {
     const encoder = new OpusScript(SAMPLE_RATE, CHANNELS, OpusScript.Application.AUDIO);
     try {
       const encoded = encoder.encode(Buffer.alloc(BYTES_PER_FRAME), FRAME_SIZE);
-      if (!encoded?.length) return { ok: false, message: 'Opus encoder returned an empty frame' };
+      if (!encoded?.length) {
+        return { ok: false, message: translate(locale, 'diagnostics.media.opus_empty_frame') };
+      }
       return { ok: true };
     } finally {
       if (typeof encoder.delete === 'function') encoder.delete();
     }
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Opus encoder failed';
+    const message = err instanceof Error
+      ? err.message
+      : translate(locale, 'diagnostics.media.opus_failed');
     return { ok: false, message: clip(message, 160) };
   }
 }
@@ -127,9 +139,16 @@ function stageCheck(
   stage: RuntimeMediaStageResult | undefined,
   label: string,
   remediation: string,
+  locale: SupportedLocale,
 ): MediaDiagnosticCheck {
   if (!stage) {
-    return { id: label, label, status: 'fail', message: 'Not reported', remediation };
+    return {
+      id: label,
+      label,
+      status: 'fail',
+      message: translate(locale, 'diagnostics.media.not_reported'),
+      remediation,
+    };
   }
   const status: MediaDiagnosticStatus = stage.status === 'skipped' ? 'warning' : stage.status;
   return {
@@ -148,9 +167,10 @@ function checkFromProbe(
   result: CommandProbeResult | undefined,
   okMessage: string,
   remediation: string,
+  locale: SupportedLocale,
 ): MediaDiagnosticCheck {
   if (!result) {
-    return skipped(id, label, 'Skipped — overall diagnostic deadline reached');
+    return skipped(id, label, translate(locale, 'diagnostics.media.skipped_deadline'));
   }
   if (result.ok) {
     return {
@@ -189,7 +209,10 @@ async function boundedProbe(
   return run(command, args, budget);
 }
 
-function encoderSummary(caps: VideoEncoderCapabilities): MediaDiagnosticEncoders {
+function encoderSummary(
+  caps: VideoEncoderCapabilities,
+  locale: SupportedLocale,
+): MediaDiagnosticEncoders {
   const items = caps.encoders.map((encoder) => ({
     id: encoder.id,
     codec: encoder.codec,
@@ -204,11 +227,11 @@ function encoderSummary(caps: VideoEncoderCapabilities): MediaDiagnosticEncoders
   return {
     status: softwareOk ? 'ok' : 'warning',
     message: softwareOk
-      ? 'Sidecar reported encoder capabilities (cached GET /encoders; hardware rows can be unavailable without a GPU).'
-      : 'Sidecar answered, but no software encoder is available.',
+      ? translate(locale, 'diagnostics.media.encoders_ok')
+      : translate(locale, 'diagnostics.media.encoders_unavailable'),
     checkedAt: caps.checkedAt,
     items,
-    av1Decode: av1DecodeSummary(caps),
+    av1Decode: av1DecodeSummary(caps, locale),
   };
 }
 
@@ -217,31 +240,54 @@ function encoderSummary(caps: VideoEncoderCapabilities): MediaDiagnosticEncoders
  * that GPU passed and VIDEO_HW_DECODE=1; otherwise libdav1d decodes it on the
  * CPU, which always works.
  */
-export function av1DecodeSummary(caps: VideoEncoderCapabilities): MediaDiagnosticAV1Decode {
+export function av1DecodeSummary(
+  caps: VideoEncoderCapabilities,
+  locale: SupportedLocale = DEFAULT_LOCALE,
+): MediaDiagnosticAV1Decode {
   if (!Array.isArray(caps.av1Decode)) {
-    return { decodesOn: 'unknown', message: 'The sidecar does not report AV1 decoding (sidecars before 1.11).', items: [] };
+    return {
+      decodesOn: 'unknown',
+      message: translate(locale, 'diagnostics.media.av1_not_reported'),
+      items: [],
+    };
   }
   const items = caps.av1Decode.map((probe) => ({
     hwaccel: probe.hwaccel,
     available: probe.available,
     ...(!probe.available && probe.error ? { detail: clip(probe.error, 160) } : {}),
   }));
-  const cpu = 'AV1 sources decode on the CPU (libdav1d).';
+  const cpu = translate(locale, 'diagnostics.media.av1_cpu');
   if (!caps.hwDecode) {
     // The sidecar runs no AV1 test decode then: nothing decodes on the GPU.
-    return { decodesOn: 'cpu', message: `VIDEO_HW_DECODE is off, so the GPU is not tested for AV1. ${cpu}`, items };
+    return {
+      decodesOn: 'cpu',
+      message: translate(locale, 'diagnostics.media.av1_hw_decode_off', { cpu }),
+      items,
+    };
   }
   if (items.length === 0) {
-    return { decodesOn: 'cpu', message: `No GPU to test. ${cpu}`, items };
+    return {
+      decodesOn: 'cpu',
+      message: translate(locale, 'diagnostics.media.av1_no_gpu', { cpu }),
+      items,
+    };
   }
   const passed = items.filter((item) => item.available).map((item) => item.hwaccel);
   if (passed.length === 0) {
     const intel = items.some((item) => item.hwaccel === 'vaapi')
-      ? ' On many Intel GPUs the free Debian VA-API driver cannot decode AV1; see INTEL_VAAPI_DRIVER in the video streaming guide.'
+      ? translate(locale, 'diagnostics.media.av1_intel_hint')
       : '';
-    return { decodesOn: 'cpu', message: `The GPU does not decode AV1. ${cpu}${intel}`, items };
+    return {
+      decodesOn: 'cpu',
+      message: translate(locale, 'diagnostics.media.av1_gpu_failed', { cpu, intel }),
+      items,
+    };
   }
-  return { decodesOn: 'gpu', message: `AV1 sources decode on the GPU (${passed.join(', ')}).`, items };
+  return {
+    decodesOn: 'gpu',
+    message: translate(locale, 'diagnostics.media.av1_gpu', { accelerators: passed.join(', ') }),
+    items,
+  };
 }
 
 function overallOf(report: Pick<MediaAdminDiagnosticReport, 'checks' | 'sidecar' | 'encoders'>): MediaAdminDiagnosticReport['overall'] {
@@ -280,6 +326,7 @@ async function defaultLoadEncoders(env: NodeJS.ProcessEnv, timeoutMs: number): P
 function sidecarSummary(
   stage: RuntimeMediaStageResult | undefined,
   mode: MediaDiagnosticSidecar['mode'],
+  locale: SupportedLocale,
   health?: SidecarHealthBody,
 ): MediaDiagnosticSidecar {
   let status: MediaDiagnosticStatus = 'fail';
@@ -288,7 +335,7 @@ function sidecarSummary(
   return {
     mode,
     status,
-    message: clip(stage?.message || 'Sidecar was not checked'),
+    message: clip(stage?.message || translate(locale, 'diagnostics.media.sidecar_not_checked')),
     ...(health?.version ? { version: health.version } : {}),
     ...(health?.status ? { healthStatus: health.status } : {}),
     ...(health?.videoPort != null ? { videoPort: health.videoPort } : {}),
@@ -300,11 +347,12 @@ async function loadEncoderReport(
   sidecarHealthy: boolean,
   remainingMs: () => number,
   load: NonNullable<DiagnoseMediaAdminOptions['loadEncoders']>,
+  locale: SupportedLocale,
 ): Promise<MediaDiagnosticEncoders> {
   if (!sidecarHealthy) {
     return {
       status: 'warning',
-      message: 'Encoder capabilities were not loaded because the sidecar health check did not succeed. GET /encoders was not called.',
+      message: translate(locale, 'diagnostics.media.encoders_not_loaded'),
       items: [],
     };
   }
@@ -312,16 +360,16 @@ async function loadEncoderReport(
   if (budget < 200) {
     return {
       status: 'warning',
-      message: 'Skipped encoder capabilities — overall diagnostic deadline reached.',
+      message: translate(locale, 'diagnostics.media.encoders_skipped_deadline'),
       items: [],
     };
   }
   try {
-    return encoderSummary(await load(budget));
+    return encoderSummary(await load(budget), locale);
   } catch {
     return {
       status: 'warning',
-      message: 'Encoder capabilities did not answer within the diagnostic budget. Use Check encoders on Streaming defaults.',
+      message: translate(locale, 'diagnostics.media.encoders_timeout'),
       items: [],
     };
   }
@@ -332,6 +380,7 @@ export async function diagnoseMediaAdmin(
 ): Promise<MediaAdminDiagnosticReport> {
   const overallTimeoutMs = options.overallTimeoutMs ?? MEDIA_ADMIN_TIMEOUT_MS;
   const env = options.env ?? process.env;
+  const locale = options.locale ?? DEFAULT_LOCALE;
   const started = Date.now();
   const deadline = started + overallTimeoutMs;
   const remainingMs = () => deadline - Date.now();
@@ -358,13 +407,31 @@ export async function diagnoseMediaAdmin(
   const stage = (id: RuntimeMediaStageResult['id']) => runtime.stages.find((item) => item.id === id);
 
   const checks: MediaDiagnosticCheck[] = [
-    stageCheck(stage('ffmpeg'), 'FFmpeg', `Verify ffmpeg is executable on the backend PATH. ${IMAGE_REMEDIATION}`),
-    stageCheck(stage('ffprobe'), 'ffprobe', `Verify ffprobe is executable on the backend PATH. ${IMAGE_REMEDIATION}`),
+    stageCheck(
+      stage('ffmpeg'),
+      translate(locale, 'diagnostics.media.label.ffmpeg'),
+      translate(locale, 'diagnostics.media.ffmpeg_remediation', {
+        image: imageRemediation(locale),
+      }),
+      locale,
+    ),
+    stageCheck(
+      stage('ffprobe'),
+      translate(locale, 'diagnostics.media.label.ffprobe'),
+      translate(locale, 'diagnostics.media.ffprobe_remediation', {
+        image: imageRemediation(locale),
+      }),
+      locale,
+    ),
   ];
 
   const ffmpegOk = stage('ffmpeg')?.status === 'ok';
   if (!ffmpegOk) {
-    checks.push(skipped('ffmpeg-smoke', 'FFmpeg smoke', 'Skipped because ffmpeg is not available.'));
+    checks.push(skipped(
+      'ffmpeg-smoke',
+      translate(locale, 'diagnostics.media.label.ffmpeg_smoke'),
+      translate(locale, 'diagnostics.media.ffmpeg_smoke_skipped'),
+    ));
   } else {
     const smoke = await boundedProbe(
       remainingMs,
@@ -375,35 +442,47 @@ export async function diagnoseMediaAdmin(
     );
     checks.push(checkFromProbe(
       'ffmpeg-smoke',
-      'FFmpeg smoke',
+      translate(locale, 'diagnostics.media.label.ffmpeg_smoke'),
       smoke,
-      'Decoded a short synthetic input to PCM and discarded it. No file or network output.',
-      'The music decode path could not run a bounded lavfi smoke. Pull or rebuild an image whose ffmpeg includes the lavfi demuxer.',
+      translate(locale, 'diagnostics.media.ffmpeg_smoke_ok'),
+      translate(locale, 'diagnostics.media.ffmpeg_smoke_remediation'),
+      locale,
     ));
   }
 
-  const probeOpus = options.probeOpus ?? probeMusicOpus;
-  const opus = probeOpus();
+  const opus = options.probeOpus ? options.probeOpus() : probeMusicOpus(locale);
   checks.push(
     opus.ok
-      ? { id: 'opus', label: 'Opus', status: 'ok', message: 'In-process Opus encoder produced a silent frame (same settings as music playback).' }
+      ? {
+          id: 'opus',
+          label: translate(locale, 'diagnostics.media.label.opus'),
+          status: 'ok',
+          message: translate(locale, 'diagnostics.media.opus_ok'),
+        }
       : {
         id: 'opus',
-        label: 'Opus',
+        label: translate(locale, 'diagnostics.media.label.opus'),
         status: 'fail',
         message: clip(opus.message),
-        remediation: 'Music playback needs the bundled Opus encoder. Pull or rebuild the image.',
+        remediation: translate(locale, 'diagnostics.media.opus_remediation'),
       },
     stageCheck(
       stage('yt-dlp'),
-      'yt-dlp',
-      `Verify YT_DLP_PATH points to a trusted executable. ${IMAGE_REMEDIATION}`,
+      translate(locale, 'diagnostics.media.label.yt_dlp'),
+      translate(locale, 'diagnostics.media.yt_dlp_remediation', {
+        image: imageRemediation(locale),
+      }),
+      locale,
     ),
   );
 
   const ytOk = stage('yt-dlp')?.status === 'ok';
   if (!ytOk) {
-    checks.push(skipped('yt-dlp-extractors', 'yt-dlp extractors', 'Skipped because yt-dlp is not available.'));
+    checks.push(skipped(
+      'yt-dlp-extractors',
+      translate(locale, 'diagnostics.media.label.yt_dlp_extractors'),
+      translate(locale, 'diagnostics.media.yt_dlp_extractors_skipped'),
+    ));
   } else {
     const listed = await boundedProbe(
       remainingMs,
@@ -414,10 +493,11 @@ export async function diagnoseMediaAdmin(
     );
     checks.push(checkFromProbe(
       'yt-dlp-extractors',
-      'yt-dlp extractors',
+      translate(locale, 'diagnostics.media.label.yt_dlp_extractors'),
       listed,
-      'yt-dlp listed extractors locally. No URL was fetched and no cookies were read into the report.',
-      'yt-dlp could not list its extractors. Pull or rebuild the image; do not self-update yt-dlp inside a container.',
+      translate(locale, 'diagnostics.media.yt_dlp_extractors_ok'),
+      translate(locale, 'diagnostics.media.yt_dlp_extractors_remediation'),
+      locale,
     ));
   }
 
@@ -430,10 +510,13 @@ export async function diagnoseMediaAdmin(
   );
   const denoCheck = checkFromProbe(
     'deno',
-    'Deno',
+    translate(locale, 'diagnostics.media.label.deno'),
     denoProbe,
-    'Deno is available for yt-dlp YouTube challenge solving (--js-runtimes deno).',
-    `Deno could not run. YouTube playback can fail the n challenge. ${IMAGE_REMEDIATION}`,
+    translate(locale, 'diagnostics.media.deno_ok'),
+    translate(locale, 'diagnostics.media.deno_remediation', {
+      image: imageRemediation(locale),
+    }),
+    locale,
   );
   if (denoProbe && !denoProbe.ok && denoProbe.code === 'binary_missing') denoCheck.status = 'warning';
   checks.push(denoCheck);
@@ -446,11 +529,12 @@ export async function diagnoseMediaAdmin(
   }
 
   const sidecarStage = stage('sidecar');
-  const sidecar = sidecarSummary(sidecarStage, runtime.meta.sidecarMode, healthBody);
+  const sidecar = sidecarSummary(sidecarStage, runtime.meta.sidecarMode, locale, healthBody);
   const encoders = await loadEncoderReport(
     sidecarStage?.status === 'ok',
     remainingMs,
     options.loadEncoders ?? ((timeoutMs) => defaultLoadEncoders(env, timeoutMs)),
+    locale,
   );
 
   const draft: MediaAdminDiagnosticReport = {

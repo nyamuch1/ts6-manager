@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { requireRole } from '../middleware/rbac.js';
 import { AppError } from '../middleware/error-handler.js';
+import { translate } from '../i18n/index.js';
+import { requestLocale } from '../i18n/middleware.js';
 import {
   actorFromRequest,
   markPartial,
@@ -31,7 +33,7 @@ botRoutes.get('/:botId', async (req: Request, res: Response, next) => {
   try {
     const prisma = req.app.locals.prisma;
     const bot = await prisma.botFlow.findUnique({ where: { id: parseInt(String(req.params.botId)) } });
-    if (!bot) throw new AppError(404, 'Bot flow not found');
+    if (!bot) throw new AppError(404, 'Bot flow not found', undefined, { messageKey: 'errors.bot_flow_not_found' });
     res.json({
       ...bot,
       flowData: JSON.parse(bot.flowData),
@@ -46,13 +48,17 @@ botRoutes.post('/', requireRole('admin'), async (req: Request, res: Response, ne
 
     const parsedConfigId = parseInt(serverConfigId);
     if (!name || isNaN(parsedConfigId)) {
-      return res.status(400).json({ error: 'Name and valid serverConfigId are required' });
+      return res.status(400).json({
+        error: translate(requestLocale(req), 'errors.name_and_server_config_required'),
+      });
     }
 
     // Verify server config exists
     const serverConfig = await prisma.tsServerConfig.findUnique({ where: { id: parsedConfigId } });
     if (!serverConfig) {
-      return res.status(400).json({ error: `Server config ${parsedConfigId} does not exist` });
+      return res.status(400).json({
+        error: translate(requestLocale(req), 'errors.server_config_does_not_exist', { id: parsedConfigId }),
+      });
     }
 
     // Never audit flowData / description free-text
@@ -93,7 +99,7 @@ botRoutes.put('/:botId', requireRole('admin'), async (req: Request, res: Respons
 
     const botId = parseInt(String(req.params.botId));
     const existing = await prisma.botFlow.findUnique({ where: { id: botId } });
-    if (!existing) throw new AppError(404, 'Bot flow not found');
+    if (!existing) throw new AppError(404, 'Bot flow not found', undefined, { messageKey: 'errors.bot_flow_not_found' });
 
     const { result: bot, operationId } = await recordLocalSuccess(
       prisma,
@@ -125,7 +131,7 @@ botRoutes.delete('/:botId', requireRole('admin'), async (req: Request, res: Resp
     const prisma = req.app.locals.prisma;
     const botId = parseInt(String(req.params.botId));
     const existing = await prisma.botFlow.findUnique({ where: { id: botId } });
-    if (!existing) throw new AppError(404, 'Bot flow not found');
+    if (!existing) throw new AppError(404, 'Bot flow not found', undefined, { messageKey: 'errors.bot_flow_not_found' });
 
     const { operationId } = await recordLocalSuccess(
       prisma,
@@ -159,7 +165,7 @@ botRoutes.post('/:botId/enable', requireRole('admin'), async (req: Request, res:
     const prisma = req.app.locals.prisma;
     const botId = parseInt(String(req.params.botId));
     const existing = await prisma.botFlow.findUnique({ where: { id: botId } });
-    if (!existing) throw new AppError(404, 'Bot flow not found');
+    if (!existing) throw new AppError(404, 'Bot flow not found', undefined, { messageKey: 'errors.bot_flow_not_found' });
 
     const { operationId } = await recordLocalSuccess(
       prisma,
@@ -193,7 +199,7 @@ botRoutes.post('/:botId/disable', requireRole('admin'), async (req: Request, res
     const prisma = req.app.locals.prisma;
     const botId = parseInt(String(req.params.botId));
     const existing = await prisma.botFlow.findUnique({ where: { id: botId } });
-    if (!existing) throw new AppError(404, 'Bot flow not found');
+    if (!existing) throw new AppError(404, 'Bot flow not found', undefined, { messageKey: 'errors.bot_flow_not_found' });
 
     const { operationId } = await recordLocalSuccess(
       prisma,

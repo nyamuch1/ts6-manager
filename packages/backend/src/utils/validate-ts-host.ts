@@ -26,10 +26,10 @@ function allowPrivateHosts(): boolean {
 
 function normalizeHostInput(host: string): string {
   const trimmed = host.trim();
-  if (!trimmed) throw new AppError(400, 'Host is required');
+  if (!trimmed) throw new AppError(400, 'Host is required', undefined, { messageKey: 'errors.host_required' });
 
   if (/[\s/\\?#@]/.test(trimmed) || trimmed.includes('://')) {
-    throw new AppError(400, 'Host must be a hostname or IP address without URL path or credentials');
+    throw new AppError(400, 'Host must be a hostname or IP address without URL path or credentials', undefined, { messageKey: 'errors.host_invalid_format' });
   }
 
   let normalized = trimmed;
@@ -78,16 +78,16 @@ function isPrivateOrLoopbackIp(host: string): boolean {
 
 function assertNotBlockedHost(host: string): void {
   if (BLOCKED_HOSTNAMES.has(host)) {
-    throw new AppError(400, 'Host is not allowed');
+    throw new AppError(400, 'Host is not allowed', undefined, { messageKey: 'errors.host_not_allowed' });
   }
 
   const ipv4 = parseIpv4(host);
   if (ipv4) {
     if (BLOCKED_IPV4.has(ipv4)) {
-      throw new AppError(400, 'Host is not allowed');
+      throw new AppError(400, 'Host is not allowed', undefined, { messageKey: 'errors.host_not_allowed' });
     }
     if (!allowPrivateHosts() && isPrivateOrLoopbackIp(ipv4)) {
-      throw new AppError(400, 'Private or loopback hosts are disabled (set TS_ALLOW_PRIVATE_HOSTS=true to allow)');
+      throw new AppError(400, 'Private or loopback hosts are disabled (set TS_ALLOW_PRIVATE_HOSTS=true to allow)', undefined, { messageKey: 'errors.host_private_disabled' });
     }
     return;
   }
@@ -95,13 +95,13 @@ function assertNotBlockedHost(host: string): void {
   const ipv6 = parseIpv6(host);
   if (ipv6) {
     if (!allowPrivateHosts() && isPrivateOrLoopbackIp(ipv6)) {
-      throw new AppError(400, 'Private or loopback hosts are disabled (set TS_ALLOW_PRIVATE_HOSTS=true to allow)');
+      throw new AppError(400, 'Private or loopback hosts are disabled (set TS_ALLOW_PRIVATE_HOSTS=true to allow)', undefined, { messageKey: 'errors.host_private_disabled' });
     }
     return;
   }
 
   if (!HOSTNAME_RE.test(host)) {
-    throw new AppError(400, 'Invalid hostname');
+    throw new AppError(400, 'Invalid hostname', undefined, { messageKey: 'errors.host_invalid' });
   }
 }
 
@@ -128,7 +128,7 @@ export function isAllowedTsServerHost(host: string): boolean {
 export function validateTsServerPort(port: unknown, fallback: number): number {
   const value = port === undefined || port === null || port === '' ? fallback : Number(port);
   if (!Number.isInteger(value) || value < 1 || value > 65535) {
-    throw new AppError(400, 'Port must be an integer between 1 and 65535');
+    throw new AppError(400, 'Port must be an integer between 1 and 65535', undefined, { messageKey: 'errors.port_invalid' });
   }
   return value;
 }
@@ -140,7 +140,7 @@ export function validateTsServerPort(port: unknown, fallback: number): number {
 export function validateTsQueryServerId(sid: unknown): number {
   const value = typeof sid === 'number' ? sid : Number(sid);
   if (!Number.isInteger(value) || value < 0 || value > 65535) {
-    throw new AppError(400, 'Server id must be an integer between 0 and 65535');
+    throw new AppError(400, 'Server id must be an integer between 0 and 65535', undefined, { messageKey: 'errors.server_id_invalid' });
   }
   return value;
 }
@@ -152,7 +152,7 @@ export function validateTsQueryServerId(sid: unknown): number {
 export function sanitizeWebQueryCommand(command: unknown): string {
   const normalized = String(command ?? '').trim();
   if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(normalized)) {
-    throw new AppError(400, 'Invalid WebQuery command');
+    throw new AppError(400, 'Invalid WebQuery command', undefined, { messageKey: 'errors.webquery_command_invalid' });
   }
   return normalized;
 }
@@ -216,10 +216,10 @@ export function buildTsServerOrigin(host: string, port: number, useHttps: boolea
 
 function assertResolvedAddressAllowed(resolved: string): void {
   if (BLOCKED_IPV4.has(resolved) || BLOCKED_HOSTNAMES.has(resolved)) {
-    throw new AppError(400, 'Host resolves to a blocked address');
+    throw new AppError(400, 'Host resolves to a blocked address', undefined, { messageKey: 'errors.host_blocked_address' });
   }
   if (!allowPrivateHosts() && isPrivateOrLoopbackIp(resolved)) {
-    throw new AppError(400, 'Host resolves to a private or loopback address');
+    throw new AppError(400, 'Host resolves to a private or loopback address', undefined, { messageKey: 'errors.host_private_address' });
   }
 }
 
@@ -241,11 +241,11 @@ export async function assertResolvableTsServerHost(host: string): Promise<string
   try {
     addresses = await dns.lookup(safeHost, { all: true, verbatim: true });
   } catch {
-    throw new AppError(400, 'Host could not be resolved');
+    throw new AppError(400, 'Host could not be resolved', undefined, { messageKey: 'errors.host_unresolved' });
   }
 
   if (addresses.length === 0) {
-    throw new AppError(400, 'Host could not be resolved');
+    throw new AppError(400, 'Host could not be resolved', undefined, { messageKey: 'errors.host_unresolved' });
   }
 
   for (const entry of addresses) {
@@ -281,11 +281,11 @@ export async function resolveValidatedConnectAddress(host: string): Promise<Vali
   try {
     addresses = await dns.lookup(safeHost, { all: true, verbatim: true });
   } catch {
-    throw new AppError(400, 'Host could not be resolved');
+    throw new AppError(400, 'Host could not be resolved', undefined, { messageKey: 'errors.host_unresolved' });
   }
 
   if (addresses.length === 0) {
-    throw new AppError(400, 'Host could not be resolved');
+    throw new AppError(400, 'Host could not be resolved', undefined, { messageKey: 'errors.host_unresolved' });
   }
 
   for (const entry of addresses) {

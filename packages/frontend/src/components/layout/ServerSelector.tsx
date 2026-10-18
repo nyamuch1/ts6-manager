@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useServers, useVirtualServers } from '@/hooks/use-servers';
 import { useServerStore } from '@/stores/server.store';
@@ -17,6 +18,7 @@ function TriggerValue({ caption, children }: { caption: string; children: ReactN
 }
 
 export function ServerSelector() {
+  const { t } = useTranslation('app');
   const { selectedConfigId, selectedSid, setServer, setSid } = useServerStore();
   const { data: servers, isLoading: serversLoading } = useServers();
   const { data: virtualServers, isLoading: virtualServersLoading, isFetching: virtualServersFetching } = useVirtualServers();
@@ -51,14 +53,14 @@ export function ServerSelector() {
     <div className="flex min-w-0 flex-1 items-center gap-1.5 md:flex-none md:gap-2">
       <Server className="hidden h-4 w-4 shrink-0 text-muted-foreground lg:block" />
       <div className="flex min-w-0 flex-1 items-center gap-1 md:flex-none">
-      <span className="sr-only md:not-sr-only text-[10px] uppercase tracking-wide text-muted-foreground">Connection</span>
+      <span className="sr-only md:not-sr-only text-[10px] uppercase tracking-wide text-muted-foreground">{t('serverSelector.connection')}</span>
       <Select
         value={selectedConfigId?.toString() || ''}
         onValueChange={(v) => setServer(parseInt(v))}
       >
-        <SelectTrigger className="h-10 min-w-0 flex-1 px-2 text-xs sm:px-3 md:h-8 md:w-[180px] md:flex-none" aria-label="Select server connection">
-          <TriggerValue caption="Connection">
-            <SelectValue placeholder="Select server..." />
+        <SelectTrigger className="h-10 min-w-0 flex-1 px-2 text-xs sm:px-3 md:h-8 md:w-[180px] md:flex-none" aria-label={t('serverSelector.selectConnection')}>
+          <TriggerValue caption={t('serverSelector.connection')}>
+            <SelectValue placeholder={t('serverSelector.selectServer')} />
           </TriggerValue>
         </SelectTrigger>
         <SelectContent>
@@ -74,15 +76,15 @@ export function ServerSelector() {
       {selectedConnection && (
         <>
           <span className="hidden text-xs text-muted-foreground md:inline" aria-hidden="true">/</span>
-          <span className="sr-only md:not-sr-only text-[10px] uppercase tracking-wide text-muted-foreground">Virtual server</span>
+          <span className="sr-only md:not-sr-only text-[10px] uppercase tracking-wide text-muted-foreground">{t('serverSelector.virtualServer')}</span>
           <Select
             value={displaySid}
             onValueChange={(v) => setSid(parseInt(v))}
             disabled={contextLoading || !virtualServers?.length}
           >
-            <SelectTrigger className="h-10 min-w-0 flex-1 px-2 text-xs sm:px-3 md:h-8 md:w-[160px] md:flex-none" aria-label="Select virtual server">
-              <TriggerValue caption="Virtual server">
-                <SelectValue placeholder={contextLoading ? 'Loading virtual servers…' : 'No virtual server'} />
+            <SelectTrigger className="h-10 min-w-0 flex-1 px-2 text-xs sm:px-3 md:h-8 md:w-[160px] md:flex-none" aria-label={t('serverSelector.selectVirtualServer')}>
+              <TriggerValue caption={t('serverSelector.virtualServer')}>
+                <SelectValue placeholder={contextLoading ? t('serverSelector.loadingVirtualServers') : t('serverSelector.noVirtualServer')} />
               </TriggerValue>
             </SelectTrigger>
             <SelectContent>

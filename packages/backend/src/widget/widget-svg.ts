@@ -1,5 +1,6 @@
 import type { WidgetData, WidgetChannelNode, WidgetTheme, WidgetThemePalette } from '@ts6/common';
 import { WIDGET_THEMES } from '@ts6/common';
+import { DEFAULT_LOCALE, translate, type SupportedLocale } from '../i18n/index.js';
 
 const WIDTH = 400;
 const PADDING = 14;
@@ -8,6 +9,8 @@ const CHANNEL_ROW = 22;
 const CLIENT_ROW = 18;
 const FOOTER_HEIGHT = 28;
 const FONT = "'Segoe UI', 'Helvetica Neue', Arial, sans-serif";
+/** Prefer an installed Noto CJK face so Chinese labels render instead of tofu. */
+const CJK_FONT = `'Noto Sans CJK SC', 'Noto Sans SC', 'Noto Sans CJK JP', ${FONT}`;
 const WIDGET_BRAND_LABEL = 'ts6-manager';
 /** Public repo; clickable when SVG is opened as a document (not via <img>). */
 const WIDGET_BRAND_URL = 'https://github.com/uniskela/ts6-manager';
@@ -21,13 +24,13 @@ function escapeXml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
-function formatUptime(seconds: number): string {
+function formatUptime(seconds: number, locale: SupportedLocale): string {
   const d = Math.floor(seconds / 86400);
   const h = Math.floor((seconds % 86400) / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-  if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
+  if (d > 0) return translate(locale, 'widget.uptime.days_hours', { days: d, hours: h });
+  if (h > 0) return translate(locale, 'widget.uptime.hours_minutes', { hours: h, minutes: m });
+  return translate(locale, 'widget.uptime.minutes', { minutes: m });
 }
 
 function countTreeRows(nodes: WidgetChannelNode[], showClients: boolean): number {
@@ -40,8 +43,9 @@ function countTreeRows(nodes: WidgetChannelNode[], showClients: boolean): number
   return count;
 }
 
-export function renderWidgetSvg(data: WidgetData): string {
+export function renderWidgetSvg(data: WidgetData, locale: SupportedLocale = DEFAULT_LOCALE): string {
   const theme = WIDGET_THEMES[data.theme] || WIDGET_THEMES.dark;
+  const font = locale === 'zh-CN' ? CJK_FONT : FONT;
   const treeRows = data.showChannelTree
     ? countTreeRows(data.channelTree, data.showClients)
     : 0;
@@ -69,17 +73,21 @@ export function renderWidgetSvg(data: WidgetData): string {
   // --- Server name ---
   y += 28;
   const serverName = escapeXml(truncate(data.serverName, 38));
-  lines.push(`<text x="${PADDING}" y="${y}" fill="${theme.accent}" font-family="${FONT}" font-size="15" font-weight="700">${serverName}</text>`);
+  lines.push(`<text x="${PADDING}" y="${y}" fill="${theme.accent}" font-family="${font}" font-size="15" font-weight="700">${serverName}</text>`);
 
   // --- ONLINE badge ---
   const badgeX = WIDTH - PADDING - 52;
   lines.push(`<rect x="${badgeX}" y="${y - 13}" width="52" height="18" rx="9" fill="${theme.clientColor}"/>`);
-  lines.push(`<text x="${badgeX + 26}" y="${y}" fill="#fff" font-family="${FONT}" font-size="10" font-weight="600" text-anchor="middle">ONLINE</text>`);
+  lines.push(`<text x="${badgeX + 26}" y="${y}" fill="#fff" font-family="${font}" font-size="10" font-weight="600" text-anchor="middle">${translate(locale, 'widget.online')}</text>`);
 
   // --- Stats row ---
   y += 22;
-  const stats = `${data.onlineUsers} / ${data.maxClients} users  •  ${formatUptime(data.uptime)} uptime`;
-  lines.push(`<text x="${PADDING}" y="${y}" fill="${theme.textSecondary}" font-family="${FONT}" font-size="11">${escapeXml(stats)}</text>`);
+  const stats = translate(locale, 'widget.stats', {
+    online: data.onlineUsers,
+    max: data.maxClients,
+    uptime: formatUptime(data.uptime, locale),
+  });
+  lines.push(`<text x="${PADDING}" y="${y}" fill="${theme.textSecondary}" font-family="${font}" font-size="11">${escapeXml(stats)}</text>`);
 
   // --- Separator ---
   y += 14;
@@ -88,14 +96,14 @@ export function renderWidgetSvg(data: WidgetData): string {
 
   // --- Channel tree ---
   if (data.showChannelTree) {
-    y = renderTreeNodes(lines, data.channelTree, data.showClients, theme, y, 0);
+    y = renderTreeNodes(lines, data.channelTree, data.showClients, theme, y, 0, locale, font);
   }
 
   // --- Footer (linked brand; works when SVG is opened as a document, not as <img>) ---
   const footerY = totalHeight - 10;
   lines.push(`<line x1="${PADDING}" y1="${footerY - 14}" x2="${WIDTH - PADDING}" y2="${footerY - 14}" stroke="${theme.border}" stroke-width="1"/>`);
   lines.push(`<a href="${WIDGET_BRAND_URL}" target="_blank" rel="noopener noreferrer">`);
-  lines.push(`<text x="${WIDTH / 2}" y="${footerY}" fill="${theme.textSecondary}" font-family="${FONT}" font-size="9" text-anchor="middle" opacity="0.6">${WIDGET_BRAND_LABEL}</text>`);
+  lines.push(`<text x="${WIDTH / 2}" y="${footerY}" fill="${theme.textSecondary}" font-family="${font}" font-size="9" text-anchor="middle" opacity="0.6">${WIDGET_BRAND_LABEL}</text>`);
   lines.push(`</a>`);
 
   lines.push(`</g></svg>`);
@@ -109,6 +117,8 @@ function renderTreeNodes(
   theme: WidgetThemePalette,
   y: number,
   depth: number,
+  locale: SupportedLocale,
+  font: string,
 ): number {
   const indent = PADDING + depth * 16;
 
@@ -123,7 +133,7 @@ function renderTreeNodes(
         const text = escapeXml(node.spacerText || '');
         const anchor = node.spacerType === 'center' ? 'middle' : node.spacerType === 'right' ? 'end' : 'start';
         const tx = node.spacerType === 'center' ? WIDTH / 2 : node.spacerType === 'right' ? WIDTH - PADDING : PADDING;
-        lines.push(`<text x="${tx}" y="${y + 14}" fill="${theme.textSecondary}" font-family="${FONT}" font-size="11" font-weight="600" text-anchor="${anchor}" letter-spacing="0.5">${text}</text>`);
+        lines.push(`<text x="${tx}" y="${y + 14}" fill="${theme.textSecondary}" font-family="${font}" font-size="11" font-weight="600" text-anchor="${anchor}" letter-spacing="0.5">${text}</text>`);
       }
       y += CHANNEL_ROW;
       continue;
@@ -135,18 +145,18 @@ function renderTreeNodes(
     const textX = indent + 14;
 
     // Channel icon (#)
-    lines.push(`<text x="${hashX}" y="${y + 14}" fill="${theme.accent}" font-family="${FONT}" font-size="12" font-weight="700">#</text>`);
-    lines.push(`<text x="${textX}" y="${y + 14}" fill="${theme.textPrimary}" font-family="${FONT}" font-size="12">${channelName}</text>`);
+    lines.push(`<text x="${hashX}" y="${y + 14}" fill="${theme.accent}" font-family="${font}" font-size="12" font-weight="700">#</text>`);
+    lines.push(`<text x="${textX}" y="${y + 14}" fill="${theme.textPrimary}" font-family="${font}" font-size="12">${channelName}</text>`);
 
     // Password lock
     if (node.hasPassword) {
-      lines.push(`<text x="${WIDTH - PADDING - 12}" y="${y + 14}" fill="${theme.textSecondary}" font-family="${FONT}" font-size="10">🔒</text>`);
+      lines.push(`<text x="${WIDTH - PADDING - 12}" y="${y + 14}" fill="${theme.textSecondary}" font-family="${font}" font-size="10">🔒</text>`);
     }
 
     // Client count badge
     if (node.clients.length > 0) {
       const badgeX2 = node.hasPassword ? WIDTH - PADDING - 36 : WIDTH - PADDING - 18;
-      lines.push(`<text x="${badgeX2}" y="${y + 14}" fill="${theme.textSecondary}" font-family="${FONT}" font-size="10" text-anchor="end">${node.clients.length}</text>`);
+      lines.push(`<text x="${badgeX2}" y="${y + 14}" fill="${theme.textSecondary}" font-family="${font}" font-size="10" text-anchor="end">${node.clients.length}</text>`);
     }
 
     y += CHANNEL_ROW;
@@ -156,18 +166,18 @@ function renderTreeNodes(
       for (const client of node.clients) {
         const clientX = indent + 18;
         let displayName = escapeXml(truncate(client.nickname, 32 - depth * 2));
-        if (client.isAway) displayName += ' [away]';
-        if (client.isMuted) displayName += ' [muted]';
+        if (client.isAway) displayName += escapeXml(translate(locale, 'widget.client.away'));
+        if (client.isMuted) displayName += escapeXml(translate(locale, 'widget.client.muted'));
 
         // Small dot indicator
         lines.push(`<circle cx="${indent + 10}" cy="${y + 10}" r="3" fill="${theme.clientColor}"/>`);
-        lines.push(`<text x="${clientX}" y="${y + 13}" fill="${theme.clientColor}" font-family="${FONT}" font-size="11">${displayName}</text>`);
+        lines.push(`<text x="${clientX}" y="${y + 13}" fill="${theme.clientColor}" font-family="${font}" font-size="11">${displayName}</text>`);
         y += CLIENT_ROW;
       }
     }
 
     // Recurse children
-    y = renderTreeNodes(lines, node.children, showClients, theme, y, depth + 1);
+    y = renderTreeNodes(lines, node.children, showClients, theme, y, depth + 1, locale, font);
   }
 
   return y;

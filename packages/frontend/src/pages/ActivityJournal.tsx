@@ -1,4 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { activityJournalApi } from '@/api/activity-journal.api';
 import { useServerStore } from '@/stores/server.store';
@@ -22,11 +24,11 @@ import {
   type JournalTargetToggle,
 } from '@/lib/action-ownership';
 import {
-  captureStatusLabel,
   connectionSidScopeKey,
   historyRefreshPresentation,
   nextScopedCursorStack,
   resolveCaptureStatusDisplay,
+  type CaptureStatusDisplay,
 } from '@/lib/history-status-consistency';
 import { apiErrorMessage } from '@/lib/api-error';
 import { cn } from '@/lib/utils';
@@ -46,17 +48,34 @@ const STATUS_CLASS: Record<ActivityCaptureStatus | 'unknown', string> = {
   persistence_error: 'text-destructive',
 };
 
-function classLabel(c: ActivityClassification): string {
+function classLabel(c: ActivityClassification, t: TFunction): string {
   switch (c) {
     case 'known_bot':
-      return 'Known bot';
+      return t('journal.classification.knownBot');
     case 'query':
-      return 'Query';
+      return t('journal.classification.query');
     case 'voice':
-      return 'Voice';
+      return t('journal.classification.voice');
     default:
-      return 'Unknown';
+      return t('journal.classification.unknown');
   }
+}
+
+function captureStatusText(
+  display: CaptureStatusDisplay,
+  reconnectAttempt: number | undefined,
+  t: TFunction,
+): string {
+  if (display.kind === 'unknown') return t('journal.captureStatus.unknown');
+  let base = display.status === 'persistence_error'
+    ? t('journal.captureStatus.persistenceError')
+    : t(`journal.captureStatus.${display.status}`);
+  if (display.status === 'interrupted' && (reconnectAttempt ?? 0) > 0) {
+    base = t('journal.captureStatus.reconnecting');
+  }
+  return display.kind === 'stale'
+    ? t('journal.captureStatus.stale', { status: base })
+    : base;
 }
 
 function formatWhen(iso: string): string {
@@ -68,6 +87,7 @@ function formatWhen(iso: string): string {
 }
 
 export default function ActivityJournal() {
+  const { t } = useTranslation('adminOps');
   const { selectedConfigId: c, selectedSid: s } = useServerStore();
   const queryClient = useQueryClient();
   const scopeKey = connectionSidScopeKey(c, s);
@@ -176,14 +196,14 @@ export default function ActivityJournal() {
   }, [historyQuery.data, kindFilter, classFilter]);
 
   const statusError = statusQuery.isError
-    ? apiErrorMessage(statusQuery.error, 'Could not refresh capture status.')
+    ? apiErrorMessage(statusQuery.error, t('journal.statusError'))
     : null;
   const historyError = historyQuery.isError
     ? apiErrorMessage(
       historyQuery.error,
       historyQuery.data
-        ? 'History refresh failed. The last successful page is still displayed.'
-        : 'Could not load activity journal history.',
+        ? t('journal.historyRefreshError')
+        : t('journal.historyError'),
     )
     : null;
   const backgroundError = statusError || historyError;
@@ -192,18 +212,18 @@ export default function ActivityJournal() {
     isFetching: isFetchingGate,
     hasError: !!backgroundError,
     livePolling: historyLive,
-    idleLiveLabel: 'Live journal history active',
+    idleLiveLabel: t('journal.refresh.idleLive'),
     idleStaticLabel: onNewestPage
       ? captureStatusForLive === 'connecting'
-        ? 'Capture connecting…'
+        ? t('journal.refresh.idleConnecting')
         : captureStatusForLive === 'interrupted'
           ? ((pairStatus?.reconnectAttempt ?? 0) > 0
-            ? 'Capture interrupted — reconnecting…'
-            : 'Capture interrupted')
-          : 'Journal history up to date'
-      : 'This journal page loaded',
-    refreshingLabel: 'Refreshing journal…',
-    degradedLabel: 'Journal updates interrupted',
+            ? t('journal.refresh.idleInterruptedReconnecting')
+            : t('journal.refresh.idleInterrupted'))
+          : t('journal.refresh.idleUpToDate')
+      : t('journal.refresh.idleOlder'),
+    refreshingLabel: t('journal.refresh.refreshing'),
+    degradedLabel: t('journal.refresh.degraded'),
   });
 
   const retryRefresh = () => {
@@ -212,7 +232,13 @@ export default function ActivityJournal() {
   };
 
   if (!c || !s) {
-    return <NoServerSelectedState pageTitle="Activity Journal" icon={NotebookPen} selectDescription="Select a connection and virtual server to view the activity journal." />;
+    return (
+      <NoServerSelectedState
+        pageTitle={t('journal.title')}
+        icon={NotebookPen}
+        selectDescription={t('journal.selectDescription')}
+      />
+    );
   }
 
   if (statusQuery.isLoading && historyQuery.isLoading) return <PageLoader />;
@@ -222,12 +248,12 @@ export default function ActivityJournal() {
       <div className="space-y-4">
         <EmptyState
           icon={NotebookPen}
-          title="Could not load journal history"
-          description={historyError ?? 'Could not load activity journal history.'}
+          title={t('journal.loadFailedTitle')}
+          description={historyError ?? t('journal.historyError')}
         />
         <div className="flex justify-center">
           <Button size="sm" variant="outline" onClick={retryRefresh} disabled={isFetchingGate}>
-            {isFetchingGate ? 'Retrying…' : 'Retry'}
+            {isFetchingGate ? t('common:refresh.retrying') : t('common:action.retry')}
           </Button>
         </div>
       </div>
@@ -240,14 +266,13 @@ export default function ActivityJournal() {
     <div className="space-y-4" data-testid="activity-journal-page">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Activity Journal</h1>
+          <h1 className="text-xl font-semibold">{t('journal.title')}</h1>
           <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-            Opt-in TeamSpeak join/leave history for this connection and virtual server.
-            Identity fields are allow-listed (no IPs or chat). Retention:{' '}
-            {statusQuery.data?.retention.days ?? 7}d /{' '}
-            {(statusQuery.data?.retention.perConnectionSid ?? 10000).toLocaleString()} per
-            connection-SID /{' '}
-            {(statusQuery.data?.retention.global ?? 100000).toLocaleString()} global.
+            {t('journal.description', {
+              days: statusQuery.data?.retention.days ?? 7,
+              perSid: (statusQuery.data?.retention.perConnectionSid ?? 10000).toLocaleString(),
+              global: (statusQuery.data?.retention.global ?? 100000).toLocaleString(),
+            })}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -259,8 +284,8 @@ export default function ActivityJournal() {
             degradedLabel={refreshPresentation.degradedLabel}
           />
           {refreshPresentation.showLiveBadge && (
-            <span className="text-xs font-medium text-emerald-600" title="History refreshes while capturing" data-testid="journal-live-badge">
-              Live
+            <span className="text-xs font-medium text-emerald-600" title={t('journal.liveTitle')} data-testid="journal-live-badge">
+              {t('journal.live')}
             </span>
           )}
           <Button
@@ -276,7 +301,7 @@ export default function ActivityJournal() {
                 isFetchingGate && 'animate-spin',
               )}
             />
-            Refresh
+            {t('common:action.refresh')}
           </Button>
         </div>
       </div>
@@ -311,20 +336,18 @@ export default function ActivityJournal() {
             id="journal-capture"
           />
           <label htmlFor="journal-capture" className="text-sm font-medium">
-            Capture for config {c} / SID {s}
+            {t('journal.captureFor', { config: c, sid: s })}
           </label>
         </div>
         <div className="text-sm" data-testid="journal-capture-status">
-          Status:{' '}
+          {t('journal.status')}{' '}
           <span className={cn('font-medium', STATUS_CLASS[statusClassKey], captureDisplay.kind === 'stale' && 'text-amber-600')}>
-            {captureStatusLabel(captureDisplay, {
-              reconnectAttempt: pairStatus?.reconnectAttempt,
-            })}
+            {captureStatusText(captureDisplay, pairStatus?.reconnectAttempt, t)}
           </span>
         </div>
         {pairStatus && pairStatus.droppedEvents > 0 && (
           <Badge variant="outline" className="text-amber-600 border-amber-500/40">
-            Gaps: {pairStatus.droppedEvents} dropped
+            {t('journal.gaps', { count: pairStatus.droppedEvents })}
           </Badge>
         )}
         {pairStatus?.lastError && (
@@ -338,9 +361,9 @@ export default function ActivityJournal() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="ALL">All events</SelectItem>
-            <SelectItem value="join">Joins</SelectItem>
-            <SelectItem value="leave">Leaves</SelectItem>
+            <SelectItem value="ALL">{t('journal.filters.allEvents')}</SelectItem>
+            <SelectItem value="join">{t('journal.filters.joins')}</SelectItem>
+            <SelectItem value="leave">{t('journal.filters.leaves')}</SelectItem>
           </SelectContent>
         </Select>
         <Select
@@ -351,11 +374,11 @@ export default function ActivityJournal() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="ALL">All classifications</SelectItem>
-            <SelectItem value="voice">Voice</SelectItem>
-            <SelectItem value="known_bot">Known bot</SelectItem>
-            <SelectItem value="query">Query</SelectItem>
-            <SelectItem value="unknown">Unknown</SelectItem>
+            <SelectItem value="ALL">{t('journal.filters.allClassifications')}</SelectItem>
+            <SelectItem value="voice">{t('journal.classification.voice')}</SelectItem>
+            <SelectItem value="known_bot">{t('journal.classification.knownBot')}</SelectItem>
+            <SelectItem value="query">{t('journal.classification.query')}</SelectItem>
+            <SelectItem value="unknown">{t('journal.classification.unknown')}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -367,30 +390,32 @@ export default function ActivityJournal() {
               className="sticky top-0 z-10 grid min-w-[36rem] grid-cols-[10rem_4.5rem_minmax(7rem,1fr)_5.5rem_minmax(8rem,1.25fr)] gap-x-3 border-b border-border bg-card/95 px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground backdrop-blur-sm"
               role="row"
             >
-              <span>Date / time</span>
-              <span>Event</span>
-              <span>User</span>
-              <span>Type</span>
-              <span>Identity</span>
+              <span>{t('journal.table.dateTime')}</span>
+              <span>{t('journal.table.event')}</span>
+              <span>{t('journal.table.user')}</span>
+              <span>{t('journal.table.type')}</span>
+              <span>{t('journal.table.identity')}</span>
             </div>
             <div className="min-w-0 divide-y divide-border/60">
               {historyQuery.isLoading ? (
-                <p className="text-center text-muted-foreground text-sm py-10">Loading…</p>
+                <p className="text-center text-muted-foreground text-sm py-10">{t('common:action.loading')}</p>
               ) : items.length === 0 ? (
                 <p className="text-center text-muted-foreground text-sm py-10">
                   {captureDisplay.kind === 'unknown'
-                    ? 'No journal entries on this page. Capture status is not known yet.'
+                    ? t('journal.empty.unknown')
                     : enabled
-                      ? 'No journal entries yet for this context.'
-                      : 'Capture is disabled. Enable capture to record joins and leaves.'}
+                      ? t('journal.empty.enabled')
+                      : t('journal.empty.disabled')}
                 </p>
               ) : (
                 items.map((entry: ClientActivityEntry) => {
                   const identityBits = [
-                    entry.databaseId != null ? `dbid ${entry.databaseId}` : null,
+                    entry.databaseId != null
+                      ? t('journal.identity.databaseId', { id: entry.databaseId })
+                      : null,
                     entry.uniqueId || null,
                     entry.identityProvenance !== 'event' && entry.identityProvenance !== 'none'
-                      ? `via ${entry.identityProvenance}`
+                      ? t('journal.identity.via', { value: entry.identityProvenance })
                       : null,
                   ].filter(Boolean);
                   const identityLine = identityBits.join(' · ') || '—';
@@ -409,10 +434,10 @@ export default function ActivityJournal() {
                         </Badge>
                       </span>
                       <span className="min-w-0 truncate font-medium" title={entry.nickname || undefined}>
-                        {entry.nickname || `clid ${entry.clientId}`}
+                        {entry.nickname || t('journal.identity.clientId', { id: entry.clientId })}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {classLabel(entry.classification)}
+                        {classLabel(entry.classification, t)}
                       </span>
                       <span
                         className="min-w-0 truncate text-xs text-muted-foreground font-mono-data"
@@ -439,7 +464,7 @@ export default function ActivityJournal() {
             cursorStack: prev.scopeKey === scopeKey ? prev.cursorStack.slice(0, -1) : [null],
           }))}
         >
-          Newer
+          {t('journal.newer')}
         </Button>
         <Button
           size="sm"
@@ -455,7 +480,7 @@ export default function ActivityJournal() {
             }
           }}
         >
-          Older
+          {t('journal.older')}
         </Button>
       </div>
     </div>

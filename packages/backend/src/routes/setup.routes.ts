@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { AppError } from '../middleware/error-handler.js';
 import { validatePassword } from '../utils/validate-password.js';
+import { translate } from '../i18n/index.js';
+import { requestLocale } from '../i18n/middleware.js';
 
 export const setupRoutes: Router = Router();
 
@@ -21,10 +23,16 @@ setupRoutes.post('/init', async (req: Request, res: Response, next) => {
 
     // Only allow if no users exist
     const userCount = await prisma.user.count();
-    if (userCount > 0) throw new AppError(403, 'Setup already completed');
+    if (userCount > 0) {
+      throw new AppError(403, 'Setup already completed', undefined, { messageKey: 'errors.setup_completed' });
+    }
 
     const { username, password, displayName } = req.body;
-    if (!username || !password) throw new AppError(400, 'Username and password are required');
+    if (!username || !password) {
+      throw new AppError(400, 'Username and password are required', undefined, {
+        messageKey: 'errors.username_password_required',
+      });
+    }
 
     const pwError = validatePassword(password);
     if (pwError) throw new AppError(400, pwError);
@@ -39,6 +47,9 @@ setupRoutes.post('/init', async (req: Request, res: Response, next) => {
       },
     });
 
-    res.status(201).json({ success: true, message: 'Admin account created. You can now log in.' });
+    res.status(201).json({
+      success: true,
+      message: translate(requestLocale(req), 'errors.admin_created'),
+    });
   } catch (err) { next(err); }
 });

@@ -1,18 +1,29 @@
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Check, Circle, Loader2, RefreshCw, X } from 'lucide-react';
 import type { RuntimeMediaDiagnosticReport, RuntimeMediaStageId, RuntimeMediaStageResult } from '@ts6/common';
 import { Button } from '@/components/ui/button';
 import { useRuntimeMediaDiagnostics } from '@/hooks/use-runtime-media-diagnostics';
-import {
-  RUNTIME_MEDIA_NOT_CHECKED,
-  RUNTIME_MEDIA_SIDECAR_START_HINT,
-  RUNTIME_MEDIA_YTDLP_UPDATE_HINT,
-  runtimeMediaOverallLabel,
-  runtimeMediaPrerequisiteMessage,
-  runtimeMediaStageLabel,
-} from '@/lib/runtime-media-guidance';
+import { runtimeMediaPrerequisiteMessage } from '@/lib/runtime-media-guidance';
 import { cn } from '@/lib/utils';
 
 const STAGE_ORDER: RuntimeMediaStageId[] = ['yt-dlp', 'ffmpeg', 'ffprobe', 'sidecar'];
+
+/** Product names (yt-dlp/ffmpeg/ffprobe) stay as-is; Sidecar is localized. */
+function stageLabel(id: RuntimeMediaStageId, t: TFunction): string {
+  return id === 'sidecar' ? t('runtimeMedia.stage.sidecar') : id;
+}
+
+function overallLabel(
+  overall: 'ok' | 'partial' | 'fail' | undefined,
+  unchecked: boolean,
+  t: TFunction,
+): string {
+  if (unchecked || !overall) return t('runtimeMedia.overall.notChecked');
+  if (overall === 'ok') return t('runtimeMedia.overall.ready');
+  if (overall === 'partial') return t('runtimeMedia.overall.partial');
+  return t('runtimeMedia.overall.unavailable');
+}
 
 function StageIcon({ status, pending }: { status?: RuntimeMediaStageResult['status']; pending?: boolean }) {
   if (pending) return <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />;
@@ -45,6 +56,7 @@ export function RuntimeMediaDiagnostics({
   stageColumns = 4,
   showPrerequisite = false,
 }: RuntimeMediaDiagnosticsProps) {
+  const { t } = useTranslation('adminOps');
   const {
     report,
     isFetching,
@@ -58,9 +70,10 @@ export function RuntimeMediaDiagnostics({
   const stages = report?.stages;
   const byId = new Map((stages ?? []).map((s) => [s.id, s]));
   const visible = focus?.length ? STAGE_ORDER.filter((id) => focus.includes(id)) : STAGE_ORDER;
-  const overallLabel = runtimeMediaOverallLabel(
+  const overall = overallLabel(
     report?.overall,
     Boolean(notChecked || offlineUnchecked || (!report && !isFetching && !isError)),
+    t,
   );
   const prerequisite = showPrerequisite
     ? runtimeMediaPrerequisiteMessage(stages, focus ?? ['sidecar', 'ffmpeg', 'yt-dlp'])
@@ -74,18 +87,18 @@ export function RuntimeMediaDiagnostics({
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="text-[11px] font-medium text-foreground">
-            Runtime / media
-            <span className="ml-1.5 font-normal text-muted-foreground">· {overallLabel}</span>
+            {t('runtimeMedia.title')}
+            <span className="ml-1.5 font-normal text-muted-foreground">· {overall}</span>
             {invalidated && report && (
-              <span className="ml-1.5 font-normal text-amber-500">· stale</span>
+              <span className="ml-1.5 font-normal text-amber-500">{t('runtimeMedia.staleMarker')}</span>
             )}
           </p>
           {(notChecked || offlineUnchecked) && !isFetching && (
-            <p className="text-[11px] text-muted-foreground leading-snug">{RUNTIME_MEDIA_NOT_CHECKED}</p>
+            <p className="text-[11px] text-muted-foreground leading-snug">{t('runtimeMedia.notChecked')}</p>
           )}
           {isError && !isFetching && (
             <p className="text-[11px] text-destructive leading-snug">
-              Could not run runtime diagnostics. Use Refresh to retry.
+              {t('runtimeMedia.runFailed')}
             </p>
           )}
         </div>
@@ -96,8 +109,8 @@ export function RuntimeMediaDiagnostics({
           className="h-7 w-7 shrink-0"
           onClick={() => refresh()}
           disabled={isFetching}
-          aria-label="Refresh runtime media diagnostics"
-          title="Refresh runtime media diagnostics"
+          aria-label={t('runtimeMedia.refreshLabel')}
+          title={t('runtimeMedia.refreshLabel')}
         >
           <RefreshCw className={cn('h-3.5 w-3.5', isFetching && 'animate-spin')} />
         </Button>
@@ -111,7 +124,7 @@ export function RuntimeMediaDiagnostics({
             compact && stageColumns === 2 && 'grid-cols-2',
             compact && stageColumns === 4 && 'grid-cols-2 sm:grid-cols-4',
           )}
-          aria-label="Runtime media diagnostic stages"
+          aria-label={t('runtimeMedia.stagesLabel')}
         >
           {visible.map((id) => {
             const stage = byId.get(id);
@@ -130,7 +143,7 @@ export function RuntimeMediaDiagnostics({
                   <StageIcon status={status} pending={isFetching && !status} />
                 </span>
                 <span className="min-w-0">
-                  <span className="block font-medium text-foreground">{runtimeMediaStageLabel(id)}</span>
+                  <span className="block font-medium text-foreground">{stageLabel(id, t)}</span>
                   {!compact && stage?.message && (
                     <span className="block text-muted-foreground leading-snug">{stage.message}</span>
                   )}
@@ -153,8 +166,8 @@ export function RuntimeMediaDiagnostics({
       {report && !isFetching && (
         <p className="text-[10px] leading-snug text-muted-foreground">
           {focus?.includes('yt-dlp') || !focus
-            ? RUNTIME_MEDIA_YTDLP_UPDATE_HINT
-            : RUNTIME_MEDIA_SIDECAR_START_HINT}
+            ? t('runtimeMedia.updateHintYtDlp')
+            : t('runtimeMedia.updateHintSidecar')}
         </p>
       )}
     </div>
@@ -169,15 +182,16 @@ export function RuntimeMediaDiagnosticsReportView({
   report?: RuntimeMediaDiagnosticReport | null;
   pending?: boolean;
 }) {
+  const { t } = useTranslation('adminOps');
   const byId = new Map((report?.stages ?? []).map((s) => [s.id, s]));
   return (
-    <ol className="grid grid-cols-2 gap-1.5 text-[11px] sm:grid-cols-4" aria-label="Runtime media diagnostic stages">
+    <ol className="grid grid-cols-2 gap-1.5 text-[11px] sm:grid-cols-4" aria-label={t('runtimeMedia.stagesLabel')}>
       {STAGE_ORDER.map((id) => {
         const stage = byId.get(id);
         return (
           <li key={id} className="flex items-start gap-1.5 rounded border border-border/60 px-2 py-1.5">
             <StageIcon status={stage?.status} pending={pending && !stage} />
-            <span className="font-medium">{runtimeMediaStageLabel(id)}</span>
+            <span className="font-medium">{stageLabel(id, t)}</span>
           </li>
         );
       })}

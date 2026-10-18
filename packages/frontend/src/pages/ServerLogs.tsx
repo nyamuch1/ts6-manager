@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import type { ServerLogPage } from '@ts6/common';
 import { LOGVIEW_MAX_LINES } from '@ts6/common';
@@ -32,9 +33,7 @@ import {
 } from '@/lib/history-status-consistency';
 import {
   formatLogTimestamp,
-  levelBadgeLabel,
   logLevelMatchesFilter,
-  LOG_TIMESTAMP_ZONE_UNKNOWN_HINT,
   parseServerLogLine,
   type ServerLogLevel,
 } from '@/lib/server-logs';
@@ -50,7 +49,16 @@ const LEVEL_COLORS: Record<ServerLogLevel, string> = {
 
 const PAGE_SIZE_OPTIONS = ['50', '100'] as const;
 
+const LEVEL_BADGE_KEY: Record<ServerLogLevel, string> = {
+  ERROR: 'logs.levelBadge.error',
+  WARNING: 'logs.levelBadge.warning',
+  INFO: 'logs.levelBadge.info',
+  DEBUG: 'logs.levelBadge.debug',
+  UNKNOWN: 'logs.levelBadge.unknown',
+};
+
 export default function ServerLogs() {
+  const { t } = useTranslation('adminOps');
   const { selectedConfigId: c, selectedSid: s } = useServerStore();
   const { data: servers } = useServers();
   const { data: virtualServers, isLoading: virtualServersLoading, error: virtualServersError, refetch: refetchVirtualServers, isFetching: virtualServersFetching } = useVirtualServers();
@@ -148,7 +156,7 @@ export default function ServerLogs() {
     }));
   };
 
-  if (!c || !s) return <NoServerSelectedState pageTitle="Server Logs" icon={ScrollText} />;
+  if (!c || !s) return <NoServerSelectedState pageTitle={t('logs.title')} icon={ScrollText} />;
 
   if (gateError && !hasPage) {
     const logviewIo = isTeamSpeakLogviewIo(gateError);
@@ -160,15 +168,15 @@ export default function ServerLogs() {
           description={apiErrorMessage(
             gateError,
             logviewIo
-              ? 'TeamSpeak could not read its logfile (permissions, lock, or rotation). Manager is connected — use Retry once after a few seconds, or check the TeamSpeak logs volume.'
+              ? t('logs.errors.logviewIo')
               : isTeamSpeakStarting(gateError)
-                ? 'TeamSpeak Query is still coming up after startup. Wait a moment and retry.'
-                : 'Could not load server logs from TeamSpeak.',
+                ? t('logs.errors.starting')
+                : t('logs.errors.loadFailed'),
           )}
         />
         <div className="flex justify-center">
           <Button size="sm" variant="outline" onClick={retryGate} disabled={isFetchingGate}>
-            {isFetchingGate ? 'Retrying…' : 'Retry'}
+            {isFetchingGate ? t('common:refresh.retrying') : t('common:action.retry')}
           </Button>
         </div>
       </div>
@@ -183,10 +191,10 @@ export default function ServerLogs() {
     ? apiErrorMessage(
       gateError,
       isTeamSpeakLogviewIo(gateError)
-        ? 'TeamSpeak could not read its logfile. The last successful page is still displayed — Retry once; do not leave this page auto-refreshing.'
+        ? t('logs.errors.logviewIoBackground')
         : isTeamSpeakStarting(gateError)
-          ? 'TeamSpeak Query is still starting. Log data may be incomplete until it comes online.'
-          : 'Log refresh failed. The last successful page is still displayed.',
+          ? t('logs.errors.startingBackground')
+          : t('logs.errors.refreshFailed'),
     )
     : null;
   const refreshTone = !contextIsValid && !gateError
@@ -197,9 +205,9 @@ export default function ServerLogs() {
     isFetching: isFetchingGate,
     hasError: !!gateError,
     livePolling: false,
-    idleStaticLabel: onNewestPage ? 'Newest log page up to date' : 'This log page loaded',
-    refreshingLabel: 'Refreshing logs…',
-    degradedLabel: 'Log updates interrupted',
+    idleStaticLabel: onNewestPage ? t('logs.refresh.idleNewest') : t('logs.refresh.idleOlder'),
+    refreshingLabel: t('logs.refresh.refreshing'),
+    degradedLabel: t('logs.refresh.degraded'),
   });
 
   const filtersActive = filter.length > 0 || levelFilter !== 'ALL';
@@ -208,40 +216,44 @@ export default function ServerLogs() {
     if (filtered.length > 0) return null;
     if (parsedEntries.length === 0) {
       if (beginPos) {
-        return 'No older log entries for this cursor. Refresh for the newest page if the log rotated.';
+        return t('logs.empty.noOlder');
       }
       if (instanceMode) {
-        return 'Instance log returned no entries. The TeamSpeak instance logfile may be empty, or instance logview is unavailable for this connection.';
+        return t('logs.empty.instanceEmpty');
       }
-      return 'No virtual server log entries on this page.';
+      return t('logs.empty.virtualServerEmpty');
     }
-    if (filtersActive) return 'No matches on this page.';
+    if (filtersActive) return t('logs.empty.noMatches');
     return null;
   })();
 
   const scopeLabel = instanceMode
-    ? 'Instance log (not scoped to the selected virtual server)'
-    : `Virtual server log · SID ${s}${virtualServer?.virtualserver_name ? ` · ${virtualServer.virtualserver_name}` : ''}`;
+    ? t('logs.scope.instance')
+    : virtualServer?.virtualserver_name
+      ? t('logs.scope.virtualServerNamed', { sid: s, name: virtualServer.virtualserver_name })
+      : t('logs.scope.virtualServer', { sid: s });
 
   return (
     <div className="space-y-4" data-testid="server-logs-page">
       <PageHeader
-        title="Server Logs"
+        title={t('logs.title')}
         icon={ScrollText}
         description={(
           <div className="space-y-1">
             <p>
-              Connection: {connection?.name ?? `config ${c}`}
+              {t('logs.connection', {
+                name: connection?.name ?? t('logs.configFallback', { id: c }),
+              })}
             </p>
             <p data-testid="logs-scope-label">{scopeLabel}</p>
             {page?.fetchedAt && (
-              <p className="text-xs">Fetched {formatLocalDateTime(page.fetchedAt)}</p>
+              <p className="text-xs">{t('logs.fetched', { time: formatLocalDateTime(page.fetchedAt) })}</p>
             )}
           </div>
         )}
         actions={(
           <Button size="sm" variant="outline" onClick={refreshNewest} disabled={isFetchingGate} aria-busy={isFetchingGate}>
-            <RefreshCw className={cn('h-4 w-4 mr-1', query.isFetching && 'animate-spin')} /> Refresh
+            <RefreshCw className={cn('h-4 w-4 mr-1', query.isFetching && 'animate-spin')} /> {t('common:action.refresh')}
           </Button>
         )}
         metadata={(
@@ -251,7 +263,7 @@ export default function ServerLogs() {
             idleLabel={refreshPresentation.idleLabel}
             refreshingLabel={refreshPresentation.refreshingLabel}
             degradedLabel={refreshPresentation.degradedLabel}
-            startingLabel="Waiting for TeamSpeak Query…"
+            startingLabel={t('common:refresh.waiting')}
           />
         )}
       />
@@ -266,7 +278,7 @@ export default function ServerLogs() {
 
       {scopeMismatch && (
         <StaleDataNotice
-          message="Log scope response did not match the selected Instance / Virtual server mode. Refresh to reload."
+          message={t('logs.errors.scopeMismatch')}
           onRetry={retryGate}
           isRetrying={isFetchingGate}
         />
@@ -276,52 +288,52 @@ export default function ServerLogs() {
         <div className="relative min-w-[12rem] flex-1 sm:max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Filter this page…"
-            aria-label="Filter this page"
+            placeholder={t('logs.filterPlaceholder')}
+            aria-label={t('logs.filterLabel')}
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             className="pl-8 h-9"
           />
         </div>
         <Select value={levelFilter} onValueChange={setLevelFilter}>
-          <SelectTrigger className="h-9 w-[calc(50%-0.25rem)] min-w-28 flex-1 text-xs sm:w-[150px] sm:flex-none" aria-label="Level filter this page">
+          <SelectTrigger className="h-9 w-[calc(50%-0.25rem)] min-w-28 flex-1 text-xs sm:w-[150px] sm:flex-none" aria-label={t('logs.levelFilterLabel')}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="ALL">All levels (this page)</SelectItem>
-            <SelectItem value="ERROR">Error (this page)</SelectItem>
-            <SelectItem value="WARNING">Warning (this page)</SelectItem>
-            <SelectItem value="INFO">Info (this page)</SelectItem>
-            <SelectItem value="DEBUG">Debug (this page)</SelectItem>
-            <SelectItem value="UNKNOWN">Unknown (this page)</SelectItem>
+            <SelectItem value="ALL">{t('logs.level.all')}</SelectItem>
+            <SelectItem value="ERROR">{t('logs.level.error')}</SelectItem>
+            <SelectItem value="WARNING">{t('logs.level.warning')}</SelectItem>
+            <SelectItem value="INFO">{t('logs.level.info')}</SelectItem>
+            <SelectItem value="DEBUG">{t('logs.level.debug')}</SelectItem>
+            <SelectItem value="UNKNOWN">{t('logs.level.unknown')}</SelectItem>
           </SelectContent>
         </Select>
         <Select value={lines} onValueChange={setLines}>
-          <SelectTrigger className="h-9 w-[calc(50%-0.25rem)] min-w-28 flex-1 text-xs sm:w-[130px] sm:flex-none" aria-label="Page size">
+          <SelectTrigger className="h-9 w-[calc(50%-0.25rem)] min-w-28 flex-1 text-xs sm:w-[130px] sm:flex-none" aria-label={t('logs.pageSizeLabel')}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {PAGE_SIZE_OPTIONS.map((value) => (
-              <SelectItem key={value} value={value}>{value} lines</SelectItem>
+              <SelectItem key={value} value={value}>{t('logs.lines', { count: Number(value) })}</SelectItem>
             ))}
           </SelectContent>
         </Select>
         <Select value={instanceMode ? 'instance' : 'vs'} onValueChange={(v) => setInstanceMode(v === 'instance')}>
-          <SelectTrigger className="h-9 w-full min-w-40 flex-1 text-xs sm:w-[200px] sm:flex-none" aria-label="Log source scope">
+          <SelectTrigger className="h-9 w-full min-w-40 flex-1 text-xs sm:w-[200px] sm:flex-none" aria-label={t('logs.sourceScopeLabel')}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="vs">Virtual server log</SelectItem>
-            <SelectItem value="instance">Instance log</SelectItem>
+            <SelectItem value="vs">{t('logs.sourceVirtualServer')}</SelectItem>
+            <SelectItem value="instance">{t('logs.sourceInstance')}</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       <p className="text-xs text-muted-foreground" data-testid="logs-filter-hint">
-        Search and level filters apply to this page only. They do not fetch older history.
+        {t('logs.filterHint')}
       </p>
       <p className="text-xs text-muted-foreground" data-testid="logs-timezone-hint">
-        {LOG_TIMESTAMP_ZONE_UNKNOWN_HINT}
+        {t('logs.timezoneHint')}
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -332,7 +344,7 @@ export default function ServerLogs() {
           disabled={cursorStack.length === 0 || query.isFetching}
           data-testid="logs-previous"
         >
-          <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+          <ChevronLeft className="h-4 w-4 mr-1" /> {t('logs.previous')}
         </Button>
         <Button
           size="sm"
@@ -341,11 +353,14 @@ export default function ServerLogs() {
           disabled={!page?.nextBeginPos || query.isFetching}
           data-testid="logs-older"
         >
-          Older <ChevronRight className="h-4 w-4 ml-1" />
+          {t('logs.older')} <ChevronRight className="h-4 w-4 ml-1" />
         </Button>
         <span className="text-xs text-muted-foreground" data-testid="logs-page-meta">
-          {cursorStack.length === 0 ? 'Newest page' : `Older page ${cursorStack.length}`}
-          {page?.nextBeginPos ? '' : ' · end of available cursor'}
+          {cursorStack.length === 0
+            ? (page?.nextBeginPos ? t('logs.pageMeta.newest') : t('logs.pageMeta.newestEnd'))
+            : (page?.nextBeginPos
+              ? t('logs.pageMeta.older', { count: cursorStack.length })
+              : t('logs.pageMeta.olderEnd', { count: cursorStack.length }))}
         </span>
       </div>
 
@@ -371,7 +386,7 @@ export default function ServerLogs() {
                         LEVEL_COLORS[entry.parsed.level],
                       )}
                     >
-                      {levelBadgeLabel(entry.parsed.level)}
+                      {t(LEVEL_BADGE_KEY[entry.parsed.level])}
                     </span>
                     <div className="min-w-0 flex-1">
                       {tsText && (
@@ -392,8 +407,9 @@ export default function ServerLogs() {
       </div>
 
       <p className="text-xs text-muted-foreground" data-testid="logs-count">
-        {filtered.length} of {parsedEntries.length} entries on this page
-        {instanceMode ? ' · instance logfile' : ` · VS ${s}`}
+        {instanceMode
+          ? t('logs.countInstance', { filtered: filtered.length, total: parsedEntries.length })
+          : t('logs.countVirtualServer', { filtered: filtered.length, total: parsedEntries.length, sid: s })}
       </p>
     </div>
   );

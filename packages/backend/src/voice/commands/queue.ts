@@ -1,5 +1,6 @@
 import type { VoiceBot } from '../voice-bot.js';
-import { QueueFullError, type QueueItem, type QueueReservation } from '../playlist/queue.js';
+import { MAX_QUEUE_ITEMS, QueueFullError, type QueueItem, type QueueReservation } from '../playlist/queue.js';
+import { translateChat } from '../bot-locale.js';
 import { defaultMediaUrlDeps, runMediaUrlPipeline, type MediaUrlPipelineDeps } from '../media-url-pipeline.js';
 import { invalidatePlaylistExpansion } from '../playlist-expansion.js';
 import { musicHistoryErrorCode, recordMusicRequests } from '../music-request-history.js';
@@ -161,17 +162,34 @@ export async function enqueueMediaUrl(
   const pendingTotal = result.queuedInBackground;
   const playlistNote =
     pendingTotal > 0
-      ? ` (+${pendingTotal} more from${result.playlistTitle ? ` "${result.playlistTitle}"` : ' playlist'})`
+      ? translateChat(
+        context.locale,
+        result.playlistTitle ? 'bot.media.playlist_note_named' : 'bot.media.playlist_note',
+        { count: pendingTotal, title: result.playlistTitle },
+      )
       : '';
 
   if (alreadyPlaying) {
     context.reply(
       bot,
       userClid,
-      `Queued: ${result.first.artist} - ${result.first.title} (position #${trackNumber(bot, bot.queue.length - 1)})${playlistNote}`,
+      translateChat(context.locale, 'bot.media.queued', {
+        artist: result.first.artist,
+        title: result.first.title,
+        position: trackNumber(bot, bot.queue.length - 1),
+        playlistNote,
+      }),
     );
   } else {
-    context.reply(bot, userClid, `Now playing: ${result.first.artist} - ${result.first.title}${playlistNote}`);
+    context.reply(
+      bot,
+      userClid,
+      translateChat(context.locale, 'bot.media.now_playing', {
+        artist: result.first.artist,
+        title: result.first.title,
+        playlistNote,
+      }),
+    );
   }
 }
 
@@ -184,7 +202,10 @@ export async function handlePlaylist(
   args: string,
 ): Promise<void> {
   const serverConfigId = bot.currentConfig.serverConfigId;
-  if (!serverConfigId) { context.reply(bot, userClid, 'No server configured.'); return; }
+  if (!serverConfigId) {
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.playlist.no_server'));
+    return;
+  }
   // A Stop, queue clear or bot restart while the playlist is looked up drops this load.
   const stopGeneration = bot.stopGeneration;
   const where = { OR: [{ serverConfigId }, { serverConfigId: null }] };
@@ -193,27 +214,41 @@ export async function handlePlaylist(
   });
   const query = args.trim().toLowerCase();
   if (!query) {
-    context.reply(bot, userClid, playlists.length
-      ? 'Playlists (first 10):\n' + playlists.slice(0, 10).map(p => `[${p.id}] ${p.name.slice(0, 60)}`).join('\n')
-      : 'No playlists configured for this bot/server.');
+    context.reply(
+      bot,
+      userClid,
+      playlists.length
+        ? translateChat(context.locale, 'bot.playlist.list_heading') + '\n' +
+          playlists.slice(0, 10).map(p => `[${p.id}] ${p.name.slice(0, 60)}`).join('\n')
+        : translateChat(context.locale, 'bot.playlist.none'),
+    );
     return;
   }
   const byId = /^\d+$/.test(query) ? playlists.filter(p => p.id === Number(query)) : [];
   const exact = playlists.filter(p => p.name.toLowerCase() === query);
   const matches = byId.length ? byId : exact.length ? exact : playlists.filter(p => p.name.toLowerCase().includes(query));
   if (matches.length !== 1) {
-    context.reply(bot, userClid, matches.length
-      ? 'Ambiguous playlist; use an ID: ' + matches.slice(0, 5).map(p => `[${p.id}] ${p.name.slice(0, 60)}`).join(', ')
-      : 'Playlist not found. Use !playlist to list.');
+    context.reply(
+      bot,
+      userClid,
+      matches.length
+        ? translateChat(context.locale, 'bot.playlist.ambiguous', {
+          matches: matches.slice(0, 5).map(p => `[${p.id}] ${p.name.slice(0, 60)}`).join(', '),
+        })
+        : translateChat(context.locale, 'bot.playlist.not_found'),
+    );
     return;
   }
   const playlist = await context.prisma.playlist.findFirst({
     where: { ...where, id: matches[0].id },
     include: { songs: { include: { song: true }, orderBy: { position: 'asc' } } },
   });
-  if (!playlist?.songs.length) { context.reply(bot, userClid, 'Playlist is empty.'); return; }
+  if (!playlist?.songs.length) {
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.playlist.empty'));
+    return;
+  }
   if (context.voiceBotManager.getBot(botId) !== bot || bot.stopGeneration !== stopGeneration) {
-    void context.reply(bot, userClid, 'Playback was stopped before the playlist was loaded.');
+    void context.reply(bot, userClid, translateChat(context.locale, 'bot.playlist.stopped'));
     return;
   }
   const items: QueueItem[] = playlist.songs.map(({ song }) => ({
@@ -225,7 +260,15 @@ export async function handlePlaylist(
     bot.queue.addMany(items);
   } catch (err) {
     if (!(err instanceof QueueFullError)) throw err;
-    void context.reply(bot, userClid, err.message);
+    void context.reply(bot, userClid, translateChat(
+      context.locale,
+      err.requested > 1 ? 'bot.queue.full_multi' : 'bot.queue.full',
+      {
+        room: err.room,
+        requested: err.requested,
+        limit: MAX_QUEUE_ITEMS.toLocaleString('en-US'),
+      },
+    ));
     return;
   }
   context.saveMusicRequest(bot, items);
@@ -233,17 +276,28 @@ export async function handlePlaylist(
     const first = bot.queue.playAt(bot.queue.index < 0 ? 0 : bot.queue.index + 1);
     if (first) await bot.play(first, context.chatMusicSwitch(bot)); // VoiceBot owns local/stream playlist resolution.
   }
-  context.reply(bot, userClid, `Queued playlist "${playlist.name.slice(0, 60)}" (${items.length} tracks).`);
+  context.reply(
+    bot,
+    userClid,
+    translateChat(context.locale, 'bot.playlist.queued', {
+      name: playlist.name.slice(0, 60),
+      count: items.length,
+    }),
+  );
 }
 
 /** Report or set the queue repeat mode after validating the requested mode. */
 export function handleRepeat(context: CommandContext, bot: VoiceBot, userClid: number, args: string): void {
   const mode = args.trim().toLowerCase();
   if (mode && mode !== 'off' && mode !== 'track' && mode !== 'queue') {
-    context.reply(bot, userClid, 'Usage: !repeat [off|track|queue]'); return;
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.repeat.usage')); return;
   }
   if (mode === 'off' || mode === 'track' || mode === 'queue') bot.queue.setRepeat(mode);
-  context.reply(bot, userClid, `Repeat mode: ${bot.queue.repeat}`);
+  context.reply(
+    bot,
+    userClid,
+    translateChat(context.locale, 'bot.repeat.mode', { mode: bot.queue.repeat }),
+  );
 }
 
 /**
@@ -260,28 +314,47 @@ function indexOfTrackNumber(bot: VoiceBot, raw: string): number {
   return (/^[1-9]\d*$/.test(value) ? Number(value) : Number.NaN) - 1 - bot.queue.pruned;
 }
 
-function invalidTrackNumber(bot: VoiceBot): string {
-  if (bot.queue.length === 0) return 'Invalid index. The queue is empty.';
-  return `Invalid index. Use a track number from ${trackNumber(bot, 0)} to ${trackNumber(bot, bot.queue.length - 1)} (see !queue).`;
+function invalidTrackNumber(context: CommandContext, bot: VoiceBot): string {
+  if (bot.queue.length === 0) return translateChat(context.locale, 'bot.queue.invalid_empty');
+  return translateChat(context.locale, 'bot.queue.invalid_range', {
+    min: trackNumber(bot, 0),
+    max: trackNumber(bot, bot.queue.length - 1),
+  });
 }
 
 /** Remove one unambiguous upcoming track matched by title or artist. */
 export function handleRemove(context: CommandContext, bot: VoiceBot, userClid: number, args: string): void {
   const query = args.trim().toLowerCase();
-  if (!query) { context.reply(bot, userClid, 'Usage: !remove <text>'); return; }
+  if (!query) {
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.remove.usage'));
+    return;
+  }
   const upcoming = bot.queue.getAll().map((item, index) => ({ item, index }))
     .filter(({ index }) => index > bot.queue.index);
   const exact = upcoming.filter(({ item }) => item.title.toLowerCase() === query || item.artist?.toLowerCase() === query);
   const matches = exact.length ? exact : upcoming.filter(({ item }) =>
     item.title.toLowerCase().includes(query) || item.artist?.toLowerCase().includes(query));
   if (matches.length !== 1) {
-    context.reply(bot, userClid, matches.length
-      ? 'Multiple matches; use !queue remove <n>: ' + matches.slice(0, 5).map(({ item, index }) => `#${trackNumber(bot, index)} ${item.title.slice(0, 60)}`).join(', ')
-      : 'No upcoming track matches.');
+    context.reply(
+      bot,
+      userClid,
+      matches.length
+        ? translateChat(context.locale, 'bot.remove.multiple', {
+          matches: matches.slice(0, 5).map(({ item, index }) =>
+            `#${trackNumber(bot, index)} ${item.title.slice(0, 60)}`).join(', '),
+        })
+        : translateChat(context.locale, 'bot.remove.none'),
+    );
     return;
   }
   bot.queue.removeAt(matches[0].index);
-  context.reply(bot, userClid, `Removed: ${matches[0].item.title.slice(0, 100)}`);
+  context.reply(
+    bot,
+    userClid,
+    translateChat(context.locale, 'bot.remove.removed', {
+      title: matches[0].item.title.slice(0, 100),
+    }),
+  );
 }
 
 /** Lines one !queue reply lists. */
@@ -299,7 +372,13 @@ export function showQueue(context: CommandContext, bot: VoiceBot, userClid: numb
   context.reply(
     bot,
     userClid,
-    formatQueueMessage(trackLines, bot.queue.index, QUEUE_LINES, { start, numberOffset: bot.queue.pruned }),
+    formatQueueMessage(
+      trackLines,
+      bot.queue.index,
+      QUEUE_LINES,
+      { start, numberOffset: bot.queue.pruned },
+      context.locale,
+    ),
   );
 }
 
@@ -322,13 +401,17 @@ export async function handleQueue(
     const idx = indexOfTrackNumber(bot, args.substring(7));
     const items = bot.queue.getAll();
     if (isNaN(idx) || idx < 0 || idx >= items.length) {
-      void context.reply(bot, userClid, invalidTrackNumber(bot));
+      void context.reply(bot, userClid, invalidTrackNumber(context, bot));
       return;
     }
     const removed = items[idx];
     const number = trackNumber(bot, idx);
     bot.queue.removeAt(idx);
-    void context.reply(bot, userClid, `Removed #${number}: ${removed.title}`);
+    void context.reply(
+      bot,
+      userClid,
+      translateChat(context.locale, 'bot.queue.removed', { number, title: removed.title }),
+    );
     return;
   }
 
@@ -338,7 +421,7 @@ export async function handleQueue(
     const number = trackNumber(bot, idx);
     const item = bot.queue.playAt(idx);
     if (!item) {
-      void context.reply(bot, userClid, invalidTrackNumber(bot));
+      void context.reply(bot, userClid, invalidTrackNumber(context, bot));
       return;
     }
     if (item.streamUrl) {
@@ -346,7 +429,11 @@ export async function handleQueue(
     } else {
       await bot.play(item, context.chatMusicSwitch(bot));
     }
-    void context.reply(bot, userClid, `Playing #${number}: ${item.title}`);
+    void context.reply(
+      bot,
+      userClid,
+      translateChat(context.locale, 'bot.queue.playing', { number, title: item.title }),
+    );
     return;
   }
 
@@ -356,22 +443,22 @@ export async function handleQueue(
     invalidatePlaylistExpansion(bot.currentConfig.id);
     bot.queue.clear();
     bot.clearPlayback();
-    context.reply(bot, userClid, 'Queue cleared.');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.queue.cleared'));
     return;
   }
 
   // URL provided — add to queue without interrupting
   if (!args.startsWith('http://') && !args.startsWith('https://')) {
-    context.reply(bot, userClid, 'Usage: !queue [show|play <n>|remove <n>|clear|<url>]');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.queue.usage'));
     return;
   }
 
-  context.reply(bot, userClid, 'Loading...');
+  context.reply(bot, userClid, translateChat(context.locale, 'bot.play.loading'));
 
   try {
     await context.enqueueMediaUrl(botId, bot, userClid, args);
   } catch (err: any) {
-    context.reply(bot, userClid, `Failed to queue: ${err.message}`);
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.queue.failed', { error: err.message }));
   }
 }
 
@@ -386,12 +473,16 @@ export function handleShuffle(context: CommandContext, bot: VoiceBot, userClid: 
   } else if (arg === 'off' || arg === '0' || arg === 'false' || arg === 'no') {
     enabled = false;
   } else {
-    context.reply(bot, userClid, 'Usage: !shuffle [on|off]');
+    context.reply(bot, userClid, translateChat(context.locale, 'bot.shuffle.usage'));
     return;
   }
 
   bot.queue.setShuffle(enabled);
-  context.reply(bot, userClid, enabled ? 'Shuffle on.' : 'Shuffle off.');
+  context.reply(
+    bot,
+    userClid,
+    translateChat(context.locale, enabled ? 'bot.shuffle.on' : 'bot.shuffle.off'),
+  );
 }
 
 /** Record a canonical source reference in per-bot request history without blocking playback. */

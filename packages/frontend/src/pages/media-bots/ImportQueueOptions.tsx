@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import {
   Select,
   SelectContent,
@@ -23,6 +24,7 @@ export function ImportQueueOptions({
   clearFirst: boolean;
   onClearFirstChange: (v: boolean) => void;
 }) {
+  const { t } = useTranslation('media');
   const running = bots.filter(
     (b) =>
       b.serverConfigId === configId &&
@@ -32,7 +34,7 @@ export function ImportQueueOptions({
   if (!configId || running.length === 0) {
     return (
       <p className="text-[10px] text-muted-foreground">
-        Start a media bot on this server to import directly to its queue.
+        {t('importQueue.startBot')}
       </p>
     );
   }
@@ -40,10 +42,10 @@ export function ImportQueueOptions({
     <div className="flex flex-wrap items-center gap-2">
       <Select value={botId || 'none'} onValueChange={(v) => onBotIdChange(v === 'none' ? '' : v)}>
         <SelectTrigger className="h-8 w-44 text-xs">
-          <SelectValue placeholder="Enqueue to bot..." />
+          <SelectValue placeholder={t('importQueue.placeholder')} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="none">No bot queue</SelectItem>
+          <SelectItem value="none">{t('importQueue.noBotQueue')}</SelectItem>
           {running.map((b) => (
             <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
           ))}
@@ -57,7 +59,7 @@ export function ImportQueueOptions({
             onChange={(e) => onClearFirstChange(e.target.checked)}
             className="accent-primary"
           />
-          Clear queue first
+          {t('importQueue.clearFirst')}
         </label>
       )}
     </div>

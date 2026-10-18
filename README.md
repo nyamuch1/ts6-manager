@@ -173,6 +173,7 @@ Compare two to four entities from the same permission layer in a read-only table
 - Production Node images omit npm/npx/pnpm/Corepack and esbuild build tooling; CI rebuilds and Trivy-scans all release images, failing on fixable HIGH/CRITICAL findings
 
 ### Settings & Administration
+- Interface language in English or Simplified Chinese, switchable per visitor from Settings → Appearance or the public pages; the choice is stored in the browser
 - Browser-local appearance controls with Light, Dark, or Black base themes and Cyan, Violet, Red, Blue, Emerald, or Amber accents
 - yt-dlp cookie file management for accessing age-restricted or member-only YouTube content
 - Upload cookies via file or paste directly in the UI
